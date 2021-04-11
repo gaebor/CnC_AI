@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import argparse
 import logging
 
@@ -56,44 +58,78 @@ def training_data_iterator(filename):
             ) / 255
 
 
-def main():
-    filename = sys.argv[1]
-    window = 5
+def main(args):
+    if args.load:
+        predictor = torch.load(args.load)
+    else:
+        predictor = model.Predictor(
+            model.ImageEmbedding(time_window=args.window), model.Generator()
+        ).to('cuda')
 
-    predictor = model.Predictor(
-        model.ImageEmbedding(time_window=window - 1), model.Generator()
-    ).to('cuda')
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=0.01, momentum=0, alpha=0.5)
-
-    batch = torch.Tensor(numpy.zeros((window, 3, 405, 720), dtype='float32')).to('cuda')
 
     loss_f = torch.nn.MSELoss()
 
     toimage = transforms.ToPILImage()
-    y = WindowedIterator(training_data_iterator(filename), window=window).iter()
-    iter_index = 0
-    while True:
-        try:
-            p = y.next(batch)
-            ordered_batch = torch.matmul(torch.Tensor(p).to('cuda'), batch.view(window, -1)).view(
-                *batch.shape
+
+    for _ in range(args.epoch):
+        for filename in args.folder:
+            batch = torch.Tensor(numpy.zeros((args.window + 1, 3, 405, 720), dtype='float32')).to(
+                'cuda'
             )
+            y = WindowedIterator(training_data_iterator(filename), window=args.window + 1).iter()
+            iter_index = 0
+            while True:
+                try:
+                    p = y.next(batch)
+                except StopIteration:
+                    break
+                ordered_batch = torch.matmul(
+                    torch.Tensor(p).to('cuda'), batch.view(args.window + 1, -1)
+                ).view(*batch.shape)
 
-            optimizer.zero_grad()
-            predicted = predictor(ordered_batch[:-1])[0]
+                optimizer.zero_grad()
+                predicted = predictor(ordered_batch[:-1])[0]
 
-            error = loss_f(predicted, ordered_batch[-1])
-            print(error)
+                error = loss_f(predicted, ordered_batch[-1])
+                logging.info(error.to('cpu').detach().numpy())
 
-            error.backward()
-            optimizer.step()
+                error.backward()
+                optimizer.step()
 
-            if iter_index % 60 == 0:
-                toimage(torch.cat([ordered_batch[-1], predicted], dim=1).to('cpu').detach()).show()
-            iter_index += 1
-        except StopIteration:
-            break
+                if iter_index % 60 == 0:
+                    toimage(
+                        torch.cat([ordered_batch[-1], predicted], dim=1).to('cpu').detach()
+                    ).show()
+                iter_index += 1
+        torch.save(predictor, args.model)
+
+
+def get_params():
+    parser = argparse.ArgumentParser(
+        description="""author: Gábor Borbély, contact: borbely@math.bme.hu""",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        'folder',
+        nargs='+',
+        help='folder(s) of the training video(s), saved with '
+        'https://github.com/gaebor/CnC_Remastered_Collection/blob/ai/grab_websocket.py',
+    )
+    parser.add_argument(
+        '--window',
+        type=int,
+        default=4,
+        help='time windows to consider when calculating the next frame',
+    )
+    parser.add_argument(
+        '--epoch', type=int, default=1, help='number of times to iterate over one video',
+    )
+    parser.add_argument('--model', default='cnc_background_model', help='name of the saved model')
+    parser.add_argument('--load', default='', help='model to load and continue training, if any')
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+    main(get_params())
