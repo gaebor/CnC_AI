@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import time
 
 import sys
 import json
@@ -66,12 +67,12 @@ def main(args):
             model.ImageEmbedding(time_window=args.window), model.Generator()
         ).to('cuda')
 
-    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=0.01, momentum=0, alpha=0.5)
+    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
     loss_f = torch.nn.MSELoss()
 
     toimage = transforms.ToPILImage()
-
+    previous_time = time.time()
     for _ in range(args.epoch):
         for filename in args.folder:
             batch = torch.Tensor(numpy.zeros((args.window + 1, 3, 405, 720), dtype='float32')).to(
@@ -92,7 +93,12 @@ def main(args):
                 predicted = predictor(ordered_batch[:-1])[0]
 
                 error = loss_f(predicted, ordered_batch[-1])
-                logging.info(error.to('cpu').detach().numpy())
+
+                current_time = time.time()
+                logging.info(
+                    f"loss: {error.to('cpu').detach().numpy():e}, time: {current_time-previous_time:e}"
+                )
+                previous_time = current_time
 
                 error.backward()
                 optimizer.step()
@@ -125,11 +131,14 @@ def get_params():
     parser.add_argument(
         '--epoch', type=int, default=1, help='number of times to iterate over one video',
     )
-    parser.add_argument('--model', default='cnc_background_model', help='name of the saved model')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+    parser.add_argument(
+        '--model', default='cnc_background_model.pt', help='name of the saved model'
+    )
     parser.add_argument('--load', default='', help='model to load and continue training, if any')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+    logging.basicConfig(level=logging.INFO)
     main(get_params())
