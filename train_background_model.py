@@ -13,50 +13,13 @@ from PIL import Image
 import torch
 import numpy
 from torchvision import transforms
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
 
 
 import matplotlib.pyplot as plt
 
 import model
-
-
-class WindowedIterator:
-    def __init__(self, extractor, window=5):
-        self.extractor = extractor
-        self.window = window
-
-    def iter(self):
-        self.permutation_mask = numpy.zeros((self.window, self.window), dtype='float32')
-        self.target_index = 0
-        self.extractor_iter = iter(self.extractor)
-        return self
-
-    def next(self, target_array):
-        next_element = next(self.extractor_iter)
-        target_array[self.target_index] = next_element
-
-        self.permutation_mask = numpy.roll(self.permutation_mask, -1, axis=0)
-        self.permutation_mask[-1] = 0
-        self.permutation_mask[-1, self.target_index] = 1
-
-        self.target_index += 1
-        self.target_index %= self.window
-
-        return self.permutation_mask
-
-
-def training_data_iterator(filename):
-    with zipfile.ZipFile(filename, 'r') as f:
-        messages = json.loads(f.read('messages.json'))
-        frames = {message['frame']: message for message in messages if 'frame' in message}
-
-        for frame_number in sorted(frames.keys()):
-            filename = f'{frame_number:010}.bmp'
-            file_content = f.read(filename)
-            frame = Image.open(BytesIO(file_content))
-            yield torch.Tensor(numpy.array(frame, dtype='float32').transpose((2, 0, 1))).to(
-                'cuda'
-            ) / 255
 
 
 def main(args):
@@ -74,40 +37,29 @@ def main(args):
     toimage = transforms.ToPILImage()
     previous_time = time.time()
     for _ in range(args.epoch):
-        for filename in args.folder:
-            batch = torch.Tensor(numpy.zeros((args.window + 1, 3, 405, 720), dtype='float32')).to(
-                'cuda'
+        dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
+        dataloader = DataLoader(
+            dataset, batch_size=args.window + 1, shuffle=False, num_workers=0, pin_memory=True
+        )
+        for iter_index, (batch, _) in enumerate(dataloader):
+            batch = batch.to('cuda', non_blocking=True)
+            optimizer.zero_grad()
+            predicted = predictor(batch[:-1])[0]
+
+            error = loss_f(predicted, batch[-1])
+
+            current_time = time.time()
+            logging.info(
+                f"loss: {error.to('cpu').detach().numpy():e}, time: {current_time-previous_time:e}"
             )
-            y = WindowedIterator(training_data_iterator(filename), window=args.window + 1).iter()
-            iter_index = 0
-            while True:
-                try:
-                    p = y.next(batch)
-                except StopIteration:
-                    break
-                ordered_batch = torch.matmul(
-                    torch.Tensor(p).to('cuda'), batch.view(args.window + 1, -1)
-                ).view(*batch.shape)
+            previous_time = current_time
 
-                optimizer.zero_grad()
-                predicted = predictor(ordered_batch[:-1])[0]
+            error.backward()
+            optimizer.step()
 
-                error = loss_f(predicted, ordered_batch[-1])
-
-                current_time = time.time()
-                logging.info(
-                    f"loss: {error.to('cpu').detach().numpy():e}, time: {current_time-previous_time:e}"
-                )
-                previous_time = current_time
-
-                error.backward()
-                optimizer.step()
-
-                if iter_index % 60 == 0:
-                    toimage(
-                        torch.cat([ordered_batch[-1], predicted], dim=1).to('cpu').detach()
-                    ).show()
-                iter_index += 1
+            if iter_index % 60 == 0:
+                toimage(torch.cat([batch[-1], predicted], dim=1).to('cpu').detach()).show()
+            iter_index += 1
         torch.save(predictor, args.model)
 
 
@@ -118,8 +70,7 @@ def get_params():
     )
     parser.add_argument(
         'folder',
-        nargs='+',
-        help='folder(s) of the training video(s), saved with '
+        help='folder of the training videos, saved with '
         'https://github.com/gaebor/CnC_Remastered_Collection/blob/ai/grab_websocket.py',
     )
     parser.add_argument(
