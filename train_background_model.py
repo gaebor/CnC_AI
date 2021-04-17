@@ -3,23 +3,18 @@
 import argparse
 import logging
 import time
+import math
 
-import sys
-import json
-import zipfile
-from io import BytesIO
-
-from PIL import Image
 import torch
-import numpy
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
-
-import matplotlib.pyplot as plt
-
 import model
+
+
+def number_of_digits(n):
+    return len(str(n))
 
 
 def main(args):
@@ -37,7 +32,7 @@ def main(args):
 
     toimage = transforms.ToPILImage()
     previous_time = time.time()
-    for _ in range(args.epoch):
+    for epoch_index in range(args.epoch):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
         dataloader = DataLoader(
             dataset, batch_size=args.batch, shuffle=True, num_workers=0, pin_memory=True
@@ -52,8 +47,15 @@ def main(args):
 
             current_time = time.time()
             logging.info(
-                "loss: {:e}, fps: {:g}".format(
-                    error.to('cpu').detach().numpy(), args.batch / (current_time - previous_time)
+                "epoch: {:0{}d}/{}, iter: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
+                    epoch_index + 1,
+                    number_of_digits(args.epoch + 1),
+                    args.epoch,
+                    iter_index + 1,
+                    number_of_digits(len(dataloader)),
+                    len(dataloader),
+                    error.to('cpu').detach().numpy(),
+                    args.batch / (current_time - previous_time),
                 )
             )
             previous_time = current_time
@@ -61,7 +63,7 @@ def main(args):
                 error.backward()
                 optimizer.step()
 
-            if iter_index % 60 == 0:
+            if iter_index % args.sample == 0:
                 toimage(torch.cat([batch[-1], predicted[-1]], dim=1).to('cpu').detach()).show()
             iter_index += 1
         torch.save(predictor, args.model)
@@ -81,7 +83,7 @@ def get_params():
         '--batch', type=int, default=8, help='batch size',
     )
     parser.add_argument(
-        '--epoch', type=int, default=1, help='number of times to iterate over one video',
+        '--epoch', type=int, default=1, help='number of times to iterate over dataset',
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
@@ -96,7 +98,7 @@ def get_params():
     )
     parser.add_argument(
         '--sample',
-        default=10,
+        default=20,
         type=int,
         help='sample generated images once every \'sample\' batch',
     )
