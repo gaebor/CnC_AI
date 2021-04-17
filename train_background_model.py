@@ -26,9 +26,7 @@ def main(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = model.Predictor(
-            model.ImageEmbedding(time_window=args.window), model.Generator()
-        ).to('cuda')
+        predictor = model.Predictor(model.ImageEmbedding(), model.Generator()).to('cuda')
 
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
@@ -39,18 +37,20 @@ def main(args):
     for _ in range(args.epoch):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
         dataloader = DataLoader(
-            dataset, batch_size=args.window + 1, shuffle=False, num_workers=0, pin_memory=True
+            dataset, batch_size=args.batch, shuffle=True, num_workers=0, pin_memory=True
         )
         for iter_index, (batch, _) in enumerate(dataloader):
             batch = batch.to('cuda', non_blocking=True)
             optimizer.zero_grad()
-            predicted = predictor(batch[:-1])[0]
+            predicted = predictor(batch)
 
-            error = loss_f(predicted, batch[-1])
+            error = loss_f(predicted, batch)
 
             current_time = time.time()
             logging.info(
-                f"loss: {error.to('cpu').detach().numpy():e}, time: {current_time-previous_time:e}"
+                "loss: {:e}, fps: {:e}".format(
+                    error.to('cpu').detach().numpy(), args.batch / (current_time - previous_time)
+                )
             )
             previous_time = current_time
 
@@ -58,7 +58,7 @@ def main(args):
             optimizer.step()
 
             if iter_index % 60 == 0:
-                toimage(torch.cat([batch[-1], predicted], dim=1).to('cpu').detach()).show()
+                toimage(torch.cat([batch[-1], predicted[-1]], dim=1).to('cpu').detach()).show()
             iter_index += 1
         torch.save(predictor, args.model)
 
@@ -74,19 +74,22 @@ def get_params():
         'https://github.com/gaebor/CnC_Remastered_Collection/blob/ai/grab_websocket.py',
     )
     parser.add_argument(
-        '--window',
-        type=int,
-        default=4,
-        help='time windows to consider when calculating the next frame',
+        '--batch', type=int, default=8, help='batch size',
     )
     parser.add_argument(
-        '--epoch', type=int, default=1, help='number of times to iterate over one video',
+        '--epoch', type=int, default=2, help='number of times to iterate over one video',
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
         '--model', default='cnc_background_model.pt', help='name of the saved model'
     )
     parser.add_argument('--load', default='', help='model to load and continue training, if any')
+    parser.add_argument(
+        '--sample',
+        default=10,
+        type=int,
+        help='sample generated images once every \'sample\' batch',
+    )
     return parser.parse_args()
 
 
