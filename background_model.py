@@ -14,13 +14,19 @@ from torch.utils.data import DataLoader
 import model
 import dataset
 
+import metric
+
 
 def number_of_digits(n):
     return len(str(n))
 
 
+def _retrieve(t):
+    return t.detach().to('cpu')
+
+
 def inference(args):
-    embedding_f = torch.load(args.model).embedding
+    embedding_f = torch.load(args.model).embedding.to(args.device)
     embedding_f.eval()
 
     previous_time = time.time()
@@ -38,7 +44,9 @@ def inference(args):
         embeddings, mouse_events = [], []
         dataloader = DataLoader(recording, batch_size=args.batch, shuffle=False, pin_memory=True)
         for iter_index, batch in enumerate(dataloader):
-            embeddings.append(embedding_f(batch['image'].to('cuda', non_blocking=True)).detach())
+            embeddings.append(
+                _retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
+            )
             mouse_events.append(batch['mouse'])
 
             current_time = time.time()
@@ -57,9 +65,7 @@ def inference(args):
             previous_time = current_time
 
         torch.save(
-            torch.cat(
-                [torch.cat(embeddings, dim=0).to('cpu'), torch.cat(mouse_events, dim=0)], dim=1
-            ),
+            torch.cat([torch.cat(embeddings, dim=0), torch.cat(mouse_events, dim=0)], dim=1),
             f"{recording.winner}/{subfolder}.pt",
         )
 
@@ -68,11 +74,13 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = model.Predictor(model.ImageEmbedding(), model.Generator()).to('cuda')
+        predictor = model.Predictor(model.ImageEmbedding(), model.Generator())
+    predictor = predictor.to(args.device)
 
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
-    loss_f = torch.nn.MSELoss()
+    # loss_f = torch.nn.MSELoss()
+    loss_f = metric.C1
 
     toimage = transforms.ToPILImage()
     previous_time = time.time()
@@ -80,11 +88,13 @@ def train(args):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
         dataloader = DataLoader(dataset, batch_size=args.batch, shuffle=True, pin_memory=True)
         for iter_index, (batch, _) in enumerate(dataloader):
-            batch = batch.to('cuda', non_blocking=True)
+            batch = batch.to(args.device, non_blocking=True)
             optimizer.zero_grad()
             predicted = predictor(batch)
 
             error = loss_f(predicted, batch)
+            error.backward()
+            optimizer.step()
 
             current_time = time.time()
             logging.info(
@@ -95,17 +105,14 @@ def train(args):
                     iter_index + 1,
                     number_of_digits(len(dataloader)),
                     len(dataloader),
-                    error.to('cpu').detach().numpy(),
+                    _retrieve(error).numpy(),
                     args.batch / (current_time - previous_time),
                 )
             )
             previous_time = current_time
 
-            error.backward()
-            optimizer.step()
-
             if iter_index % args.sample == 0:
-                toimage(torch.cat([batch[-1], predicted[-1]], dim=1).to('cpu').detach()).show()
+                toimage(torch.cat([_retrieve(batch[-1]), _retrieve(predicted[-1])], dim=1)).show()
             iter_index += 1
         torch.save(predictor, args.model)
 
@@ -135,9 +142,12 @@ def get_params():
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
-        '--model', default='cnc_background_model.pt', help='name of the saved model'
+        '--model',
+        default='CnC_TD_background_model.pt',
+        help='name of the model (to train or to evaluate)',
     )
-    parser.add_argument('--load', default='', help='model to load and continue training, if any')
+    parser.add_argument('--load', default='', help='model to load and continue training')
+    parser.add_argument('--device', default='cuda', help='device to compute on')
     parser.add_argument(
         '--eval',
         default=False,
@@ -148,7 +158,7 @@ def get_params():
         '--sample',
         default=20,
         type=int,
-        help='sample generated images once every \'sample\' batch',
+        help='sample the generated images once every \'sample\' batch',
     )
     return parser.parse_args()
 
