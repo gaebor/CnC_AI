@@ -76,7 +76,7 @@ class ImageEmbedding(nn.Module):
             nn.Linear(1024, 1024),
             nn.LeakyReLU(inplace=True),
             nn.Dropout(p=0.2),
-            nn.Linear(1024, 256),
+            nn.Linear(1024, 1024),
             nn.LeakyReLU(inplace=True),
         )
 
@@ -88,7 +88,7 @@ class Generator(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(256, 1024),
+            nn.Linear(1024, 1024),
             nn.LeakyReLU(inplace=True),
             nn.Dropout(p=0.2),
             nn.Linear(1024, 1024),
