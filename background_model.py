@@ -79,8 +79,7 @@ def train(args):
 
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
-    # loss_f = torch.nn.MSELoss()
-    loss_f = metric.C1
+    loss_f = getattr(metric, args.metric)
 
     toimage = transforms.ToPILImage()
     previous_time = time.time()
@@ -160,6 +159,7 @@ def get_params():
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
+    parser.add_argument('--metric', default='L2', choices=['L2', 'L1', 'C1', 'wasserstein'])
     return parser.parse_args()
 
 
