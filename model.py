@@ -46,7 +46,7 @@ class UpscaleLayer(nn.Conv2d):
 
 
 class ImageEmbedding(nn.Module):
-    def __init__(self):
+    def __init__(self, n_embedding=1024):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Conv2d(3, 8, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
@@ -80,7 +80,7 @@ class ImageEmbedding(nn.Module):
             nn.Linear(1024, 1024),
             nn.LeakyReLU(inplace=True),
             nn.Dropout(p=0.2),
-            nn.Linear(1024, 1024),
+            nn.Linear(1024, n_embedding),
             nn.LeakyReLU(inplace=True),
         )
 
