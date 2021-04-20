@@ -93,7 +93,7 @@ def train(args):
                     common.number_of_digits(len(dataloader1)),
                     len(dataloader1),
                     common.retrieve(-error).numpy(),
-                    len(images1) / (current_time - previous_time),
+                    images1[0].shape[0] / (current_time - previous_time),
                 )
             )
             previous_time = current_time

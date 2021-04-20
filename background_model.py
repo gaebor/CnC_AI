@@ -15,6 +15,8 @@ import model
 import dataset
 import common
 
+from discriminator import Critique
+
 
 def inference(args):
     embedding_f = torch.load(args.model).embedding.to(args.device)
@@ -28,13 +30,13 @@ def inference(args):
     makedirs("False", exist_ok=True)
     makedirs("True", exist_ok=True)
 
-    for folder_index, subfolder in enumerate(subdirectories):
+    for folder_index, subfolder in enumerate(subdirectories, 1):
         recording = dataset.CnCRecording(subfolder)
         subfolder = path.basename(subfolder)
 
         embeddings, mouse_events = [], []
         dataloader = DataLoader(recording, batch_size=args.batch, shuffle=False, pin_memory=True)
-        for iter_index, batch in enumerate(dataloader):
+        for iter_index, batch in enumerate(dataloader, 1):
             embeddings.append(
                 common.retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
             )
@@ -43,14 +45,14 @@ def inference(args):
             current_time = time.time()
             logging.info(
                 "recording {:0{}d} of {}: {}, iter: {:0{}d}/{}, fps: {:g}".format(
-                    folder_index + 1,
+                    folder_index,
                     common.number_of_digits(len(subdirectories)),
                     len(subdirectories),
                     subfolder,
-                    iter_index + 1,
+                    iter_index,
                     common.number_of_digits(len(dataloader)),
                     len(dataloader),
-                    len(batch) / (current_time - previous_time),
+                    batch['mouse'].shape[0] / (current_time - previous_time),
                 )
             )
             previous_time = current_time
@@ -81,10 +83,10 @@ def train(args):
 
     toimage = transforms.ToPILImage()
     previous_time = time.time()
-    for epoch_index in range(args.epoch):
+    for epoch_index in range(1, args.epoch + 1):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
         dataloader = DataLoader(dataset, batch_size=args.batch, shuffle=True, pin_memory=True)
-        for iter_index, (batch, _) in enumerate(dataloader):
+        for iter_index, (batch, _) in enumerate(dataloader, 1):
             batch = batch.to(args.device, non_blocking=True)
 
             optimizer.zero_grad()
@@ -96,14 +98,14 @@ def train(args):
             current_time = time.time()
             logging.info(
                 "epoch: {:0{}d}/{}, iter: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
-                    epoch_index + 1,
-                    common.number_of_digits(args.epoch + 1),
+                    epoch_index,
+                    common.number_of_digits(args.epoch),
                     args.epoch,
-                    iter_index + 1,
+                    iter_index,
                     common.number_of_digits(len(dataloader)),
                     len(dataloader),
                     common.retrieve(error).numpy(),
-                    len(batch) / (current_time - previous_time),
+                    batch.shape[0] / (current_time - previous_time),
                 )
             )
             previous_time = current_time
@@ -158,7 +160,7 @@ def get_params():
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
-    parser.add_argument('--metric', default='L2', choices=['L2', 'L1', 'C1', 'wasserstein'])
+    parser.add_argument('--metric', default='L2')
     return parser.parse_args()
 
 
