@@ -52,25 +52,21 @@ class ImageEmbedding(nn.Module):
             nn.Conv2d(3, 8, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(8, 8, 3, padding=1),
-            nn.BatchNorm2d(8),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool2d(2),
             nn.Conv2d(8, 16, 3, padding=1),
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(16, 16, 3, padding=1),
-            nn.BatchNorm2d(16),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool2d(2),
             nn.Conv2d(16, 32, 3, padding=1),
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(32, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(64, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool2d(3),  # at this point 30x17 with 64 channels
             ReshapeLayer((-1, 30 * 17 * 64)),
@@ -89,10 +85,10 @@ class ImageEmbedding(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self):
+    def __init__(self, activation, n_embedding=1024):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(1024, 1024),
+            nn.Linear(n_embedding, 1024),
             nn.LeakyReLU(inplace=True),
             nn.Dropout(p=0.2),
             nn.Linear(1024, 1024),
@@ -120,7 +116,7 @@ class Generator(nn.Module):
             nn.Conv2d(4, 4, 3, padding=1),
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(4, 3, (4, 3), padding=(0, 1)),
-            nn.Sigmoid(),
+            activation,
         )
 
     def forward(self, z):

@@ -13,16 +13,7 @@ from torch.utils.data import DataLoader
 
 import model
 import dataset
-
-import metric
-
-
-def number_of_digits(n):
-    return len(str(n))
-
-
-def _retrieve(t):
-    return t.detach().to('cpu')
+import common
 
 
 def inference(args):
@@ -45,7 +36,7 @@ def inference(args):
         dataloader = DataLoader(recording, batch_size=args.batch, shuffle=False, pin_memory=True)
         for iter_index, batch in enumerate(dataloader):
             embeddings.append(
-                _retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
+                common.retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
             )
             mouse_events.append(batch['mouse'])
 
@@ -53,13 +44,13 @@ def inference(args):
             logging.info(
                 "recording {:0{}d} of {}: {}, iter: {:0{}d}/{}, fps: {:g}".format(
                     folder_index + 1,
-                    number_of_digits(len(subdirectories)),
+                    common.number_of_digits(len(subdirectories)),
                     len(subdirectories),
                     subfolder,
                     iter_index + 1,
-                    number_of_digits(len(dataloader)),
+                    common.number_of_digits(len(dataloader)),
                     len(dataloader),
-                    args.batch / (current_time - previous_time),
+                    len(batch) / (current_time - previous_time),
                 )
             )
             previous_time = current_time
@@ -74,12 +65,19 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = model.Predictor(model.ImageEmbedding(), model.Generator())
+        predictor = model.Predictor(
+            model.ImageEmbedding(), model.Generator(activation=torch.nn.Sigmoid())
+        )
     predictor = predictor.to(args.device)
 
-    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
+    if args.metric == 'L2':
+        loss_f = torch.nn.MSELoss()
+    elif args.metric == 'L1':
+        loss_f = torch.nn.L1Loss()
+    else:
+        loss_f = torch.load(args.metric).to(args.device).loss
 
-    loss_f = getattr(metric, args.metric)
+    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
     toimage = transforms.ToPILImage()
     previous_time = time.time()
@@ -88,9 +86,9 @@ def train(args):
         dataloader = DataLoader(dataset, batch_size=args.batch, shuffle=True, pin_memory=True)
         for iter_index, (batch, _) in enumerate(dataloader):
             batch = batch.to(args.device, non_blocking=True)
+
             optimizer.zero_grad()
             predicted = predictor(batch)
-
             error = loss_f(predicted, batch)
             error.backward()
             optimizer.step()
@@ -99,20 +97,21 @@ def train(args):
             logging.info(
                 "epoch: {:0{}d}/{}, iter: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
                     epoch_index + 1,
-                    number_of_digits(args.epoch + 1),
+                    common.number_of_digits(args.epoch + 1),
                     args.epoch,
                     iter_index + 1,
-                    number_of_digits(len(dataloader)),
+                    common.number_of_digits(len(dataloader)),
                     len(dataloader),
-                    _retrieve(error).numpy(),
-                    args.batch / (current_time - previous_time),
+                    common.retrieve(error).numpy(),
+                    len(batch) / (current_time - previous_time),
                 )
             )
             previous_time = current_time
 
             if iter_index % args.sample == 0:
-                toimage(torch.cat([_retrieve(batch[-1]), _retrieve(predicted[-1])], dim=1)).show()
-            iter_index += 1
+                toimage(
+                    torch.cat([common.retrieve(batch[-1]), common.retrieve(predicted[-1])], dim=1,)
+                ).show()
         torch.save(predictor, args.model)
 
 
