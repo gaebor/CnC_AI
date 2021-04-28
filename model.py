@@ -131,3 +131,29 @@ class Predictor(nn.Module):
 
     def forward(self, x):
         return self.generator(self.embedding(x))
+
+
+class GamePlay(nn.Module):
+    def __init__(self, latent_size=1024, n_button=3, hidden_dim=256, num_layers=2):
+        super().__init__()
+        self.button_embedding = nn.Embedding(n_button, n_button)
+        self.lstm_encode = nn.LSTM(
+            latent_size + 2 + n_button, hidden_dim, num_layers=num_layers, bidirectional=False
+        )
+        self.lstm_readout = nn.LSTM(
+            hidden_dim, 2 + n_button, num_layers=num_layers, bidirectional=False
+        )
+        self.softmax = nn.Softmax(dim=1)
+        self.cursor_pos_loss = nn.MSELoss()
+        self.button_loss = nn.CrossEntropyLoss()
+
+    def forward(self, latent_embedding, cursor, button):
+        input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1,)
+        hidden_tensor, _ = self.lstm_encode(input_tensor[:, None, :])
+        output_tensor, _ = self.lstm_readout(hidden_tensor)
+        return output_tensor[:, 0, :2], output_tensor[:, 0, 2:]
+
+    def loss(self, target_cursor, target_button, predicted_cursor, predicted_button):
+        return self.cursor_pos_loss(target_cursor, predicted_cursor) + self.button_loss(
+            predicted_button, target_button
+        )
