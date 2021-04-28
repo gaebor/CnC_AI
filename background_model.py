@@ -27,15 +27,17 @@ def inference(args):
     subdirectories = map(lambda x: args.folder + '/' + x, listdir(args.folder))
     subdirectories = sorted(list(filter(path.isdir, subdirectories)))
 
-    makedirs("False", exist_ok=True)
-    makedirs("True", exist_ok=True)
+    makedirs(f"{args.eval}/False", exist_ok=True)
+    makedirs(f"{args.eval}/True", exist_ok=True)
 
     for folder_index, subfolder in enumerate(subdirectories, 1):
         recording = dataset.CnCRecording(subfolder)
         subfolder = path.basename(subfolder)
 
         embeddings, mouse_events = [], []
-        dataloader = DataLoader(recording, batch_size=args.batch, shuffle=False, pin_memory=True)
+        dataloader = DataLoader(
+            recording, batch_size=args.batch, shuffle=False, pin_memory=True, num_workers=1
+        )
         for iter_index, batch in enumerate(dataloader, 1):
             embeddings.append(
                 common.retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
@@ -57,9 +59,14 @@ def inference(args):
             )
             previous_time = current_time
 
+        mouse_events = torch.cat(mouse_events, dim=0)
         torch.save(
-            torch.cat([torch.cat(embeddings, dim=0), torch.cat(mouse_events, dim=0)], dim=1),
-            f"{recording.winner}/{subfolder}.pt",
+            {
+                'latent_embedding': torch.cat(embeddings, dim=0),
+                'cursor': mouse_events[:, :2],
+                'button': mouse_events[:, -1].long(),
+            },
+            f"{args.eval}/{recording.winner}/{subfolder}.pt",
         )
 
 
@@ -85,7 +92,9 @@ def train(args):
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
-        dataloader = DataLoader(dataset, batch_size=args.batch, shuffle=True, pin_memory=True)
+        dataloader = DataLoader(
+            dataset, batch_size=args.batch, shuffle=True, pin_memory=True, num_workers=1
+        )
         for iter_index, (batch, _) in enumerate(dataloader, 1):
             batch = batch.to(args.device, non_blocking=True)
 
@@ -118,7 +127,7 @@ def train(args):
 
 
 def main(args):
-    if args.eval:
+    if args.eval != '':
         inference(args)
     else:
         train(args)
@@ -150,9 +159,9 @@ def get_params():
     parser.add_argument('--device', default='cuda', help='device to compute on')
     parser.add_argument(
         '--eval',
-        default=False,
-        action='store_true',
-        help='switch to evaulation mode, inference only',
+        default='',
+        type=str,
+        help='if set then switch to inference mode and render video into the given folder',
     )
     parser.add_argument(
         '--sample',
@@ -160,7 +169,9 @@ def get_params():
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
-    parser.add_argument('--metric', default='L2')
+    parser.add_argument(
+        '--metric', default='L1', help='\'L1\', \'L2\' or a discriminator model name'
+    )
     return parser.parse_args()
 
 
