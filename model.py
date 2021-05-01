@@ -134,26 +134,41 @@ class Predictor(nn.Module):
 
 
 class GamePlay(nn.Module):
-    def __init__(self, latent_size=1024, n_button=3, hidden_dim=256, num_layers=2):
+    def __init__(self, latent_size=1024, n_button=3, num_layers=2, num_ff=1):
         super().__init__()
         self.button_embedding = nn.Embedding(n_button, n_button)
-        self.lstm_encode = nn.LSTM(
-            latent_size + 2 + n_button, hidden_dim, num_layers=num_layers, bidirectional=False
-        )
-        self.lstm_readout = nn.LSTM(
-            hidden_dim, 2 + n_button, num_layers=num_layers, bidirectional=False
-        )
-        self.softmax = nn.Softmax(dim=1)
-        self.cursor_pos_loss = nn.MSELoss()
-        self.button_loss = nn.CrossEntropyLoss()
+        hidden_size = latent_size + 2 + n_button
+        # self.encoder_layer = nn.TransformerEncoder(hidden_size, nhead=8, num_layers=num_layers)
+        self.encoder_layer = nn.LSTM(hidden_size, hidden_size, dropout=0.1, num_layers=num_layers)
 
-    def forward(self, latent_embedding, cursor, button):
+        readout_layers = []
+        for _ in range(num_ff):
+            readout_layers += [
+                nn.Linear(hidden_size, hidden_size),
+                nn.LeakyReLU(inplace=True),
+                nn.Dropout(p=0.1),
+            ]
+        readout_layers.append(nn.Linear(hidden_size, 2 + n_button))
+        self.readout_layer = nn.Sequential(*readout_layers)
+
+    def forward(self, latent_embedding, cursor, button, hidden_state=None):
         input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1,)
-        hidden_tensor, _ = self.lstm_encode(input_tensor[:, None, :])
-        output_tensor, _ = self.lstm_readout(hidden_tensor)
-        return output_tensor[:, 0, :2], output_tensor[:, 0, 2:]
-
-    def loss(self, target_cursor, target_button, predicted_cursor, predicted_button):
-        return self.cursor_pos_loss(target_cursor, predicted_cursor) + self.button_loss(
-            predicted_button, target_button
+        hidden_tensor, hidden_state = self.encoder_layer(input_tensor[:, None, :], hidden_state)
+        output_tensor = self.readout_layer(hidden_tensor[:, 0, :])
+        return (
+            output_tensor[:, :2],
+            output_tensor[:, 2:] @ self.button_embedding.weight.t(),
+            (hidden_state[0].detach(), hidden_state[1].detach()),
         )
+
+
+def cursor_pos_loss(target_cursor, predicted_cursor):
+    return nn.functional.mse_loss(target_cursor, predicted_cursor)
+
+
+def button_loss(target_button, predicted_button_probabilities):
+    return nn.functional.cross_entropy(
+        predicted_button_probabilities,
+        target_button,
+        weight=torch.Tensor([1, 1000, 1000]).to(predicted_button_probabilities.device),
+    )

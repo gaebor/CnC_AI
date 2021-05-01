@@ -6,51 +6,106 @@ import time
 from glob import glob
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+from torchvision.transforms import ToPILImage
 
 import common
+import dataset
 import model
+
+
+def inference(args):
+    embedding_f = torch.load(args.eval).embedding.to(args.device).eval()
+    ai_player = torch.load(args.model).to(args.device).eval()
+    torch.no_grad()
+
+    recording = dataset.CnCRecording(args.folder)
+    dataloader = DataLoader(recording, batch_size=1, shuffle=False, pin_memory=True, num_workers=1)
+
+    toimage = ToPILImage()
+
+    hidden_state = None
+    for iter_index, batch in enumerate(dataloader, 1):
+
+        embedding = embedding_f(batch['image'].to(args.device, non_blocking=True)).detach()
+
+        mouse_cursor = batch['mouse'][:, :2].to(args.device)
+        pressed_button = batch['mouse'][:, 2].long().to(args.device)
+
+        predicted_cursor, predicted_button, hidden_state = ai_player(
+            embedding, mouse_cursor, pressed_button, hidden_state
+        )
+        predicted_probs = torch.softmax(common.retrieve(predicted_button), dim=1)[0]
+        predicted_button = torch.max(predicted_probs, dim=0)[1].numpy()
+        predicted_cursor = (
+            torch.minimum(
+                torch.maximum(predicted_cursor[0].to('cpu'), torch.Tensor([0, 0])),
+                torch.Tensor([719, 404]),
+            )
+            .int()
+            .numpy()
+        )
+        print(iter_index, predicted_cursor, predicted_button)
+
+        if iter_index % args.sample == 0:
+            snapshot = batch['image'][0]
+            snapshot[:, predicted_cursor[1], predicted_cursor[0]] = predicted_probs
+            toimage(snapshot).show()
 
 
 def train(args):
     if args.load:
         ai_player = torch.load(args.load)
     else:
-        ai_player = model.GamePlay(hidden_dim=args.hidden, num_layers=args.layers)
+        ai_player = model.GamePlay(latent_size=args.hidden)
     ai_player = ai_player.to(args.device)
 
-    optimizer = torch.optim.SGD(ai_player.parameters(), lr=args.lr)
+    optimizer = torch.optim.RMSprop(ai_player.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
         matches = glob(f'{args.folder}/*.pt') + glob(f'{args.folder}/*/*.pt')
-        for iter_index, match_filename in enumerate(matches, 1):
-            match = torch.load(match_filename, map_location=args.device)
-
-            optimizer.zero_grad()
-            predicted_cursor, predicted_button = ai_player(
-                match['latent_embedding'][:-1], match['cursor'][:-1], match['button'][:-1]
+        for match_index, match_filename in enumerate(matches, 1):
+            match = torch.load(match_filename)
+            data_iterator = DataLoader(
+                TensorDataset(*match.values()),
+                batch_size=args.memory,
+                pin_memory=True,
+                shuffle=False,
             )
-            error = ai_player.loss(
-                match['cursor'][1:], match['button'][1:], predicted_cursor, predicted_button
-            )
-            error.backward()
-            optimizer.step()
+            hidden_state = None
+            for iter_index, batch in enumerate(data_iterator, 1):
+                latent_embedding = batch[0].to(args.device)
+                cursor = batch[1].to(args.device)
+                button = batch[2].to(args.device)
 
-            current_time = time.time()
-            logging.info(
-                "epoch: {:0{}d}/{}, match: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
-                    epoch_index,
-                    common.number_of_digits(args.epoch),
-                    args.epoch,
-                    iter_index,
-                    common.number_of_digits(len(matches)),
-                    len(matches),
-                    common.retrieve(error).numpy(),
-                    match['button'].shape[0] / (current_time - previous_time),
+                optimizer.zero_grad()
+                predicted_cursor, predicted_button, hidden_state = ai_player(
+                    latent_embedding[:-1], cursor[:-1], button[:-1], hidden_state=hidden_state
                 )
-            )
-            previous_time = current_time
+                error = model.cursor_pos_loss(cursor[1:], predicted_cursor) + model.button_loss(
+                    button[1:], predicted_button
+                )
+                error.backward()
+                optimizer.step()
+
+                current_time = time.time()
+                logging.info(
+                    "epoch: {:0{}d}/{}, match: {:0{}d}/{}, iter: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
+                        epoch_index,
+                        common.number_of_digits(args.epoch),
+                        args.epoch,
+                        match_index,
+                        common.number_of_digits(len(matches)),
+                        len(matches),
+                        iter_index,
+                        common.number_of_digits(len(data_iterator)),
+                        len(data_iterator),
+                        common.retrieve(error).numpy(),
+                        button.shape[0] / (current_time - previous_time),
+                    )
+                )
+                previous_time = current_time
         torch.save(ai_player, args.model)
 
 
@@ -74,7 +129,7 @@ def get_params():
     parser.add_argument(
         '--epoch', type=int, default=1, help='number of times to iterate over dataset',
     )
-    parser.add_argument('--lr', type=float, default=0.1, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
         '--model',
         default='CnC_TD_gameplay_model.pt',
@@ -82,13 +137,18 @@ def get_params():
     )
     parser.add_argument('--load', default='', help='model to load and continue training')
     parser.add_argument('--device', default='cuda', help='device to compute on')
-    parser.add_argument('--hidden', default=1024, type=int, help='hidden layer size in LSTM')
-    parser.add_argument('--layers', default=4, type=int, help='number of layers in LSTM')
+    parser.add_argument('--hidden', default=1024, type=int, help='size of latent image embedding')
+    parser.add_argument(
+        '--sample', default=10, type=int, help='samples gameplay during infernece mode'
+    )
+    parser.add_argument(
+        '--memory', default=1024, type=int, help='maximum time window to backpropagate to'
+    )
     parser.add_argument(
         '--eval',
-        default=False,
-        action='store_true',
-        help='switch to evaulation mode, inference only',
+        default='',
+        type=str,
+        help='if set then switch to inferece mode, give the trained background model here.',
     )
     return parser.parse_args()
 
