@@ -6,6 +6,7 @@ import time
 from os import listdir, makedirs
 from os import path
 
+import numpy as np
 import torch
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
@@ -57,7 +58,7 @@ def inference(args):
                     iter_index,
                     common.number_of_digits(len(dataloader)),
                     len(dataloader),
-                    batch['mouse'].shape[0] / (current_time - previous_time),
+                    batch['mouse'].shape[0] / np.array(current_time - previous_time),
                 )
             )
             previous_time = current_time
@@ -121,7 +122,7 @@ def train(args):
                     common.number_of_digits(len(dataloader)),
                     len(dataloader),
                     common.retrieve(error).numpy(),
-                    batch.shape[0] / (current_time - previous_time),
+                    batch.shape[0] / np.array(current_time - previous_time),
                 )
             )
             previous_time = current_time
