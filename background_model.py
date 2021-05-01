@@ -20,7 +20,6 @@ from discriminator import Critique
 
 def inference(args):
     embedding_f = torch.load(args.model).embedding.to(args.device).eval()
-    torch.no_grad()
 
     previous_time = time.time()
 
@@ -36,11 +35,15 @@ def inference(args):
 
         embeddings, mouse_events = [], []
         dataloader = DataLoader(
-            recording, batch_size=args.batch, shuffle=False, pin_memory=True, num_workers=1
+            recording,
+            batch_size=args.batch,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=args.workers,
         )
         for iter_index, batch in enumerate(dataloader, 1):
             embeddings.append(
-                common.retrieve(embedding_f(batch['image'].to(args.device, non_blocking=True)))
+                embedding_f(batch['image'].to(args.device, non_blocking=True)).to('cpu')
             )
             mouse_events.append(batch['mouse'])
 
@@ -93,7 +96,11 @@ def train(args):
     for epoch_index in range(1, args.epoch + 1):
         dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
         dataloader = DataLoader(
-            dataset, batch_size=args.batch, shuffle=True, pin_memory=True, num_workers=1
+            dataset,
+            batch_size=args.batch,
+            shuffle=True,
+            pin_memory=True,
+            num_workers=args.workers,
         )
         for iter_index, (batch, _) in enumerate(dataloader, 1):
             batch = batch.to(args.device, non_blocking=True)
@@ -128,7 +135,8 @@ def train(args):
 
 def main(args):
     if args.eval != '':
-        inference(args)
+        with torch.no_grad():
+            inference(args)
     else:
         train(args)
 
@@ -172,6 +180,7 @@ def get_params():
     parser.add_argument(
         '--metric', default='L1', help='\'L1\', \'L2\' or a discriminator model name'
     )
+    parser.add_argument('--workers', default=1, type=int, help='number of workers to read images')
     return parser.parse_args()
 
 
