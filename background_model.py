@@ -19,16 +19,16 @@ from discriminator import Critique
 
 
 def inference(args):
-    embedding_f = torch.load(args.model).embedding.to(args.device)
-    embedding_f.eval()
+    embedding_f = torch.load(args.model).embedding.to(args.device).eval()
+    torch.no_grad()
 
     previous_time = time.time()
 
     subdirectories = map(lambda x: args.folder + '/' + x, listdir(args.folder))
     subdirectories = sorted(list(filter(path.isdir, subdirectories)))
 
-    makedirs(f"{args.eval}/False", exist_ok=True)
-    makedirs(f"{args.eval}/True", exist_ok=True)
+    for gameoutcome in [True, False, None]:
+        makedirs(f"{args.eval}/{gameoutcome}", exist_ok=True)
 
     for folder_index, subfolder in enumerate(subdirectories, 1):
         recording = dataset.CnCRecording(subfolder)
