@@ -17,7 +17,6 @@ import model
 def inference(args):
     embedding_f = torch.load(args.eval).embedding.to(args.device).eval()
     ai_player = torch.load(args.model).to(args.device).eval()
-    torch.no_grad()
 
     recording = dataset.CnCRecording(args.folder)
     dataloader = DataLoader(recording, batch_size=1, shuffle=False, pin_memory=True, num_workers=1)
@@ -27,7 +26,7 @@ def inference(args):
     hidden_state = None
     for iter_index, batch in enumerate(dataloader, 1):
 
-        embedding = embedding_f(batch['image'].to(args.device, non_blocking=True)).detach()
+        embedding = embedding_f(batch['image'].to(args.device, non_blocking=True))
 
         mouse_cursor = batch['mouse'][:, :2].to(args.device)
         pressed_button = batch['mouse'][:, 2].long().to(args.device)
@@ -35,7 +34,7 @@ def inference(args):
         predicted_cursor, predicted_button, hidden_state = ai_player(
             embedding, mouse_cursor, pressed_button, hidden_state
         )
-        predicted_probs = torch.softmax(common.retrieve(predicted_button), dim=1)[0]
+        predicted_probs = torch.softmax(predicted_button.to('cpu'), dim=1)[0]
         predicted_button = torch.max(predicted_probs, dim=0)[1].numpy()
         predicted_cursor = (
             torch.minimum(
@@ -111,7 +110,8 @@ def train(args):
 
 def main(args):
     if args.eval:
-        inference(args)
+        with torch.no_grad():
+            inference(args)
     else:
         train(args)
 
