@@ -142,7 +142,6 @@ class GamePlay(nn.Module):
         super().__init__()
         self.button_embedding = nn.Embedding(n_button, n_button)
         hidden_size = latent_size + 2 + n_button
-        # self.encoder_layer = nn.TransformerEncoder(hidden_size, nhead=8, num_layers=num_layers)
         self.encoder_layer = nn.LSTM(hidden_size, hidden_size, dropout=0.1, num_layers=num_layers)
 
         readout_layers = []
@@ -155,12 +154,12 @@ class GamePlay(nn.Module):
         readout_layers.append(nn.Linear(hidden_size, 2 + n_button))
         self.readout_layer = nn.Sequential(*readout_layers)
 
-    def forward(self, latent_embedding, cursor, button, hidden_state=None):
+    def forward(self, latent_embedding, cursor, button, hidden_state=None, limit=360.0):
         input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1,)
         hidden_tensor, hidden_state = self.encoder_layer(input_tensor[:, None, :], hidden_state)
         output_tensor = self.readout_layer(hidden_tensor[:, 0, :])
         return (
-            cursor_speed_limit(output_tensor[:, :2]),
+            cursor_speed_limit(output_tensor[:, :2], limit=limit),
             output_tensor[:, 2:] @ self.button_embedding.weight.t(),
             (hidden_state[0].detach(), hidden_state[1].detach()),
         )
@@ -172,12 +171,8 @@ def cursor_speed_limit(predicted_movement, limit=360.0):
 
 
 def cursor_pos_loss(target_cursor, predicted_cursor):
-    return nn.functional.mse_loss(target_cursor, predicted_cursor)
+    return nn.functional.l1_loss(target_cursor, predicted_cursor)
 
 
 def button_loss(target_button, predicted_button_probabilities):
-    return nn.functional.cross_entropy(
-        predicted_button_probabilities,
-        target_button,
-        weight=torch.Tensor([1, 100, 100]).to(predicted_button_probabilities.device),
-    )
+    return nn.functional.cross_entropy(predicted_button_probabilities, target_button)
