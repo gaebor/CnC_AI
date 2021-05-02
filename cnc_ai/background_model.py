@@ -12,7 +12,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
-from cnc_ai import model
+import cnc_ai.model
 from cnc_ai import dataset
 from cnc_ai import common
 
@@ -76,8 +76,8 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = model.Predictor(
-            model.ImageEmbedding(), model.Generator(activation=torch.nn.Sigmoid())
+        predictor = cnc_ai.model.Predictor(
+            cnc_ai.model.ImageEmbedding(), cnc_ai.model.Generator(activation=torch.nn.Sigmoid())
         )
     predictor = predictor.to(args.device)
 

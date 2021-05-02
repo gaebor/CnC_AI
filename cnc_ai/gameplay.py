@@ -10,9 +10,9 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision.transforms import ToPILImage
 
-from cnc_ai import common
+import cnc_ai.model
 from cnc_ai import dataset
-from cnc_ai import model
+from cnc_ai import common
 
 
 def inference(args):
@@ -61,7 +61,7 @@ def train(args):
     if args.load:
         ai_player = torch.load(args.load)
     else:
-        ai_player = model.GamePlay(latent_size=args.hidden)
+        ai_player = cnc_ai.model.GamePlay(latent_size=args.hidden)
     ai_player = ai_player.to(args.device)
 
     optimizer = torch.optim.RMSprop(ai_player.parameters(), lr=args.lr, momentum=0, alpha=0.5)
@@ -87,9 +87,9 @@ def train(args):
                 predicted_cursor_movement, predicted_button, hidden_state = ai_player(
                     latent_embedding[:-1], cursor[:-1], button[:-1], hidden_state=hidden_state
                 )
-                error = model.cursor_pos_loss(
+                error = cnc_ai.model.cursor_pos_loss(
                     cursor[1:], cursor[:-1] + predicted_cursor_movement
-                ) + model.button_loss(button[1:], predicted_button)
+                ) + cnc_ai.button_loss(button[1:], predicted_button)
                 error.backward()
                 optimizer.step()
 
