@@ -89,7 +89,7 @@ def train(args):
                 )
                 error = cnc_ai.model.cursor_pos_loss(
                     cursor[1:], cursor[:-1] + predicted_cursor_movement
-                ) + cnc_ai.button_loss(button[1:], predicted_button)
+                ) + cnc_ai.model.button_loss(button[1:], predicted_button)
                 error.backward()
                 optimizer.step()
 
