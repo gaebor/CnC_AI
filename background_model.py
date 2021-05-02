@@ -16,8 +16,6 @@ import model
 import dataset
 import common
 
-from discriminator import Critique
-
 
 def inference(args):
     embedding_f = torch.load(args.model).embedding.to(args.device).eval()
@@ -85,10 +83,8 @@ def train(args):
 
     if args.metric == 'L2':
         loss_f = torch.nn.MSELoss()
-    elif args.metric == 'L1':
-        loss_f = torch.nn.L1Loss()
     else:
-        loss_f = torch.load(args.metric).to(args.device).loss
+        loss_f = torch.nn.L1Loss()
 
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
@@ -178,9 +174,7 @@ def get_params():
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
-    parser.add_argument(
-        '--metric', default='L1', help='\'L1\', \'L2\' or a discriminator model name'
-    )
+    parser.add_argument('--metric', default='L1', choices=['L1', 'L2'])
     parser.add_argument('--workers', default=1, type=int, help='number of workers to read images')
     return parser.parse_args()
 
