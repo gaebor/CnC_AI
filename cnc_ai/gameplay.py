@@ -10,9 +10,9 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision.transforms import ToPILImage
 
-import common
-import dataset
-import model
+from cnc_ai import common
+from cnc_ai import dataset
+from cnc_ai import model
 
 
 def inference(args):
