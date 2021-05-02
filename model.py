@@ -7,6 +7,10 @@ import torch.nn as nn
 import torch
 
 
+def soft_inverse_norm(length):
+    return (torch.exp(-length) - 1) / -length
+
+
 class ReshapeLayer(torch.nn.Module):
     def __init__(self, shape):
         super().__init__()
@@ -156,10 +160,15 @@ class GamePlay(nn.Module):
         hidden_tensor, hidden_state = self.encoder_layer(input_tensor[:, None, :], hidden_state)
         output_tensor = self.readout_layer(hidden_tensor[:, 0, :])
         return (
-            output_tensor[:, :2],
+            cursor_speed_limit(output_tensor[:, :2]),
             output_tensor[:, 2:] @ self.button_embedding.weight.t(),
             (hidden_state[0].detach(), hidden_state[1].detach()),
         )
+
+
+def cursor_speed_limit(predicted_movement, limit=360.0):
+    speed = torch.norm(predicted_movement, dim=1)
+    return predicted_movement * soft_inverse_norm(speed)[:, None] * limit
 
 
 def cursor_pos_loss(target_cursor, predicted_cursor):
@@ -170,5 +179,5 @@ def button_loss(target_button, predicted_button_probabilities):
     return nn.functional.cross_entropy(
         predicted_button_probabilities,
         target_button,
-        weight=torch.Tensor([1, 1000, 1000]).to(predicted_button_probabilities.device),
+        weight=torch.Tensor([1, 100, 100]).to(predicted_button_probabilities.device),
     )

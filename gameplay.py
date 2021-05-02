@@ -5,6 +5,7 @@ import logging
 import time
 from glob import glob
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision.transforms import ToPILImage
@@ -31,24 +32,28 @@ def inference(args):
         mouse_cursor = batch['mouse'][:, :2].to(args.device)
         pressed_button = batch['mouse'][:, 2].long().to(args.device)
 
-        predicted_cursor, predicted_button, hidden_state = ai_player(
+        predicted_cursor_movement, predicted_button_probs, hidden_state = ai_player(
             embedding, mouse_cursor, pressed_button, hidden_state
         )
-        predicted_probs = torch.softmax(predicted_button.to('cpu'), dim=1)[0]
+        predicted_probs = torch.softmax(predicted_button_probs.to('cpu'), dim=1)[0]
         predicted_button = torch.max(predicted_probs, dim=0)[1].numpy()
-        predicted_cursor = (
-            torch.minimum(
-                torch.maximum(predicted_cursor[0].to('cpu'), torch.Tensor([0, 0])),
-                torch.Tensor([719, 404]),
-            )
-            .int()
-            .numpy()
-        )
-        print(iter_index, predicted_cursor, predicted_button)
+        predicted_cursor_movement = predicted_cursor_movement[0].to('cpu').numpy()
+
+        print(iter_index, predicted_cursor_movement, predicted_button)
 
         if iter_index % args.sample == 0:
+            new_cursor_pos = (
+                torch.minimum(
+                    torch.maximum(
+                        batch['mouse'][0, :2] + predicted_cursor_movement, torch.Tensor([0, 0])
+                    ),
+                    torch.Tensor([719, 404]),
+                )
+                .int()
+                .numpy()
+            )
             snapshot = batch['image'][0]
-            snapshot[:, predicted_cursor[1], predicted_cursor[0]] = predicted_probs
+            snapshot[:, new_cursor_pos[1], new_cursor_pos[0]] = predicted_probs
             toimage(snapshot).show()
 
 
@@ -79,12 +84,12 @@ def train(args):
                 button = batch[2].to(args.device)
 
                 optimizer.zero_grad()
-                predicted_cursor, predicted_button, hidden_state = ai_player(
+                predicted_cursor_movement, predicted_button, hidden_state = ai_player(
                     latent_embedding[:-1], cursor[:-1], button[:-1], hidden_state=hidden_state
                 )
-                error = model.cursor_pos_loss(cursor[1:], predicted_cursor) + model.button_loss(
-                    button[1:], predicted_button
-                )
+                error = model.cursor_pos_loss(
+                    cursor[1:], cursor[:-1] + predicted_cursor_movement
+                ) + model.button_loss(button[1:], predicted_button)
                 error.backward()
                 optimizer.step()
 
@@ -101,7 +106,7 @@ def train(args):
                         common.number_of_digits(len(data_iterator)),
                         len(data_iterator),
                         common.retrieve(error).numpy(),
-                        button.shape[0] / (current_time - previous_time),
+                        button.shape[0] / np.array(current_time - previous_time),
                     )
                 )
                 previous_time = current_time
