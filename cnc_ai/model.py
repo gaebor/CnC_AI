@@ -3,7 +3,7 @@
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
-import torch.nn as nn
+from torch import nn
 import torch
 
 
@@ -11,13 +11,20 @@ def soft_inverse_norm(length):
     return (torch.exp(-length) - 1) / -length
 
 
-class ReshapeLayer(torch.nn.Module):
+class ReshapeLayer(nn.Module):
     def __init__(self, shape):
         super().__init__()
         self.shape = shape
 
     def forward(self, x):
         return x.view(self.shape)
+
+
+class DownScaleLayer(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, downscale):
+        super().__init__(
+            in_channels, out_channels, kernel_size=downscale, stride=downscale, padding=0
+        )
 
 
 class UpscaleLayer(nn.Conv2d):
@@ -53,26 +60,30 @@ class ImageEmbedding(nn.Module):
     def __init__(self, n_embedding=1024, dropout=0.2):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(3, 8, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
+            nn.Conv2d(3, 4, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
+            nn.LeakyReLU(),
+            nn.Conv2d(4, 4, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(4, 8, 2),
             nn.LeakyReLU(),
             nn.Conv2d(8, 8, 3, padding=1),
             nn.LeakyReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(8, 16, 3, padding=1),
+            nn.Conv2d(8, 8, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(8, 16, 2),
             nn.LeakyReLU(),
             nn.Conv2d(16, 16, 3, padding=1),
             nn.LeakyReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, 3, padding=1),
+            nn.Conv2d(16, 16, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(16, 32, 2),
             nn.LeakyReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
             nn.LeakyReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
+            nn.Conv2d(32, 32, 3, padding=1),
             nn.LeakyReLU(),
-            nn.Conv2d(64, 64, 3, padding=1),
+            DownScaleLayer(32, 64, 3),  # at this point 30x17 with 64 channels
             nn.LeakyReLU(),
-            nn.MaxPool2d(3),  # at this point 30x17 with 64 channels
             ReshapeLayer((-1, 30 * 17 * 64)),
             nn.Linear(30 * 17 * 64, n_embedding),
             nn.LeakyReLU(),
@@ -102,21 +113,25 @@ class Generator(nn.Module):
             nn.LeakyReLU(),
             ReshapeLayer((-1, 64, 17, 30)),
             UpscaleLayer(64, 32, 3, 3),
+            nn.LeakyReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
             nn.LeakyReLU(),
             UpscaleLayer(32, 16, 3, 2),
+            nn.LeakyReLU(),
             nn.Conv2d(16, 16, 3, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(16, 16, 3, padding=1),
             nn.LeakyReLU(),
             UpscaleLayer(16, 8, 3, 2),
+            nn.LeakyReLU(),
             nn.Conv2d(8, 8, 3, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(8, 8, 3, padding=1),
             nn.LeakyReLU(),
             UpscaleLayer(8, 4, 3, 2),
+            nn.LeakyReLU(),
             nn.Conv2d(4, 4, 3, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(4, 3, (4, 3), padding=(0, 1)),
