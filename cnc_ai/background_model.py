@@ -74,7 +74,7 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = cnc_ai.model.Predictor(activation=torch.nn.Sigmoid())
+        predictor = cnc_ai.model.Predictor()
 
     predictor = predictor.to(args.device)
 
@@ -99,7 +99,7 @@ def train(args):
             optimizer.zero_grad()
             predicted = predictor(batch)
             error = loss_f(predicted, batch)
-            error.backward()
+            (error * batch.shape[0]).backward()
             optimizer.step()
 
             current_time = time.time()

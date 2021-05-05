@@ -128,7 +128,7 @@ class Generator(nn.Module):
 
 
 class Predictor(nn.Module):
-    def __init__(self, activation=nn.Identity(), n_embedding=1024, dropout=0.2):
+    def __init__(self, activation=nn.Sigmoid(), n_embedding=1024, dropout=0.2):
         super().__init__()
         self.embedding = ImageEmbedding(n_embedding=n_embedding, dropout=dropout)
         self.generator = Generator(activation, n_embedding=n_embedding, dropout=dropout)
