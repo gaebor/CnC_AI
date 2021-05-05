@@ -8,7 +8,7 @@ from os import path
 
 import numpy as np
 import torch
-from torchvision import transforms
+from torchvision.transforms import functional as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
@@ -40,6 +40,9 @@ def inference(args):
             pin_memory=True,
             num_workers=args.workers,
         )
+        log_format = common.get_log_formatter(
+            {'recording': len(subdirectories), 'iter': len(dataloader)}
+        )
         for iter_index, batch in enumerate(dataloader, 1):
             embeddings.append(
                 embedding_f(batch['image'].to(args.device, non_blocking=True)).to('cpu')
@@ -48,14 +51,9 @@ def inference(args):
 
             current_time = time.time()
             logging.info(
-                "recording {:0{}d} of {}: {}, iter: {:0{}d}/{}, fps: {:g}".format(
+                (log_format + ", fps: {:g}").format(
                     folder_index,
-                    common.number_of_digits(len(subdirectories)),
-                    len(subdirectories),
-                    subfolder,
                     iter_index,
-                    common.number_of_digits(len(dataloader)),
-                    len(dataloader),
                     batch['mouse'].shape[0] / np.array(current_time - previous_time),
                 )
             )
@@ -76,29 +74,25 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = cnc_ai.model.Predictor(
-            cnc_ai.model.ImageEmbedding(), cnc_ai.model.Generator(activation=torch.nn.Sigmoid())
-        )
+        predictor = cnc_ai.model.Predictor(activation=torch.nn.Sigmoid())
+
     predictor = predictor.to(args.device)
 
-    if args.metric == 'L2':
-        loss_f = torch.nn.MSELoss()
-    else:
-        loss_f = torch.nn.L1Loss()
+    loss_f = getattr(torch.nn, args.metric + 'Loss')()
 
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
 
-    toimage = transforms.ToPILImage()
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
-        dataset = ImageFolder(args.folder, transform=transforms.ToTensor())
+        dataset = ImageFolder(args.folder, transform=transforms.to_tensor)
         dataloader = DataLoader(
             dataset,
             batch_size=args.batch,
-            shuffle=True,
+            shuffle=False,
             pin_memory=True,
             num_workers=args.workers,
         )
+        log_format = common.get_log_formatter({'epoch': args.epoch, 'iter': len(dataloader)})
         for iter_index, (batch, _) in enumerate(dataloader, 1):
             batch = batch.to(args.device, non_blocking=True)
 
@@ -110,13 +104,9 @@ def train(args):
 
             current_time = time.time()
             logging.info(
-                "epoch: {:0{}d}/{}, iter: {:0{}d}/{}, loss: {:e}, fps: {:g}".format(
+                (log_format + ", loss: {:e}, fps: {:g}").format(
                     epoch_index,
-                    common.number_of_digits(args.epoch),
-                    args.epoch,
                     iter_index,
-                    common.number_of_digits(len(dataloader)),
-                    len(dataloader),
                     common.retrieve(error).numpy(),
                     batch.shape[0] / np.array(current_time - previous_time),
                 )
@@ -124,8 +114,8 @@ def train(args):
             previous_time = current_time
 
             if iter_index % args.sample == 0:
-                toimage(
-                    torch.cat([common.retrieve(batch[-1]), common.retrieve(predicted[-1])], dim=1,)
+                transforms.to_pil_image(
+                    torch.cat([common.retrieve(batch[-1]), common.retrieve(predicted[-1])], dim=1)
                 ).show()
         torch.save(predictor, args.model)
 
@@ -174,7 +164,7 @@ def get_params():
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
-    parser.add_argument('--metric', default='L1', choices=['L1', 'L2'])
+    parser.add_argument('--metric', default='L1', choices=['L1', 'MSE'])
     parser.add_argument('--workers', default=1, type=int, help='number of workers to read images')
     return parser.parse_args()
 

@@ -8,7 +8,7 @@ from glob import glob
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from torchvision.transforms import ToPILImage
+from torchvision.transforms.functional import to_pil_image
 
 import cnc_ai.model
 from cnc_ai import dataset
@@ -21,8 +21,6 @@ def inference(args):
 
     recording = dataset.CnCRecording(args.folder)
     dataloader = DataLoader(recording, batch_size=1, shuffle=False, pin_memory=True, num_workers=1)
-
-    toimage = ToPILImage()
 
     hidden_state = None
     for iter_index, batch in enumerate(dataloader, 1):
@@ -54,7 +52,7 @@ def inference(args):
             )
             snapshot = batch['image'][0]
             snapshot[:, new_cursor_pos[1], new_cursor_pos[0]] = predicted_probs
-            toimage(snapshot).show()
+            to_pil_image(snapshot).show()
 
 
 def train(args):
@@ -92,6 +90,8 @@ def train(args):
                 ) + cnc_ai.model.button_loss(button[1:], predicted_button)
                 error.backward()
                 optimizer.step()
+
+                # TODO advance hidden state one more to keep continuity between batches
 
                 current_time = time.time()
                 logging.info(

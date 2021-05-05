@@ -1,4 +1,5 @@
 import json
+from glob import glob
 
 from PIL import Image
 
@@ -42,5 +43,8 @@ class CnCRecording(torch.utils.data.Dataset):
         if idx not in self.frames:
             raise IndexError(f'Index {repr(idx)} is out of range!')
 
-        image = self.transform(Image.open(f'{self.root_dir}/{idx:010d}.bmp'))
+        files = glob(f'{self.root_dir}/{idx:010d}.*')
+        if len(files) != 1:
+            raise ValueError(repr(files))
+        image = self.transform(Image.open(files[0]))
         return {'image': image, 'mouse': self.frames[idx]}

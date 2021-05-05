@@ -50,38 +50,38 @@ class UpscaleLayer(nn.Conv2d):
 
 
 class ImageEmbedding(nn.Module):
-    def __init__(self, n_embedding=1024):
+    def __init__(self, n_embedding=1024, dropout=0.2):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Conv2d(3, 8, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(8, 8, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(8, 16, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(16, 16, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(16, 32, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(64, 64, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.MaxPool2d(3),  # at this point 30x17 with 64 channels
             ReshapeLayer((-1, 30 * 17 * 64)),
-            nn.Linear(30 * 17 * 64, 1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Dropout(p=0.2),
-            nn.Linear(1024, 1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Dropout(p=0.2),
-            nn.Linear(1024, n_embedding),
-            nn.LeakyReLU(inplace=True),
+            nn.Linear(30 * 17 * 64, n_embedding),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
         )
 
     def forward(self, x):
@@ -89,36 +89,36 @@ class ImageEmbedding(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, activation, n_embedding=1024):
+    def __init__(self, activation, n_embedding=1024, dropout=0.2):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(n_embedding, 1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Dropout(p=0.2),
-            nn.Linear(1024, 1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Dropout(p=0.2),
-            nn.Linear(1024, 30 * 17 * 64),
-            nn.LeakyReLU(inplace=True),
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(n_embedding, 30 * 17 * 64),
+            nn.LeakyReLU(),
             ReshapeLayer((-1, 64, 17, 30)),
             UpscaleLayer(64, 32, 3, 3),
             nn.Conv2d(32, 32, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             UpscaleLayer(32, 16, 3, 2),
             nn.Conv2d(16, 16, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(16, 16, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             UpscaleLayer(16, 8, 3, 2),
             nn.Conv2d(8, 8, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(8, 8, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             UpscaleLayer(8, 4, 3, 2),
             nn.Conv2d(4, 4, 3, padding=1),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(),
             nn.Conv2d(4, 3, (4, 3), padding=(0, 1)),
             activation,
         )
@@ -128,28 +128,30 @@ class Generator(nn.Module):
 
 
 class Predictor(nn.Module):
-    def __init__(self, embedding, generator):
+    def __init__(self, activation=nn.Identity(), n_embedding=1024, dropout=0.2):
         super().__init__()
-        self.embedding = embedding
-        self.generator = generator
+        self.embedding = ImageEmbedding(n_embedding=n_embedding, dropout=dropout)
+        self.generator = Generator(activation, n_embedding=n_embedding, dropout=dropout)
 
     def forward(self, x):
         return self.generator(self.embedding(x))
 
 
 class GamePlay(nn.Module):
-    def __init__(self, latent_size=1024, n_button=3, num_layers=2, num_ff=1):
+    def __init__(self, latent_size=1024, n_button=3, num_layers=2, num_ff=1, dropout=0.1):
         super().__init__()
         self.button_embedding = nn.Embedding(n_button, n_button)
         hidden_size = latent_size + 2 + n_button
-        self.encoder_layer = nn.LSTM(hidden_size, hidden_size, dropout=0.1, num_layers=num_layers)
+        self.encoder_layer = nn.LSTM(
+            hidden_size, hidden_size, dropout=dropout, num_layers=num_layers
+        )
 
         readout_layers = []
         for _ in range(num_ff):
             readout_layers += [
                 nn.Linear(hidden_size, hidden_size),
-                nn.LeakyReLU(inplace=True),
-                nn.Dropout(p=0.1),
+                nn.LeakyReLU(),
+                nn.Dropout(p=dropout),
             ]
         readout_layers.append(nn.Linear(hidden_size, 2 + n_button))
         self.readout_layer = nn.Sequential(*readout_layers)
