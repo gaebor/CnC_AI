@@ -74,7 +74,7 @@ def train(args):
     if args.load:
         predictor = torch.load(args.load)
     else:
-        predictor = cnc_ai.model.Predictor()
+        predictor = cnc_ai.model.Predictor(n_embedding=args.n_embedding)
 
     predictor = predictor.to(args.device)
 
@@ -153,11 +153,15 @@ def get_params():
     parser.add_argument('--load', default='', help='model to load and continue training')
     parser.add_argument('--device', default='cuda', help='device to compute on')
     parser.add_argument(
+        '--n_embedding', default=1024, type=int, help='dimension of the latent embedding'
+    )
+    parser.add_argument(
         '--eval',
         default='',
         type=str,
         help='if set then switch to inference mode and render video into the given folder',
     )
+
     parser.add_argument(
         '--sample',
         default=20,
