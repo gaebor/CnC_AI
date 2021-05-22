@@ -20,10 +20,11 @@ class ReshapeLayer(nn.Module):
         return x.view(self.shape)
 
 
-class DownScaleLayer(nn.Conv2d):
+class DownScaleLayer(nn.Sequential):
     def __init__(self, in_channels, out_channels, downscale):
         super().__init__(
-            in_channels, out_channels, kernel_size=downscale, stride=downscale, padding=0
+            nn.MaxPool2d(downscale, downscale),
+            nn.Conv2d(in_channels, out_channels, kernel_size=1),
         )
 
 
