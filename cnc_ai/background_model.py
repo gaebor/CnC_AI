@@ -71,6 +71,7 @@ def inference(args):
 
 
 def train(args):
+    logging.info('loading')
     if args.load:
         predictor = torch.load(args.load)
     else:
@@ -80,8 +81,8 @@ def train(args):
 
     loss_f = getattr(torch.nn, args.metric + 'Loss')()
 
-    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, momentum=0, alpha=0.5)
-
+    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, alpha=args.alpha)
+    logging.info('starting')
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
         dataset = ImageFolder(args.folder, transform=transforms.to_tensor)
@@ -139,7 +140,7 @@ def get_params():
         'https://github.com/gaebor/CnC_Remastered_Collection/blob/ai/grab_websocket.py',
     )
     parser.add_argument(
-        '--batch', type=int, default=8, help='batch size',
+        '--batch', type=int, default=1, help='batch size',
     )
     parser.add_argument(
         '--epoch', type=int, default=1, help='number of times to iterate over dataset',
@@ -162,17 +163,23 @@ def get_params():
         help='if set then switch to inference mode and render video into the given folder',
     )
 
+    parser.add_argument('--alpha', default=0.5, type=float, help=' ')
+
     parser.add_argument(
         '--sample',
-        default=20,
+        default=1000,
         type=int,
         help='sample the generated images once every \'sample\' batch',
     )
-    parser.add_argument('--metric', default='L1', choices=['L1', 'MSE'])
+    parser.add_argument('--metric', default='MSE', choices=['L1', 'MSE'])
     parser.add_argument('--workers', default=1, type=int, help='number of workers to read images')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
     main(get_params())
