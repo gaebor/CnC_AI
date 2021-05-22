@@ -129,6 +129,13 @@ def main(args):
         train(args)
 
 
+def get_default_name():
+    from getpass import getuser
+    from socket import gethostname
+
+    return f"CnC_TD_background_model_of_{getuser()}_at_{gethostname()}.pt"
+
+
 def get_params():
     parser = argparse.ArgumentParser(
         description="""author: Gábor Borbély, contact: borbely@math.bme.hu""",
@@ -147,9 +154,7 @@ def get_params():
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
-        '--model',
-        default='CnC_TD_background_model.pt',
-        help='name of the model (to train or to evaluate)',
+        '--model', default=get_default_name(), help='name of the model (to train or to evaluate)',
     )
     parser.add_argument('--load', default='', help='model to load and continue training')
     parser.add_argument('--device', default='cuda', help='device to compute on')
