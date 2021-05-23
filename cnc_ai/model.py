@@ -173,7 +173,7 @@ class GamePlay(nn.Module):
         self.readout_layer = nn.Sequential(*readout_layers)
 
     def forward(self, latent_embedding, cursor, button, hidden_state=None, limit=360.0):
-        input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1,)
+        input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1)
         hidden_tensor, hidden_state = self.encoder_layer(input_tensor[:, None, :], hidden_state)
         output_tensor = self.readout_layer(hidden_tensor[:, 0, :])
         return (

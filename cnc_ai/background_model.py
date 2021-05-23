@@ -81,7 +81,7 @@ def train(args):
 
     loss_f = getattr(torch.nn, args.metric + 'Loss')()
 
-    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, alpha=args.alpha)
+    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, alpha=0.5)
     logging.info('starting')
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
@@ -146,15 +146,13 @@ def get_params():
         help='folder of the training videos, saved with '
         'https://github.com/gaebor/CnC_Remastered_Collection/blob/ai/grab_websocket.py',
     )
+    parser.add_argument('--batch', type=int, default=1, help='batch size')
     parser.add_argument(
-        '--batch', type=int, default=1, help='batch size',
-    )
-    parser.add_argument(
-        '--epoch', type=int, default=1, help='number of times to iterate over dataset',
+        '--epoch', type=int, default=1, help='number of times to iterate over dataset'
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument(
-        '--model', default=get_default_name(), help='name of the model (to train or to evaluate)',
+        '--model', default=get_default_name(), help='name of the model (to train or to evaluate)'
     )
     parser.add_argument('--load', default='', help='model to load and continue training')
     parser.add_argument('--device', default='cuda', help='device to compute on')
@@ -167,8 +165,6 @@ def get_params():
         type=str,
         help='if set then switch to inference mode and render video into the given folder',
     )
-
-    parser.add_argument('--alpha', default=0.5, type=float, help=' ')
 
     parser.add_argument(
         '--sample',
