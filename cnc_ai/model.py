@@ -57,10 +57,9 @@ class UpscaleLayer(nn.Conv2d):
         return upscaled
 
 
-class ImageEmbedding(nn.Module):
-    def __init__(self, n_embedding=1024, dropout=0.2):
-        super().__init__()
-        self.layers = nn.Sequential(
+class ImageEmbedding(nn.Sequential):
+    def __init__(self, n_embedding=1024):
+        super().__init__(
             nn.Conv2d(3, 4, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
             nn.LeakyReLU(),
             nn.Conv2d(4, 4, 3, padding=1),
@@ -88,28 +87,20 @@ class ImageEmbedding(nn.Module):
             ReshapeLayer((-1, 30 * 17 * 64)),
             nn.Linear(30 * 17 * 64, n_embedding),
             nn.LeakyReLU(),
-            nn.Dropout(p=dropout),
             nn.Linear(n_embedding, n_embedding),
             nn.LeakyReLU(),
-            nn.Dropout(p=dropout),
             nn.Linear(n_embedding, n_embedding),
             nn.LeakyReLU(),
         )
 
-    def forward(self, x):
-        return self.layers(x)
 
-
-class Generator(nn.Module):
-    def __init__(self, activation, n_embedding=1024, dropout=0.2):
-        super().__init__()
-        self.layers = nn.Sequential(
+class Generator(nn.Sequential):
+    def __init__(self, activation, n_embedding=1024):
+        super().__init__(
             nn.Linear(n_embedding, n_embedding),
             nn.LeakyReLU(),
-            nn.Dropout(p=dropout),
             nn.Linear(n_embedding, n_embedding),
             nn.LeakyReLU(),
-            nn.Dropout(p=dropout),
             nn.Linear(n_embedding, 30 * 17 * 64),
             nn.LeakyReLU(),
             ReshapeLayer((-1, 64, 17, 30)),
@@ -139,15 +130,12 @@ class Generator(nn.Module):
             activation,
         )
 
-    def forward(self, z):
-        return self.layers(z)
-
 
 class Predictor(nn.Module):
-    def __init__(self, activation=nn.Sigmoid(), n_embedding=1024, dropout=0.2):
+    def __init__(self, activation=nn.Sigmoid(), n_embedding=1024):
         super().__init__()
-        self.embedding = ImageEmbedding(n_embedding=n_embedding, dropout=dropout)
-        self.generator = Generator(activation, n_embedding=n_embedding, dropout=dropout)
+        self.embedding = ImageEmbedding(n_embedding=n_embedding)
+        self.generator = Generator(activation, n_embedding=n_embedding)
 
     def forward(self, x):
         return self.generator(self.embedding(x))
