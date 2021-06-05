@@ -79,8 +79,6 @@ def train(args):
 
     predictor = predictor.to(args.device)
 
-    loss_f = getattr(torch.nn, args.metric + 'Loss')()
-
     optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, alpha=0.5)
     logging.info('starting')
     previous_time = time.time()
@@ -89,17 +87,20 @@ def train(args):
         dataloader = DataLoader(
             dataset,
             batch_size=args.batch,
-            shuffle=False,
+            shuffle=args.shuffle,
             pin_memory=True,
             num_workers=args.workers,
         )
         log_format = common.get_log_formatter({'epoch': args.epoch, 'iter': len(dataloader)})
+        image_index = 1
         for iter_index, (batch, _) in enumerate(dataloader, 1):
+            image_index += batch.shape[0]
             batch = batch.to(args.device, non_blocking=True)
 
             optimizer.zero_grad()
-            predicted = predictor(batch)
-            error = loss_f(predicted, batch)
+            latent_embeddings = predictor.embedding(batch)
+            predicted = predictor.generator(latent_embeddings)
+            error = torch.nn.functional.mse_loss(predicted, batch)
             (error * batch.shape[0]).backward()
             optimizer.step()
 
@@ -114,10 +115,17 @@ def train(args):
             )
             previous_time = current_time
 
-            if iter_index % args.sample == 0:
+            if image_index >= args.sample:
                 transforms.to_pil_image(
-                    torch.cat([common.retrieve(batch[-1]), common.retrieve(predicted[-1])], dim=1)
+                    torch.cat(
+                        [
+                            common.retrieve(batch[image_index % batch.shape[0]]),
+                            common.retrieve(predicted[image_index % batch.shape[0]]),
+                        ],
+                        dim=1,
+                    )
                 ).show()
+                image_index = image_index % args.sample
         torch.save(predictor, args.model)
 
 
@@ -148,6 +156,9 @@ def get_params():
     )
     parser.add_argument('--batch', type=int, default=1, help='batch size')
     parser.add_argument(
+        '--shuffle', default=False, action='store_true', help='shuffle training data'
+    )
+    parser.add_argument(
         '--epoch', type=int, default=1, help='number of times to iterate over dataset'
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
@@ -167,12 +178,8 @@ def get_params():
     )
 
     parser.add_argument(
-        '--sample',
-        default=1000,
-        type=int,
-        help='sample the generated images once every \'sample\' batch',
+        '--sample', default=1000, type=int, help='sample every \'sample\'th generated image'
     )
-    parser.add_argument('--metric', default='MSE', choices=['L1', 'MSE'])
     parser.add_argument('--workers', default=1, type=int, help='number of workers to read images')
     return parser.parse_args()
 
