@@ -17,7 +17,7 @@ class ReshapeLayer(nn.Module):
         self.shape = shape
 
     def forward(self, x):
-        return x.view(self.shape)
+        return torch.reshape(x, self.shape)
 
 
 class DownScaleLayer(nn.Sequential):
@@ -87,20 +87,12 @@ class ImageEmbedding(nn.Sequential):
             ReshapeLayer((-1, 30 * 17 * 64)),
             nn.Linear(30 * 17 * 64, n_embedding),
             nn.LeakyReLU(),
-            nn.Linear(n_embedding, n_embedding),
-            nn.LeakyReLU(),
-            nn.Linear(n_embedding, n_embedding),
-            nn.LeakyReLU(),
         )
 
 
 class Generator(nn.Sequential):
     def __init__(self, activation, n_embedding=1024):
         super().__init__(
-            nn.Linear(n_embedding, n_embedding),
-            nn.LeakyReLU(),
-            nn.Linear(n_embedding, n_embedding),
-            nn.LeakyReLU(),
             nn.Linear(n_embedding, 30 * 17 * 64),
             nn.LeakyReLU(),
             ReshapeLayer((-1, 64, 17, 30)),
