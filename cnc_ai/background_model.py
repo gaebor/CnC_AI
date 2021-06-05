@@ -11,6 +11,7 @@ import torch
 from torchvision.transforms import functional as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
+from torch.nn.functional import mse_loss as l2_loss
 
 import cnc_ai.model
 from cnc_ai import dataset
@@ -79,7 +80,9 @@ def train(args):
 
     predictor = predictor.to(args.device)
 
-    optimizer = torch.optim.RMSprop(predictor.parameters(), lr=args.lr, alpha=0.5)
+    optimizer = torch.optim.RMSprop(
+        predictor.parameters(), lr=args.lr, alpha=0.5, weight_decay=args.weight
+    )
     logging.info('starting')
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
@@ -98,9 +101,8 @@ def train(args):
             batch = batch.to(args.device, non_blocking=True)
 
             optimizer.zero_grad()
-            latent_embeddings = predictor.embedding(batch)
-            predicted = predictor.generator(latent_embeddings)
-            error = torch.nn.functional.mse_loss(predicted, batch)
+            predicted = predictor(batch)
+            error = l2_loss(predicted, batch)
             (error * batch.shape[0]).backward()
             optimizer.step()
 
@@ -162,6 +164,7 @@ def get_params():
         '--epoch', type=int, default=1, help='number of times to iterate over dataset'
     )
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+    parser.add_argument('--weight', type=float, default=1e-6, help='weight decay')
     parser.add_argument(
         '--model', default=get_default_name(), help='name of the model (to train or to evaluate)'
     )
