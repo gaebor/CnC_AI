@@ -1,8 +1,5 @@
 # https://github.com/eriklindernoren/PyTorch-GAN
 
-import torchvision.transforms as transforms
-from torch.autograd import Variable
-
 from torch import nn
 import torch
 
@@ -95,6 +92,8 @@ class ImageEmbedding(nn.Sequential):
 class Generator(nn.Sequential):
     def __init__(self, activation, n_embedding=1024):
         super().__init__(
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
             nn.Linear(n_embedding, 32 * 9 * 16),
             nn.LeakyReLU(),
             ReshapeLayer((-1, 32, 9, 16)),
@@ -170,3 +169,8 @@ def cursor_pos_loss(target_cursor, predicted_cursor):
 
 def button_loss(target_button, predicted_button_probabilities):
     return nn.functional.cross_entropy(predicted_button_probabilities, target_button)
+
+
+class Optimizer(torch.optim.RMSprop):
+    def __init__(self, params, lr, weight_decay):
+        super().__init__(params, lr=lr, alpha=0.5, weight_decay=weight_decay)

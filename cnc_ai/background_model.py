@@ -77,8 +77,8 @@ def train(args):
         args.model, lambda: cnc_ai.model.Predictor(n_embedding=args.n_embedding)
     ).to(args.device)
 
-    optimizer = torch.optim.RMSprop(
-        predictor.parameters(), lr=args.lr, alpha=0.5, weight_decay=args.weight
+    optimizer = cnc_ai.model.Optimizer(
+        predictor.parameters(), lr=args.lr, weight_decay=args.weight
     )
     logging.info('starting')
     previous_time = time.time()
