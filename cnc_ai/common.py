@@ -1,3 +1,6 @@
+from torch import load
+
+
 def number_of_digits(n):
     return len(str(n))
 
@@ -17,3 +20,10 @@ def get_log_formatter(indices):
         f'{index_name}: {{:0{len(str(max_value))}d}}/{max_value}'
         for index_name, max_value in indices.items()
     )
+
+
+def torch_safe_load(filename, constructor):
+    try:
+        return load(filename)
+    except FileNotFoundError:
+        return constructor()

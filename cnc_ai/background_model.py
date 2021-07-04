@@ -73,12 +73,9 @@ def inference(args):
 
 def train(args):
     logging.info('loading')
-    if args.load:
-        predictor = torch.load(args.load)
-    else:
-        predictor = cnc_ai.model.Predictor(n_embedding=args.n_embedding)
-
-    predictor = predictor.to(args.device)
+    predictor = common.torch_safe_load(
+        args.model, lambda: cnc_ai.model.Predictor(n_embedding=args.n_embedding)
+    ).to(args.device)
 
     optimizer = torch.optim.RMSprop(
         predictor.parameters(), lr=args.lr, alpha=0.5, weight_decay=args.weight
@@ -86,16 +83,15 @@ def train(args):
     logging.info('starting')
     previous_time = time.time()
     for epoch_index in range(1, args.epoch + 1):
-        dataset = ImageFolder(args.folder, transform=transforms.to_tensor)
         dataloader = DataLoader(
-            dataset,
+            ImageFolder(args.folder, transform=transforms.to_tensor),
             batch_size=args.batch,
             shuffle=args.shuffle,
             pin_memory=True,
             num_workers=args.workers,
         )
         log_format = common.get_log_formatter({'epoch': args.epoch, 'iter': len(dataloader)})
-        image_index = 1
+        image_index = 0
         for iter_index, (batch, _) in enumerate(dataloader, 1):
             image_index += batch.shape[0]
             batch = batch.to(args.device, non_blocking=True)
@@ -166,12 +162,13 @@ def get_params():
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--weight', type=float, default=1e-6, help='weight decay')
     parser.add_argument(
-        '--model', default=get_default_name(), help='name of the model (to train or to evaluate)'
+        '--model',
+        default=get_default_name(),
+        help='Name of the model. Loads and continues training if exists, otherwise start a new one.',
     )
-    parser.add_argument('--load', default='', help='model to load and continue training')
     parser.add_argument('--device', default='cuda', help='device to compute on')
     parser.add_argument(
-        '--n_embedding', default=1024, type=int, help='dimension of the latent embedding'
+        '--n_embedding', default=4096, type=int, help='dimension of the latent embedding'
     )
     parser.add_argument(
         '--eval',
