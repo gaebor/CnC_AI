@@ -28,6 +28,13 @@ class DownScaleLayer(nn.Sequential):
         )
 
 
+class DownScaleLayer(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, downscale):
+        super().__init__(
+            in_channels, out_channels, kernel_size=downscale, stride=downscale, padding=0
+        )
+
+
 class UpscaleLayer(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, upscale):
         super().__init__(
@@ -60,32 +67,27 @@ class UpscaleLayer(nn.Conv2d):
 class ImageEmbedding(nn.Sequential):
     def __init__(self, n_embedding=1024):
         super().__init__(
-            nn.Conv2d(3, 4, (4, 3), padding=(3, 1)),  # this produces a 408x720 image
+            nn.Conv2d(3, 4, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(4, 4, 3, padding=1),
+            nn.Conv2d(4, 4, 5, padding=2),
             nn.LeakyReLU(),
-            DownScaleLayer(4, 8, 2),
+            DownScaleLayer(4, 8, 3),
             nn.LeakyReLU(),
-            nn.Conv2d(8, 8, 3, padding=1),
+            nn.Conv2d(8, 8, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(8, 8, 3, padding=1),
+            nn.Conv2d(8, 8, 5, padding=2),
             nn.LeakyReLU(),
-            DownScaleLayer(8, 16, 2),
+            DownScaleLayer(8, 16, 3),
             nn.LeakyReLU(),
-            nn.Conv2d(16, 16, 3, padding=1),
+            nn.Conv2d(16, 16, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(16, 16, 3, padding=1),
+            nn.Conv2d(16, 16, 5, padding=2),
             nn.LeakyReLU(),
-            DownScaleLayer(16, 32, 2),
+            DownScaleLayer(16, 32, 5),
+            ReshapeLayer((-1, 32 * 9 * 16)),
+            nn.Linear(32 * 9 * 16, n_embedding),
             nn.LeakyReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.LeakyReLU(),
-            DownScaleLayer(32, 64, 3),  # at this point 30x17 with 64 channels
-            nn.LeakyReLU(),
-            ReshapeLayer((-1, 30 * 17 * 64)),
-            nn.Linear(30 * 17 * 64, n_embedding),
+            nn.Linear(n_embedding, n_embedding),
             nn.LeakyReLU(),
         )
 
@@ -93,32 +95,26 @@ class ImageEmbedding(nn.Sequential):
 class Generator(nn.Sequential):
     def __init__(self, activation, n_embedding=1024):
         super().__init__(
-            nn.Linear(n_embedding, 30 * 17 * 64),
+            nn.Linear(n_embedding, 32 * 9 * 16),
             nn.LeakyReLU(),
-            ReshapeLayer((-1, 64, 17, 30)),
-            UpscaleLayer(64, 32, 3, 3),
+            ReshapeLayer((-1, 32, 9, 16)),
+            UpscaleLayer(32, 16, 5, 5),
             nn.LeakyReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
+            nn.Conv2d(16, 16, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
+            nn.Conv2d(16, 16, 5, padding=2),
             nn.LeakyReLU(),
-            UpscaleLayer(32, 16, 3, 2),
+            UpscaleLayer(16, 8, 3, 3),
             nn.LeakyReLU(),
-            nn.Conv2d(16, 16, 3, padding=1),
+            nn.Conv2d(8, 8, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(16, 16, 3, padding=1),
+            nn.Conv2d(8, 8, 5, padding=2),
             nn.LeakyReLU(),
-            UpscaleLayer(16, 8, 3, 2),
+            UpscaleLayer(8, 4, 3, 3),
             nn.LeakyReLU(),
-            nn.Conv2d(8, 8, 3, padding=1),
+            nn.Conv2d(4, 4, 5, padding=2),
             nn.LeakyReLU(),
-            nn.Conv2d(8, 8, 3, padding=1),
-            nn.LeakyReLU(),
-            UpscaleLayer(8, 4, 3, 2),
-            nn.LeakyReLU(),
-            nn.Conv2d(4, 4, 3, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(4, 3, (4, 3), padding=(0, 1)),
+            nn.Conv2d(4, 3, 5, padding=2),
             activation,
         )
 
