@@ -1,4 +1,5 @@
 import ctypes
+from functools import partial
 
 
 class CncStruct(ctypes.Structure):
@@ -102,3 +103,104 @@ class GameOverMultiPlayerStatsStruct(CncStruct):
         ('Efficiency', ctypes.c_int),
         ('Score', ctypes.c_int),
     ]
+
+
+class CNCShroudEntryStruct(CncStruct):
+    _fields_ = [
+        ('ShadowIndex', ctypes.c_char),
+        ('IsVisible', ctypes.c_bool),
+        ('IsMapped', ctypes.c_bool),
+        ('IsJamming', ctypes.c_bool),
+    ]
+
+
+class CNCShroudStruct(CncStruct):
+    _fields_ = [
+        ('Count', ctypes.c_int),
+        # ('Entries', CNCShroudEntryStruct * 1),
+    ]
+
+
+def parse_variable_length_struct(buffer, cls, variable_field_name, variable_field_type):
+    partially_parsed = cls.from_address(ctypes.addressof(buffer))
+
+    class X(CncStruct):
+        _fields_ = cls._fields_ + [
+            (variable_field_name, variable_field_type * partially_parsed.Count),
+        ]
+
+    return X.from_buffer_copy(buffer)
+
+
+class CNCStaticCellStruct(CncStruct):
+    _fields_ = [
+        ('TemplateTypeName', ctypes.c_char * 32),
+        ('IconNumber', ctypes.c_int),
+    ]
+
+
+class CNCMapDataStruct(CncStruct):
+    _fields_ = [
+        ('MapCellX', ctypes.c_int),
+        ('MapCellY', ctypes.c_int),
+        ('MapCellWidth', ctypes.c_int),
+        ('MapCellHeight', ctypes.c_int),
+        ('OriginalMapCellX', ctypes.c_int),
+        ('OriginalMapCellY', ctypes.c_int),
+        ('OriginalMapCellWidth', ctypes.c_int),
+        ('OriginalMapCellHeight', ctypes.c_int),
+        ('Theater', ctypes.c_int),  # CnCTheaterType
+        ('ScenarioName', ctypes.c_char * 512),  # _MAX_FNAME+_MAX_EXT
+        ('StaticCells', CNCStaticCellStruct * MAX_EXPORT_CELLS),
+    ]
+
+
+# struct CNCDynamicMapEntryStruct {
+# 	char						AssetName[16];
+# 	int						PositionX;
+# 	int						PositionY;
+# 	int						Width;
+# 	int						Height;
+# 	short						Type;
+# 	char						Owner;
+# 	int						DrawFlags;
+# 	unsigned char			CellX;
+# 	unsigned char			CellY;
+# 	unsigned char			ShapeIndex;
+# 	bool						IsSmudge;
+# 	bool						IsOverlay;
+# 	bool						IsResource;
+# 	bool						IsSellable;
+# 	bool						IsTheaterShape;
+# 	bool						IsFlag;
+# };
+
+# struct CNCDynamicMapStruct {
+# 	bool							VortexActive;
+# 	int								VortexX;
+# 	int								VortexY;
+# 	int								VortexWidth;
+# 	int								VortexHeight;
+# 	int								Count;
+# 	CNCDynamicMapEntryStruct	Entries[1];			// Variable length
+# };
+
+GameStateRequestEnum = {
+    'GAME_STATE_NONE': ctypes.c_int(0),
+    'GAME_STATE_STATIC_MAP': (ctypes.c_int(1), CNCMapDataStruct.from_buffer_copy),
+    'GAME_STATE_DYNAMIC_MAP': ctypes.c_int(2),
+    'GAME_STATE_LAYERS': ctypes.c_int(3),
+    'GAME_STATE_SIDEBAR': ctypes.c_int(4),
+    'GAME_STATE_PLACEMENT': ctypes.c_int(5),
+    'GAME_STATE_SHROUD': (
+        ctypes.c_int(6),
+        partial(
+            parse_variable_length_struct,
+            cls=CNCShroudStruct,
+            variable_field_name='Entries',
+            variable_field_type=CNCShroudEntryStruct,
+        ),
+    ),
+    'GAME_STATE_OCCUPIER': ctypes.c_int(7),
+    'GAME_STATE_PLAYER_INFO': (ctypes.c_int(8), CNCPlayerInfoStruct.from_buffer_copy),
+}

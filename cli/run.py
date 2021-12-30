@@ -38,15 +38,15 @@ class TDGameplay:
         self.dll.CNC_Get_Game_State.restype = ctypes.c_bool
         self.game_state_buffer = (ctypes.c_uint8 * 1024)()
 
-    def get_game_state(self, player_id):
+    def get_game_state(self, state_request, player_id):
         while not self.dll.CNC_Get_Game_State(
-            ctypes.c_int(8),
+            GameStateRequestEnum[state_request][0],
             ctypes.c_ulonglong(player_id),
             self.game_state_buffer,
             ctypes.c_uint(len(self.game_state_buffer)),
         ):
             self.game_state_buffer = (ctypes.c_uint8 * (len(self.game_state_buffer) * 2))()
-        return CNCPlayerInfoStruct.from_buffer(self.game_state_buffer)
+        return GameStateRequestEnum[state_request][1](self.game_state_buffer)
 
     def __del__(self):
         ctypes.windll.kernel32.FreeLibrary(self.dll._handle)
@@ -80,16 +80,6 @@ def main(args):
 
     players = [
         CNCPlayerInfoStruct(
-            GlyphxPlayerID=76561199154512029,
-            Name=b"gaebor",
-            House=houses[0],
-            Team=0,
-            AllyFlags=0,
-            ColorIndex=colors[0],
-            IsAI=False,
-            StartLocationIndex=127,
-        ),
-        CNCPlayerInfoStruct(
             GlyphxPlayerID=1055504538,
             Name=b"ai1",
             House=houses[1],
@@ -99,16 +89,16 @@ def main(args):
             IsAI=True,
             StartLocationIndex=127,
         ),
-        # CNCPlayerInfoStruct(
-        #     GlyphxPlayerID=76561199154512028,
-        #     Name=b"other",
-        #     House=houses[2],
-        #     Team=2,
-        #     AllyFlags=0,
-        #     ColorIndex=colors[2],
-        #     IsAI=False,
-        #     StartLocationIndex=127,
-        # ),
+        CNCPlayerInfoStruct(
+            GlyphxPlayerID=76561199154512029,
+            Name=b"gaebor",
+            House=houses[0],
+            Team=0,
+            AllyFlags=0,
+            ColorIndex=colors[0],
+            IsAI=False,
+            StartLocationIndex=127,
+        ),
     ]
     players = (CNCPlayerInfoStruct * len(players))(*players)
 
@@ -174,10 +164,13 @@ def main(args):
     else:
         raise ValueError('CNC_Get_Palette')
 
+    map = TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
+    print(map.MapCellWidth, map.MapCellHeight)
     frame = 1
     while TD.Advance_Instance(ctypes.c_uint64(0)):
         print(frame, end='\r')
         if frame % 1000 == 0:
+            shroud = TD.get_game_state('GAME_STATE_SHROUD', players[0].GlyphxPlayerID)
             if TD.dll.CNC_Get_Visible_Page(
                 image_buffer, ctypes.byref(width), ctypes.byref(height)
             ):
@@ -188,7 +181,7 @@ def main(args):
         frame += 1
     print()
     for player in players:
-        print(TD.get_game_state(player.GlyphxPlayerID))
+        print(TD.get_game_state('GAME_STATE_PLAYER_INFO', player.GlyphxPlayerID))
 
 
 if __name__ == '__main__':
