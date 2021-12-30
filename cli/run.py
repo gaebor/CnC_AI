@@ -99,19 +99,18 @@ def main(args):
             IsAI=True,
             StartLocationIndex=127,
         ),
-        CNCPlayerInfoStruct(
-            GlyphxPlayerID=76561199154512028,
-            Name=b"other",
-            House=houses[2],
-            Team=2,
-            AllyFlags=0,
-            ColorIndex=colors[2],
-            IsAI=False,
-            StartLocationIndex=127,
-        ),
+        # CNCPlayerInfoStruct(
+        #     GlyphxPlayerID=76561199154512028,
+        #     Name=b"other",
+        #     House=houses[2],
+        #     Team=2,
+        #     AllyFlags=0,
+        #     ColorIndex=colors[2],
+        #     IsAI=False,
+        #     StartLocationIndex=127,
+        # ),
     ]
-    num_players = 2
-    players = (CNCPlayerInfoStruct * num_players)(*players[:num_players])
+    players = (CNCPlayerInfoStruct * len(players))(*players)
 
     multiplayer_options = CNCMultiplayerOptionsStruct(
         MPlayerCount=2,
@@ -134,7 +133,7 @@ def main(args):
     if False == TD.dll.CNC_Set_Multiplayer_Data(
         scenario_index,
         ctypes.byref(multiplayer_options),
-        ctypes.c_int(num_players),
+        ctypes.c_int(len(players)),
         players,
         ctypes.c_int(6),  # max number of players
     ):
