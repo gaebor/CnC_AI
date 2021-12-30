@@ -91,20 +91,6 @@ class CNCPlayerInfoStruct(CncStruct):
     ]
 
 
-class GameOverMultiPlayerStatsStruct(CncStruct):
-    _fields_ = [
-        ('GlyphxPlayerID', ctypes.c_uint64),
-        ('IsHuman', ctypes.c_bool),
-        ('WasHuman', ctypes.c_bool),
-        ('IsWinner', ctypes.c_bool),
-        ('ResourcesGathered', ctypes.c_int),
-        ('TotalUnitsKilled', ctypes.c_int),
-        ('TotalStructuresKilled', ctypes.c_int),
-        ('Efficiency', ctypes.c_int),
-        ('Score', ctypes.c_int),
-    ]
-
-
 class CNCShroudEntryStruct(CncStruct):
     _fields_ = [
         ('ShadowIndex', ctypes.c_char),
