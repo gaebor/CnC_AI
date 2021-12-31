@@ -141,43 +141,97 @@ class CNCMapDataStruct(CncStruct):
     ]
 
 
-# struct CNCDynamicMapEntryStruct {
-# 	char						AssetName[16];
-# 	int						PositionX;
-# 	int						PositionY;
-# 	int						Width;
-# 	int						Height;
-# 	short						Type;
-# 	char						Owner;
-# 	int						DrawFlags;
-# 	unsigned char			CellX;
-# 	unsigned char			CellY;
-# 	unsigned char			ShapeIndex;
-# 	bool						IsSmudge;
-# 	bool						IsOverlay;
-# 	bool						IsResource;
-# 	bool						IsSellable;
-# 	bool						IsTheaterShape;
-# 	bool						IsFlag;
-# };
+MAX_OCCUPY_CELLS = 36
 
-# struct CNCDynamicMapStruct {
-# 	bool							VortexActive;
-# 	int								VortexX;
-# 	int								VortexY;
-# 	int								VortexWidth;
-# 	int								VortexHeight;
-# 	int								Count;
-# 	CNCDynamicMapEntryStruct	Entries[1];			// Variable length
-# };
+
+class CNCSidebarEntryStruct(CncStruct):
+    _fields_ = [
+        ('AssetName', ctypes.c_char * 16),
+        ('BuildableType', ctypes.c_int),
+        ('BuildableID', ctypes.c_int),
+        ('Type', ctypes.c_int),  # DllObjectTypeEnum
+        ('SuperWeaponType', ctypes.c_int),  # DllSuperweaponTypeEnum
+        ('Cost', ctypes.c_int),
+        ('PowerProvided', ctypes.c_int),
+        ('BuildTime', ctypes.c_int),
+        ('Progress', ctypes.c_float),
+        ('PlacementList', ctypes.c_short * MAX_OCCUPY_CELLS),
+        ('PlacementListLength', ctypes.c_int),
+        ('Completed', ctypes.c_bool),
+        ('Constructing', ctypes.c_bool),
+        ('ConstructionOnHold', ctypes.c_bool),
+        ('Busy', ctypes.c_bool),
+        ('BuildableViaCapture', ctypes.c_bool),
+        ('Fake', ctypes.c_bool),
+    ]
+
+
+class CNCSidebarStruct(CncStruct):
+    _fields_ = [
+        ('EntryCount', ctypes.c_int * 2),
+        ('Credits', ctypes.c_int),
+        ('CreditsCounter', ctypes.c_int),
+        ('Tiberium', ctypes.c_int),
+        ('MaxTiberium', ctypes.c_int),
+        ('PowerProduced', ctypes.c_int),
+        ('PowerDrained', ctypes.c_int),
+        ('MissionTimer', ctypes.c_int),
+        ('UnitsKilled', ctypes.c_uint),
+        ('BuildingsKilled', ctypes.c_uint),
+        ('UnitsLost', ctypes.c_uint),
+        ('BuildingsLost', ctypes.c_uint),
+        ('TotalHarvestedCredits', ctypes.c_uint),
+        ('RepairBtnEnabled', ctypes.c_bool),
+        ('SellBtnEnabled', ctypes.c_bool),
+        ('RadarMapActive', ctypes.c_bool),
+        # ('Entries', CNCSidebarEntryStruct	 * 1),
+    ]
+
+
+def parse_sidebar_buffer(buffer):
+    partially_parsed = CNCSidebarStruct.from_address(ctypes.addressof(buffer))
+
+    class X(CncStruct):
+        _fields_ = CNCSidebarStruct._fields_ + [
+            (
+                'Entries',
+                CNCSidebarEntryStruct
+                * (partially_parsed.EntryCount[0] + partially_parsed.EntryCount[1]),
+            ),
+        ]
+
+    return X.from_buffer_copy(buffer)
+
+
+class CNCPlacementCellInfoStruct(CncStruct):
+    _fields_ = [
+        ('PassesProximityCheck', ctypes.c_bool),
+        ('GenerallyClear', ctypes.c_bool),
+    ]
+
+
+class CNCPlacementInfoStruct(CncStruct):
+    _fields_ = [
+        ('Count', ctypes.c_int),
+        # ('CellInfo', CNCPlacementCellInfoStruct),
+    ]
+
 
 GameStateRequestEnum = {
     'GAME_STATE_NONE': ctypes.c_int(0),
     'GAME_STATE_STATIC_MAP': (ctypes.c_int(1), CNCMapDataStruct.from_buffer_copy),
     'GAME_STATE_DYNAMIC_MAP': ctypes.c_int(2),
     'GAME_STATE_LAYERS': ctypes.c_int(3),
-    'GAME_STATE_SIDEBAR': ctypes.c_int(4),
-    'GAME_STATE_PLACEMENT': ctypes.c_int(5),
+    'GAME_STATE_SIDEBAR': (ctypes.c_int(4), parse_sidebar_buffer),
+    'GAME_STATE_PLACEMENT': (
+        ctypes.c_int(5),
+        partial(
+            parse_variable_length_struct,
+            cls=CNCPlacementInfoStruct,
+            variable_field_name='CellInfo',
+            variable_field_type=CNCPlacementCellInfoStruct,
+        ),
+    ),
     'GAME_STATE_SHROUD': (
         ctypes.c_int(6),
         partial(
