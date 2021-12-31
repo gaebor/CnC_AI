@@ -13,6 +13,10 @@ def main():
         print('    _fields_ = [')
         for member in members_pattern.finditer(struct_content):
             member_type, _, member_name, _, array_size, _ = member.groups()
+            if member_type == 'unsigned char':
+                member_type = 'byte'
+            else:
+                member_type = member_type.replace('unsigned ', 'u')
             if hasattr(ctypes, f'c_{member_type}'):
                 member_type = f'ctypes.c_{member_type}'
             else:
