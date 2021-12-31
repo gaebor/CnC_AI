@@ -285,6 +285,7 @@ class CNCObjectLineStruct(CncStruct):
 
 class CNCObjectStruct(CncStruct):
     _fields_ = [
+        ('CNCInternalObjectPointer', ctypes.c_void_p),
         ('TypeName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
         ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
         ('Type', ctypes.c_int),  # DllObjectTypeEnum
@@ -355,7 +356,8 @@ class CNCObjectStruct(CncStruct):
         ('VisibleFlags', ctypes.c_uint),
         ('SpiedByFlags', ctypes.c_uint),
         ('ProductionAssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
-        ('ActionWithSelected', ctypes.c_int * MAX_HOUSES),  # DllActionTypeEnum
+        ('OverrideDisplayName', ctypes.c_char_p),
+        ('ActionWithSelected', ctypes.c_byte * MAX_HOUSES),  # DllActionTypeEnum
     ]
 
 
