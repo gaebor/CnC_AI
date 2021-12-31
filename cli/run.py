@@ -176,8 +176,8 @@ def main(args):
 
             for player in players:
                 TD.get_game_state('GAME_STATE_SIDEBAR', player.GlyphxPlayerID)
-                TD.get_game_state('GAME_STATE_SHROUD', players[0].GlyphxPlayerID)
-                TD.get_game_state('GAME_STATE_PLACEMENT', players[0].GlyphxPlayerID)
+                TD.get_game_state('GAME_STATE_SHROUD', player.GlyphxPlayerID)
+                TD.get_game_state('GAME_STATE_PLACEMENT', player.GlyphxPlayerID)
 
             if TD.dll.CNC_Get_Visible_Page(
                 image_buffer, ctypes.byref(width), ctypes.byref(height)
