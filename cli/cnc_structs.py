@@ -218,13 +218,13 @@ class CNCPlacementInfoStruct(CncStruct):
 
 
 GameStateRequestEnum = {
-    'GAME_STATE_NONE': (ctypes.c_int(0), None),
-    'GAME_STATE_STATIC_MAP': (ctypes.c_int(1), CNCMapDataStruct.from_buffer_copy),
-    'GAME_STATE_DYNAMIC_MAP': (ctypes.c_int(2), None),
-    'GAME_STATE_LAYERS': (ctypes.c_int(3), None),
-    'GAME_STATE_SIDEBAR': (ctypes.c_int(4), parse_sidebar_buffer),
+    'GAME_STATE_NONE': (0, None),
+    'GAME_STATE_STATIC_MAP': (1, CNCMapDataStruct.from_buffer_copy),
+    'GAME_STATE_DYNAMIC_MAP': (2, None),
+    'GAME_STATE_LAYERS': (3, None),
+    'GAME_STATE_SIDEBAR': (4, parse_sidebar_buffer),
     'GAME_STATE_PLACEMENT': (
-        ctypes.c_int(5),
+        5,
         partial(
             parse_variable_length_struct,
             cls=CNCPlacementInfoStruct,
@@ -233,7 +233,7 @@ GameStateRequestEnum = {
         ),
     ),
     'GAME_STATE_SHROUD': (
-        ctypes.c_int(6),
+        6,
         partial(
             parse_variable_length_struct,
             cls=CNCShroudStruct,
@@ -241,6 +241,6 @@ GameStateRequestEnum = {
             variable_field_type=CNCShroudEntryStruct,
         ),
     ),
-    'GAME_STATE_OCCUPIER': (ctypes.c_int(7), None),
-    'GAME_STATE_PLAYER_INFO': (ctypes.c_int(8), CNCPlayerInfoStruct.from_buffer_copy),
+    'GAME_STATE_OCCUPIER': (7, None),
+    'GAME_STATE_PLAYER_INFO': (8, CNCPlayerInfoStruct.from_buffer_copy),
 }

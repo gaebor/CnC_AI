@@ -35,16 +35,22 @@ class TDGameplay:
         self.dll.CNC_Get_Start_Game_Info.restype = ctypes.c_bool
         self.dll.CNC_Get_Palette.restype = ctypes.c_bool
         self.dll.CNC_Get_Visible_Page.restype = ctypes.c_bool
-        self.dll.CNC_Get_Game_State.restype = ctypes.c_bool
+        self.CNC_Get_Game_State = ctypes.WINFUNCTYPE(
+            ctypes.c_bool,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_ubyte),
+            ctypes.c_uint,
+        )(('CNC_Get_Game_State', self.dll))
         self.game_state_buffer = (ctypes.c_uint8 * (4 * 1024 ** 2))()
 
     def get_game_state(self, state_request, player_id):
         request_type, cast = GameStateRequestEnum[state_request]
-        if self.dll.CNC_Get_Game_State(
+        if self.CNC_Get_Game_State(
             request_type,
-            ctypes.c_ulonglong(player_id),
+            player_id,
             self.game_state_buffer,
-            ctypes.c_uint(len(self.game_state_buffer)),
+            len(self.game_state_buffer),
         ):
             if cast is not None:
                 return cast(self.game_state_buffer)
