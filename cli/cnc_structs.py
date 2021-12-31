@@ -10,9 +10,12 @@ class CncStruct(ctypes.Structure):
         for field_name, _ in self._fields_:
             field = getattr(self, field_name)
             if isinstance(field, ctypes.Array):
-                self_repr[field_name] = list(field)[:10]
-            else:
-                self_repr[field_name] = field
+                field = list(field)
+            self_repr[field_name] = field
+        self_repr.update(self.__dict__)
+        for field in self_repr:
+            if isinstance(self_repr[field], list):
+                self_repr[field] = self_repr[field][:10]
         return repr(self_repr)
 
 
@@ -35,6 +38,20 @@ class CNCDifficultyDataStruct(CncStruct):
 
 class CNCRulesDataStruct(CncStruct):
     _fields_ = [('Difficulties', CNCDifficultyDataStruct * 3)]
+
+
+def get_diff():
+    diff = CNCRulesDataStruct()
+    diff.Difficulties[0] = CNCDifficultyDataStruct(
+        1.2, 1.2, 1.2, 0.3, 0.8, 0.8, 0.6, 0.001, 0.001, False, True, True
+    )
+    diff.Difficulties[1] = CNCDifficultyDataStruct(
+        1, 1, 1, 1, 1, 1, 1, 0.02, 0.03, True, True, True
+    )
+    diff.Difficulties[2] = CNCDifficultyDataStruct(
+        0.9, 0.9, 0.9, 1.05, 1.05, 1, 1, 0.05, 0.1, True, True, True
+    )
+    return diff
 
 
 class CNCMultiplayerOptionsStruct(CncStruct):
@@ -107,15 +124,18 @@ class CNCShroudStruct(CncStruct):
     ]
 
 
-def parse_variable_length_struct(buffer, cls, variable_field_name, variable_field_type):
-    partially_parsed = cls.from_address(ctypes.addressof(buffer))
+def parse_variable_length(cls, member, member_cls):
+    def parser(buffer):
+        header = cls.from_buffer_copy(buffer)
+        l = []
+        setattr(header, member, l)
+        offset = ctypes.sizeof(cls)
+        for _ in range(header.Count):
+            l.append(member_cls.from_buffer_copy(buffer, offset))
+            offset += ctypes.sizeof(member_cls)
+        return header
 
-    class X(CncStruct):
-        _fields_ = cls._fields_ + [
-            (variable_field_name, variable_field_type * partially_parsed.Count),
-        ]
-
-    return X.from_buffer_copy(buffer)
+    return parser
 
 
 class CNCStaticCellStruct(CncStruct):
@@ -188,19 +208,15 @@ class CNCSidebarStruct(CncStruct):
     ]
 
 
-def parse_sidebar_buffer(buffer):
-    partially_parsed = CNCSidebarStruct.from_address(ctypes.addressof(buffer))
-
-    class X(CncStruct):
-        _fields_ = CNCSidebarStruct._fields_ + [
-            (
-                'Entries',
-                CNCSidebarEntryStruct
-                * (partially_parsed.EntryCount[0] + partially_parsed.EntryCount[1]),
-            ),
-        ]
-
-    return X.from_buffer_copy(buffer)
+def parse_sidebar(buffer):
+    header = CNCSidebarStruct.from_buffer_copy(buffer)
+    l = []
+    header.Entries = l
+    offset = ctypes.sizeof(CNCSidebarStruct)
+    for _ in range(sum(header.EntryCount)):
+        l.append(CNCSidebarEntryStruct.from_buffer_copy(buffer, offset))
+        offset += ctypes.sizeof(CNCSidebarEntryStruct)
+    return header
 
 
 class CNCPlacementCellInfoStruct(CncStruct):
@@ -350,46 +366,63 @@ class CNCObjectListStruct(CncStruct):
     ]
 
 
+class CNCOccupierObjectStruct(CncStruct):
+    _fields_ = [
+        ('Type', ctypes.c_int),  # DllObjectTypeEnum
+        ('ID', ctypes.c_int),
+    ]
+
+
+class CNCOccupierEntryHeaderStruct(CncStruct):
+    _fields_ = [
+        ('Count', ctypes.c_int),
+    ]
+
+
+class CNCOccupierHeaderStruct(CncStruct):
+    _fields_ = [
+        ('Count', ctypes.c_int),
+    ]
+
+
+def parse_occupier(buffer):
+    header = CNCOccupierHeaderStruct.from_buffer_copy(buffer)
+    offset = ctypes.sizeof(CNCOccupierHeaderStruct)
+    entries = []
+    setattr(header, 'Entries', entries)
+    for _ in range(header.Count):
+        entry = CNCOccupierEntryHeaderStruct.from_buffer_copy(buffer, offset)
+        offset += ctypes.sizeof(CNCOccupierEntryHeaderStruct)
+        objects = []
+        setattr(entry, 'Objects', objects)
+        for _ in range(entry.Count):
+            objects.append(CNCOccupierObjectStruct.from_buffer_copy(buffer, offset))
+            offset += ctypes.sizeof(CNCOccupierObjectStruct)
+        offset += ctypes.sizeof(CNCOccupierObjectStruct)
+        entries.append(entry)
+    return header
+
+
 GameStateRequestEnum = {
     'GAME_STATE_NONE': (0, None),
     'GAME_STATE_STATIC_MAP': (1, CNCMapDataStruct.from_buffer_copy),
     'GAME_STATE_DYNAMIC_MAP': (
         2,
-        partial(
-            parse_variable_length_struct,
-            cls=CNCDynamicMapStruct,
-            variable_field_name='Entries',
-            variable_field_type=CNCDynamicMapEntryStruct,
-        ),
+        parse_variable_length(CNCDynamicMapStruct, 'Entries', CNCDynamicMapEntryStruct),
     ),
     'GAME_STATE_LAYERS': (
         3,
-        partial(
-            parse_variable_length_struct,
-            cls=CNCObjectListStruct,
-            variable_field_name='Objects',
-            variable_field_type=CNCObjectStruct,
-        ),
+        parse_variable_length(CNCObjectListStruct, 'Objects', CNCObjectStruct),
     ),
-    'GAME_STATE_SIDEBAR': (4, parse_sidebar_buffer),
+    'GAME_STATE_SIDEBAR': (4, parse_sidebar),
     'GAME_STATE_PLACEMENT': (
         5,
-        partial(
-            parse_variable_length_struct,
-            cls=CNCPlacementInfoStruct,
-            variable_field_name='CellInfo',
-            variable_field_type=CNCPlacementCellInfoStruct,
-        ),
+        parse_variable_length(CNCPlacementInfoStruct, 'CellInfo', CNCPlacementCellInfoStruct),
     ),
     'GAME_STATE_SHROUD': (
         6,
-        partial(
-            parse_variable_length_struct,
-            cls=CNCShroudStruct,
-            variable_field_name='Entries',
-            variable_field_type=CNCShroudEntryStruct,
-        ),
+        parse_variable_length(CNCShroudStruct, 'Entries', CNCShroudEntryStruct),
     ),
-    'GAME_STATE_OCCUPIER': (7, None),
+    'GAME_STATE_OCCUPIER': (7, parse_occupier),
     'GAME_STATE_PLAYER_INFO': (8, CNCPlayerInfoStruct.from_buffer_copy),
 }
