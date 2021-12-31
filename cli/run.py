@@ -36,17 +36,18 @@ class TDGameplay:
         self.dll.CNC_Get_Palette.restype = ctypes.c_bool
         self.dll.CNC_Get_Visible_Page.restype = ctypes.c_bool
         self.dll.CNC_Get_Game_State.restype = ctypes.c_bool
-        self.game_state_buffer = (ctypes.c_uint8 * 1024)()
+        self.game_state_buffer = (ctypes.c_uint8 * (4 * 1024 ** 2))()
 
     def get_game_state(self, state_request, player_id):
-        while not self.dll.CNC_Get_Game_State(
-            GameStateRequestEnum[state_request][0],
+        request_type, cast = GameStateRequestEnum[state_request]
+        if self.dll.CNC_Get_Game_State(
+            request_type,
             ctypes.c_ulonglong(player_id),
             self.game_state_buffer,
             ctypes.c_uint(len(self.game_state_buffer)),
         ):
-            self.game_state_buffer = (ctypes.c_uint8 * (len(self.game_state_buffer) * 2))()
-        return GameStateRequestEnum[state_request][1](self.game_state_buffer)
+            if cast is not None:
+                return cast(self.game_state_buffer)
 
     def __del__(self):
         ctypes.windll.kernel32.FreeLibrary(self.dll._handle)
@@ -165,12 +166,19 @@ def main(args):
         raise ValueError('CNC_Get_Palette')
 
     map = TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
-    print(map.MapCellWidth, map.MapCellHeight)
     frame = 1
     while TD.Advance_Instance(ctypes.c_uint64(0)):
         print(frame, end='\r')
         if frame % 1000 == 0:
-            shroud = TD.get_game_state('GAME_STATE_SHROUD', players[0].GlyphxPlayerID)
+            TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
+            TD.get_game_state('GAME_STATE_LAYERS', 0)
+            TD.get_game_state('GAME_STATE_OCCUPIER', 0)
+
+            for player in players:
+                TD.get_game_state('GAME_STATE_SIDEBAR', player.GlyphxPlayerID)
+                TD.get_game_state('GAME_STATE_SHROUD', players[0].GlyphxPlayerID)
+                TD.get_game_state('GAME_STATE_PLACEMENT', players[0].GlyphxPlayerID)
+
             if TD.dll.CNC_Get_Visible_Page(
                 image_buffer, ctypes.byref(width), ctypes.byref(height)
             ):
