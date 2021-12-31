@@ -3,7 +3,7 @@ import argparse
 import os
 from random import getrandbits, sample
 
-from cnc_structs import *
+import cnc_structs
 
 
 def get_args():
@@ -21,7 +21,7 @@ def get_args():
 class TDGameplay:
     def __init__(self, dll_path, content_directory):
         self.dll = ctypes.WinDLL(dll_path)
-        self.difficulties = self.get_diff()
+        self.difficulties = cnc_structs.get_diff()
         self.dll.CNC_Init(ctypes.c_char_p(b"-CD\"" + content_directory + b"\""), None)
         self.dll.CNC_Config(ctypes.byref(self.difficulties))
 
@@ -45,32 +45,17 @@ class TDGameplay:
         self.game_state_buffer = (ctypes.c_uint8 * (4 * 1024 ** 2))()
 
     def get_game_state(self, state_request, player_id):
-        request_type, cast = GameStateRequestEnum[state_request]
+        request_type, result_type = cnc_structs.GameStateRequestEnum[state_request]
         if self.CNC_Get_Game_State(
             request_type,
             player_id,
             self.game_state_buffer,
             len(self.game_state_buffer),
         ):
-            if cast is not None:
-                return cast(self.game_state_buffer)
+            return result_type(self.game_state_buffer)
 
     def __del__(self):
         ctypes.windll.kernel32.FreeLibrary(self.dll._handle)
-
-    @staticmethod
-    def get_diff():
-        diff = CNCRulesDataStruct()
-        diff.Difficulties[0] = CNCDifficultyDataStruct(
-            1.2, 1.2, 1.2, 0.3, 0.8, 0.8, 0.6, 0.001, 0.001, False, True, True
-        )
-        diff.Difficulties[1] = CNCDifficultyDataStruct(
-            1, 1, 1, 1, 1, 1, 1, 0.02, 0.03, True, True, True
-        )
-        diff.Difficulties[2] = CNCDifficultyDataStruct(
-            0.9, 0.9, 0.9, 1.05, 1.05, 1, 1, 0.05, 0.1, True, True, True
-        )
-        return diff
 
 
 def main(args):
@@ -86,7 +71,7 @@ def main(args):
     scenario_index = ctypes.c_int(50)
 
     players = [
-        CNCPlayerInfoStruct(
+        cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=1055504538,
             Name=b"ai1",
             House=houses[1],
@@ -96,7 +81,7 @@ def main(args):
             IsAI=True,
             StartLocationIndex=127,
         ),
-        CNCPlayerInfoStruct(
+        cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=76561199154512029,
             Name=b"gaebor",
             House=houses[0],
@@ -107,9 +92,9 @@ def main(args):
             StartLocationIndex=127,
         ),
     ]
-    players = (CNCPlayerInfoStruct * len(players))(*players)
+    players = (cnc_structs.CNCPlayerInfoStruct * len(players))(*players)
 
-    multiplayer_options = CNCMultiplayerOptionsStruct(
+    multiplayer_options = cnc_structs.CNCMultiplayerOptionsStruct(
         MPlayerCount=2,
         MPlayerBases=1,
         MPlayerCredits=5000,
@@ -171,7 +156,7 @@ def main(args):
     else:
         raise ValueError('CNC_Get_Palette')
 
-    map = TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
+    TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
     frame = 1
     while TD.Advance_Instance(ctypes.c_uint64(0)):
         print(frame, end='\r')
