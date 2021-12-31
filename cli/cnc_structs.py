@@ -217,11 +217,160 @@ class CNCPlacementInfoStruct(CncStruct):
     ]
 
 
+class CNCDynamicMapEntryStruct(CncStruct):
+    _fields_ = [
+        ('AssetName', ctypes.c_char * 16),
+        ('PositionX', ctypes.c_int),
+        ('PositionY', ctypes.c_int),
+        ('Width', ctypes.c_int),
+        ('Height', ctypes.c_int),
+        ('Type', ctypes.c_short),
+        ('Owner', ctypes.c_char),
+        ('DrawFlags', ctypes.c_int),
+        ('CellX', ctypes.c_byte),
+        ('CellY', ctypes.c_byte),
+        ('ShapeIndex', ctypes.c_byte),
+        ('IsSmudge', ctypes.c_bool),
+        ('IsOverlay', ctypes.c_bool),
+        ('IsResource', ctypes.c_bool),
+        ('IsSellable', ctypes.c_bool),
+        ('IsTheaterShape', ctypes.c_bool),
+        ('IsFlag', ctypes.c_bool),
+    ]
+
+
+class CNCDynamicMapStruct(CncStruct):
+    _fields_ = [
+        ('VortexActive', ctypes.c_bool),
+        ('VortexX', ctypes.c_int),
+        ('VortexY', ctypes.c_int),
+        ('VortexWidth', ctypes.c_int),
+        ('VortexHeight', ctypes.c_int),
+        ('Count', ctypes.c_int),
+        # ('Entries', CNCDynamicMapEntryStruct * 1),
+    ]
+
+
+CNC_OBJECT_ASSET_NAME_LENGTH = 16
+MAX_OBJECT_PIPS = 18
+MAX_OBJECT_LINES = 3
+
+
+class CNCObjectLineStruct(CncStruct):
+    _fields_ = [
+        ('X', ctypes.c_int),
+        ('Y', ctypes.c_int),
+        ('X1', ctypes.c_int),
+        ('Y1', ctypes.c_int),
+        ('Frame', ctypes.c_int),
+        ('Color', ctypes.c_byte),
+    ]
+
+
+class CNCObjectStruct(CncStruct):
+    _fields_ = [
+        ('TypeName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
+        ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
+        ('Type', ctypes.c_int),  # DllObjectTypeEnum
+        ('ID', ctypes.c_int),
+        ('BaseObjectID', ctypes.c_int),
+        ('BaseObjectType', ctypes.c_int),  # DllObjectTypeEnum
+        ('PositionX', ctypes.c_int),
+        ('PositionY', ctypes.c_int),
+        ('Width', ctypes.c_int),
+        ('Height', ctypes.c_int),
+        ('Altitude', ctypes.c_int),
+        ('SortOrder', ctypes.c_int),
+        ('Scale', ctypes.c_int),
+        ('DrawFlags', ctypes.c_int),
+        ('MaxStrength', ctypes.c_short),
+        ('Strength', ctypes.c_short),
+        ('ShapeIndex', ctypes.c_ushort),
+        ('CellX', ctypes.c_ushort),
+        ('CellY', ctypes.c_ushort),
+        ('CenterCoordX', ctypes.c_ushort),
+        ('CenterCoordY', ctypes.c_ushort),
+        ('SimLeptonX', ctypes.c_short),
+        ('SimLeptonY', ctypes.c_short),
+        ('DimensionX', ctypes.c_byte),
+        ('DimensionY', ctypes.c_byte),
+        ('Rotation', ctypes.c_byte),
+        ('MaxSpeed', ctypes.c_byte),
+        ('Owner', ctypes.c_char),
+        ('RemapColor', ctypes.c_char),
+        ('SubObject', ctypes.c_char),
+        ('IsSelectable', ctypes.c_bool),
+        ('IsSelectedMask', ctypes.c_uint),
+        ('IsRepairing', ctypes.c_bool),
+        ('IsDumping', ctypes.c_bool),
+        ('IsTheaterSpecific', ctypes.c_bool),
+        ('FlashingFlags', ctypes.c_uint),
+        ('Cloak', ctypes.c_byte),
+        ('CanRepair', ctypes.c_bool),
+        ('CanDemolish', ctypes.c_bool),
+        ('CanDemolishUnit', ctypes.c_bool),
+        ('OccupyList', ctypes.c_short * MAX_OCCUPY_CELLS),
+        ('OccupyListLength', ctypes.c_int),
+        ('Pips', ctypes.c_int * MAX_OBJECT_PIPS),
+        ('NumPips', ctypes.c_int),
+        ('MaxPips', ctypes.c_int),
+        ('Lines', CNCObjectLineStruct * MAX_OBJECT_LINES),
+        ('NumLines', ctypes.c_int),
+        ('RecentlyCreated', ctypes.c_bool),
+        ('IsALoaner', ctypes.c_bool),
+        ('IsFactory', ctypes.c_bool),
+        ('IsPrimaryFactory', ctypes.c_bool),
+        ('IsDeployable', ctypes.c_bool),
+        ('IsAntiGround', ctypes.c_bool),
+        ('IsAntiAircraft', ctypes.c_bool),
+        ('IsSubSurface', ctypes.c_bool),
+        ('IsNominal', ctypes.c_bool),
+        ('IsDog', ctypes.c_bool),
+        ('IsIronCurtain', ctypes.c_bool),
+        ('IsInFormation', ctypes.c_bool),
+        ('CanMove', ctypes.c_bool * MAX_HOUSES),
+        ('CanFire', ctypes.c_bool * MAX_HOUSES),
+        ('CanDeploy', ctypes.c_bool),
+        ('CanHarvest', ctypes.c_bool),
+        ('CanPlaceBombs', ctypes.c_bool),
+        ('IsFixedWingedAircraft', ctypes.c_bool),
+        ('IsFake', ctypes.c_bool),
+        ('ControlGroup', ctypes.c_byte),
+        ('VisibleFlags', ctypes.c_uint),
+        ('SpiedByFlags', ctypes.c_uint),
+        ('ProductionAssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
+        ('ActionWithSelected', ctypes.c_int * MAX_HOUSES),  # DllActionTypeEnum
+    ]
+
+
+class CNCObjectListStruct(CncStruct):
+    _fields_ = [
+        ('Count', ctypes.c_int),
+        # ('Objects', CNCObjectStruct * 1),
+    ]
+
+
 GameStateRequestEnum = {
     'GAME_STATE_NONE': (0, None),
     'GAME_STATE_STATIC_MAP': (1, CNCMapDataStruct.from_buffer_copy),
-    'GAME_STATE_DYNAMIC_MAP': (2, None),
-    'GAME_STATE_LAYERS': (3, None),
+    'GAME_STATE_DYNAMIC_MAP': (
+        2,
+        partial(
+            parse_variable_length_struct,
+            cls=CNCDynamicMapStruct,
+            variable_field_name='Entries',
+            variable_field_type=CNCDynamicMapEntryStruct,
+        ),
+    ),
+    'GAME_STATE_LAYERS': (
+        3,
+        partial(
+            parse_variable_length_struct,
+            cls=CNCObjectListStruct,
+            variable_field_name='Objects',
+            variable_field_type=CNCObjectStruct,
+        ),
+    ),
     'GAME_STATE_SIDEBAR': (4, parse_sidebar_buffer),
     'GAME_STATE_PLACEMENT': (
         5,
