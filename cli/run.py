@@ -80,14 +80,13 @@ def main(args):
     while TD.Advance_Instance(ctypes.c_uint64(0)):
         print(frame, end='\r')
         if frame == 1:
-            if not TD.select_first_unit(0):
-                raise ValueError('select_first_unit')
+            TD.deploy_at_start(0)
         if frame % 1000 == 0:
             dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
             layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
             occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
 
-            TD.show_image()
+            # TD.show_image()
         frame += 1
     print()
     TD.retrieve_players_info()

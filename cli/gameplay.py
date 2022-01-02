@@ -120,11 +120,26 @@ class TDGameplay:
             img.putpalette(self.palette)
             img.show()
 
-    def select_first_unit(self, player_index):
+    def deploy_at_start(self, player_index):
         player = self.players[player_index]
         unit = decoders.players_units(self.get_game_state('GAME_STATE_LAYERS', 0), player.House)[0]
-        return self.dll.CNC_Select_Object(
-            ctypes.c_uint64(player.GlyphxPlayerID), ctypes.c_int(unit.Type), ctypes.c_int(unit.ID)
+        self.dll.CNC_Handle_Input(
+            ctypes.c_int(8),  # INPUT_REQUEST_SELECT_AT_POSITION
+            ctypes.c_ubyte(0),  # special_key_flags
+            ctypes.c_uint64(player.GlyphxPlayerID),
+            ctypes.c_int(unit.PositionX),
+            ctypes.c_int(unit.PositionY),
+            ctypes.c_int(0),
+            ctypes.c_int(0),
+        )
+        self.dll.CNC_Handle_Input(
+            ctypes.c_int(9),  # INPUT_REQUEST_COMMAND_AT_POSITION
+            ctypes.c_ubyte(0),  # special_key_flags
+            ctypes.c_uint64(player.GlyphxPlayerID),
+            ctypes.c_int(unit.PositionX),
+            ctypes.c_int(unit.PositionY),
+            ctypes.c_int(0),
+            ctypes.c_int(0),
         )
 
     def __del__(self):
