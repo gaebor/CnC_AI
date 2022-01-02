@@ -425,5 +425,4 @@ GameStateRequestEnum = {
         parse_variable_length(CNCShroudStruct, 'Entries', CNCShroudEntryStruct),
     ),
     'GAME_STATE_OCCUPIER': (7, parse_occupier),
-    'GAME_STATE_PLAYER_INFO': (8, CNCPlayerInfoStruct.from_buffer_copy),
 }

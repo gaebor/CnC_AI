@@ -4,19 +4,19 @@ from PIL import Image
 
 import cnc_structs
 import decoders
+import input_requests
 
 
 class TDGameplay:
     def __init__(self, dll_path, content_directory):
         self.players = []
+        self.actions = {}
         self.content_directory = content_directory
         self.dll = ctypes.WinDLL(dll_path)
         self.dll.CNC_Init(ctypes.c_char_p(b"-CD\"" + content_directory + b"\""), None)
         self.dll.CNC_Config(ctypes.byref(cnc_structs.get_diff()))
 
-        self.Advance_Instance = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint64)(
-            ('CNC_Advance_Instance', self.dll)
-        )
+        self.dll.CNC_Advance_Instance.restype = ctypes.c_bool
         self.dll.CNC_Set_Multiplayer_Data.restype = ctypes.c_bool
         self.dll.CNC_Start_Instance.restype = ctypes.c_bool
         self.dll.CNC_Start_Instance_Variation.restype = ctypes.c_bool
@@ -26,15 +26,10 @@ class TDGameplay:
         self.dll.CNC_Get_Visible_Page.restype = ctypes.c_bool
         self.dll.CNC_Clear_Object_Selection.restype = ctypes.c_bool
         self.dll.CNC_Select_Object.restype = ctypes.c_bool
-        self.CNC_Get_Game_State = ctypes.WINFUNCTYPE(
-            ctypes.c_bool,
-            ctypes.c_int,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_ubyte),
-            ctypes.c_uint,
-        )(('CNC_Get_Game_State', self.dll))
+        self.dll.CNC_Get_Game_State.restype = ctypes.c_bool
+
         self.game_state_buffer = (ctypes.c_uint8 * (4 * 1024 ** 2))()
-        self.image_buffer = (ctypes.c_uint8 * ((64 * 24) * (64 * 24)))()
+        self.image_buffer = (ctypes.c_uint8 * ((64 * 24) ** 2))()
 
     def add_player(self, playerinfo: cnc_structs.CNCPlayerInfoStruct):
         self.players.append(playerinfo)
@@ -84,22 +79,23 @@ class TDGameplay:
     def retrieve_players_info(self):
         # overrides House info: GOOD/BAD becomes MULTI1-6
         for player in self.players:
-            if not self.CNC_Get_Game_State(
-                cnc_structs.GameStateRequestEnum['GAME_STATE_PLAYER_INFO'][0],
-                player.GlyphxPlayerID,
-                ctypes.cast(ctypes.pointer(player), ctypes.POINTER(ctypes.c_ubyte)),
+            if not self.dll.CNC_Get_Game_State(
+                ctypes.c_int(8),  # GAME_STATE_PLAYER_INFO
+                ctypes.c_uint64(player.GlyphxPlayerID),
+                ctypes.pointer(player),
                 ctypes.sizeof(cnc_structs.CNCPlayerInfoStruct)
                 + 33,  # A little extra for no reason
             ):
-                raise ValueError('CNC_Get_Game_State')
+                raise ValueError('CNC_Get_Game_State (PLAYER_INFO)')
 
-    def get_game_state(self, state_request, player_id):
+    def get_game_state(self, state_request, player_index):
+        player = self.players[player_index]
         request_type, result_type = cnc_structs.GameStateRequestEnum[state_request]
-        if self.CNC_Get_Game_State(
-            request_type,
-            player_id,
-            self.game_state_buffer,
-            len(self.game_state_buffer),
+        if self.dll.CNC_Get_Game_State(
+            ctypes.c_int(request_type),
+            ctypes.c_uint64(player.GlyphxPlayerID),
+            ctypes.pointer(self.game_state_buffer),
+            ctypes.c_int(len(self.game_state_buffer)),
         ):
             return result_type(self.game_state_buffer)
 
@@ -120,27 +116,108 @@ class TDGameplay:
             img.putpalette(self.palette)
             img.show()
 
-    def deploy_at_start(self, player_index):
+    def get_units(self, player_index):
         player = self.players[player_index]
-        unit = decoders.players_units(self.get_game_state('GAME_STATE_LAYERS', 0), player.House)[0]
-        self.dll.CNC_Handle_Input(
-            ctypes.c_int(8),  # INPUT_REQUEST_SELECT_AT_POSITION
-            ctypes.c_ubyte(0),  # special_key_flags
-            ctypes.c_uint64(player.GlyphxPlayerID),
-            ctypes.c_int(unit.PositionX),
-            ctypes.c_int(unit.PositionY),
-            ctypes.c_int(0),
-            ctypes.c_int(0),
-        )
-        self.dll.CNC_Handle_Input(
-            ctypes.c_int(9),  # INPUT_REQUEST_COMMAND_AT_POSITION
-            ctypes.c_ubyte(0),  # special_key_flags
-            ctypes.c_uint64(player.GlyphxPlayerID),
-            ctypes.c_int(unit.PositionX),
-            ctypes.c_int(unit.PositionY),
-            ctypes.c_int(0),
-            ctypes.c_int(0),
-        )
+        units = decoders.players_units(self.get_game_state('GAME_STATE_LAYERS', 0), player.House)
+        return units
+
+    def advance(self):
+        for player_id, (action, args) in self.actions.items():
+            self.handle_request(action, player_id, *args)
+        self.actions = {}
+        return self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
+
+    def register_request(self, player_index, request_type, arg1, *args):
+        player = self.players[player_index]
+        self.actions[player.GlyphxPlayerID] = (request_type, (arg1,) + args)
+
+    def handle_request(self, request_type, player_id, x1, y1=0, x2=0, y2=0):
+        if request_type == 'INPUT_REQUEST_SPECIAL_KEYS':
+            self.dll.CNC_Handle_Input(
+                ctypes.c_int(10),
+                ctypes.c_ubyte(x1),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(0),
+                ctypes.c_int(0),
+                ctypes.c_int(0),
+                ctypes.c_int(0),
+            )
+        elif request_type.startswith('INPUT_REQUEST'):
+            self.dll.CNC_Handle_Input(
+                ctypes.c_int(input_requests.InputRequestEnum[request_type]),
+                ctypes.c_ubyte(0),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(x1),
+                ctypes.c_int(y1),
+                ctypes.c_int(x2),
+                ctypes.c_int(y2),
+            )
+        elif request_type == 'SUPERWEAPON_REQUEST_PLACE_SUPER_WEAPON':
+            self.dll.CNC_Handle_SuperWeapon_Request(
+                ctypes.c_int(0),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(x1),
+                ctypes.c_int(y1),
+                ctypes.c_int(x2),
+                ctypes.c_int(y2),
+            )
+        elif request_type.startswith('INPUT_STRUCTURE'):
+            self.dll.CNC_Handle_Structure_Request(
+                ctypes.c_int(input_requests.StructureRequestEnum[request_type]),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(x1),
+            )
+        elif request_type.startswith('INPUT_UNIT'):
+            self.dll.CNC_Handle_Unit_Request(
+                ctypes.c_int(input_requests.UnitRequestEnum[request_type]),
+                ctypes.c_uint64(player_id),
+            )
+        elif request_type.startswith('SIDEBAR_REQUEST'):
+            self.dll.CNC_Handle_Sidebar_Request(
+                ctypes.c_int(input_requests.SidebarRequestEnum[request_type]),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(x1),
+                ctypes.c_int(y1),
+                ctypes.c_short(x2),
+                ctypes.c_short(y2),
+            )
+        elif request_type.startswith('CONTROL_GROUP_REQUEST'):
+            self.dll.CNC_Handle_ControlGroup_Request(
+                ctypes.c_int(input_requests.ControlGroupRequestEnum[request_type]),
+                ctypes.c_uint64(player_id),
+                ctypes.c_ubyte(x1),
+            )
+        elif request_type.startswith('INPUT_BEACON_'):
+            self.dll.CNC_Handle_Beacon_Request(
+                ctypes.c_int(input_requests.BeaconRequestEnum[request_type]),
+                ctypes.c_uint64(player_id),
+                ctypes.c_int(x1),
+                ctypes.c_int(y1),
+            )
+        else:
+            raise ValueError(request_type)
+
+    # def deploy_at_start(self, player_index):
+    #     player = self.players[player_index]
+    #     unit = decoders.players_units(self.get_game_state('GAME_STATE_LAYERS', 0), player.House)[0]
+    #     self.dll.CNC_Handle_Input(
+    #         ctypes.c_int(8),  # INPUT_REQUEST_SELECT_AT_POSITION
+    #         ctypes.c_ubyte(0),  # special_key_flags
+    #         ctypes.c_uint64(player.GlyphxPlayerID),
+    #         ctypes.c_int(unit.PositionX),
+    #         ctypes.c_int(unit.PositionY),
+    #         ctypes.c_int(0),
+    #         ctypes.c_int(0),
+    #     )
+    #     self.dll.CNC_Handle_Input(
+    #         ctypes.c_int(9),  # INPUT_REQUEST_COMMAND_AT_POSITION
+    #         ctypes.c_ubyte(0),  # special_key_flags
+    #         ctypes.c_uint64(player.GlyphxPlayerID),
+    #         ctypes.c_int(unit.PositionX),
+    #         ctypes.c_int(unit.PositionY),
+    #         ctypes.c_int(0),
+    #         ctypes.c_int(0),
+    #     )
 
     def __del__(self):
         ctypes.windll.kernel32.FreeLibrary(self.dll._handle)
