@@ -45,41 +45,42 @@ def layers_list(layers, static_map):
     ]
 
 
+def units_and_buildings_dict(layers):
+    return {(o.Type, o.ID): o for o in layers.Objects if o.Type >= 1 and o.Type <= 4}
+
+
 def layers_term(layers, dynamic_map, static_map, occupiers):
+    units_and_buildings = units_and_buildings_dict(layers)
     tiberium = tiberium_array(dynamic_map, static_map)
-    term_array = [
-        [termcolor.colored(' ', 'grey', 'on_green') if i else ' ' for i in row] for row in tiberium
-    ]
 
-    occupiers = occupiers_array(occupiers, static_map)
+    for i, (occupier, is_tiberium) in enumerate(zip(occupiers.Entries, tiberium.flat)):
+        if i < static_map.MapCellWidth or i >= static_map.MapCellWidth * (
+            static_map.MapCellHeight - 1
+        ):
+            continue
 
-    for o in layers.Objects:
-        i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
+        text = ' '
+        color = 'white'
+        background = 'on_green' if is_tiberium else 'on_grey'
 
-        if tiberium[i, j]:
-            background = ('on_green',)
-        else:
-            background = tuple()
+        if i % static_map.MapCellWidth == 0:
+            text = '|'
+        elif i % static_map.MapCellWidth == static_map.MapCellWidth - 1:
+            text = '|\n'
+        elif len(occupier.Objects) > 0:
+            occupier = occupier.Objects[0]
+            if (occupier.Type, occupier.ID) in units_and_buildings:
+                occupier = units_and_buildings[(occupier.Type, occupier.ID)]
+                color = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan'][
+                    ord(occupier.Owner) - 4
+                ]
+                text = occupier.AssetName.decode('ascii')[0]
+                if occupier.Type >= 1 and occupier.Type <= 3:
+                    text = text.lower()
+                elif occupier.Type == 4:
+                    text = text.upper()
 
-        if o.Owner != b'\xff':
-            color = (['yellow', 'blue', 'red', 'white', 'magenta', 'cyan'][ord(o.Owner) - 4],)
-        else:
-            color = tuple()
-
-        if o.Type >= 1 and o.Type <= 3:
-            term_array[i][j] = termcolor.colored(
-                o.AssetName.decode('ascii')[0].lower(), *(color + background)
-            )
-        elif o.Type == 4:
-            name = o.AssetName.decode('ascii')[0].upper()
-            for sub_i, sub_j in zip(*np.where(occupiers == (o.Type << 32) + o.ID)):
-                if tiberium[sub_i, sub_j]:
-                    background = ('on_green',)
-                else:
-                    background = tuple()
-                term_array[sub_i][sub_j] = termcolor.colored(name, *(color + background))
-
-    return '|' + '|\n|'.join(map(''.join, term_array)) + '|'
+        print(termcolor.colored(text, color, background), end='')
 
 
 def sidebar_term(sidebar: cnc_structs.CNCSidebarStruct):
