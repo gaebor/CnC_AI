@@ -6,7 +6,18 @@ from random import getrandbits, sample
 
 import cnc_structs
 from gameplay import TDGameplay
-from decoders import layers_term
+from decoders import layers_term, sidebar_term
+
+
+class COORD(ctypes.Structure):
+    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+
+Stdhandle = ctypes.windll.kernel32.GetStdHandle(-11)
+
+
+def move_cursor(r, c):
+    ctypes.windll.kernel32.SetConsoleCursorPosition(Stdhandle, COORD(c, r))
 
 
 def get_args():
@@ -83,7 +94,6 @@ def main(args):
 
     frame = 1
     while TD.advance():
-        print(frame, end='\r')
         if units is None:
             units = TD.get_units(0)
         elif selected is None:
@@ -96,18 +106,18 @@ def main(args):
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
 
-        if frame % 1000 == 0:
-            dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
-            layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
-            print(layers_term(layers, dynamic_map, static_map))
-            # occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
-            sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
-            # print(sidebar)
-            # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
-            # print(placement)
-            # TD.show_image()
+        dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
+        layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
+        move_cursor(0, 0)
+        print(layers_term(layers, dynamic_map, static_map))
+        # occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
+        sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
+        move_cursor(0, 0)
+        sidebar_term(sidebar)
+        # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
+        # print(placement)
+        # TD.show_image()
         frame += 1
-    print()
     TD.retrieve_players_info()
     for player in TD.players:
         print(player)

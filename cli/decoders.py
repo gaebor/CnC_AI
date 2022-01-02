@@ -1,5 +1,6 @@
 import numpy as np
 import termcolor
+import ctypes
 
 import cnc_structs
 
@@ -45,13 +46,13 @@ def layers_list(layers, static_map):
 
 
 def layers_term(layers, dynamic_map, static_map):
+    tiberium = tiberium_array(dynamic_map, static_map)
     term_array = [
-        [' ' for i in range(static_map.MapCellWidth)] for j in range(static_map.MapCellHeight)
+        [termcolor.colored(' ', 'grey', 'on_green') if i else ' ' for i in row] for row in tiberium
     ]
     number_of_units = [
         [0 for i in range(static_map.MapCellWidth)] for j in range(static_map.MapCellHeight)
     ]
-    tiberium = tiberium_array(dynamic_map, static_map)
 
     for o in layers.Objects:
         i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
@@ -85,6 +86,24 @@ def layers_term(layers, dynamic_map, static_map):
                 )
 
     return '\n'.join(map(''.join, term_array))
+
+
+def sidebar_term(sidebar: cnc_structs.CNCSidebarStruct):
+    print(
+        f'Tiberium: {(100 * sidebar.Tiberium) // sidebar.MaxTiberium if sidebar.MaxTiberium > 0 else 0 :3d}%',
+        f'Power: {(100 * sidebar.PowerDrained) // sidebar.PowerProduced if sidebar.PowerProduced > 0 else 0:3d}%',
+        f'Credits: {sidebar.Credits},',
+    )
+    print(
+        ', '.join(
+            sidebar.Entries[i].AssetName.decode('ascii') for i in range(sidebar.EntryCount[0])
+        ),
+        '|',
+        ', '.join(
+            sidebar.Entries[i].AssetName.decode('ascii')
+            for i in range(sidebar.EntryCount[0], sidebar.EntryCount[0] + sidebar.EntryCount[1])
+        ),
+    )
 
 
 def players_units(layers, house):
