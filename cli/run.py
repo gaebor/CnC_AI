@@ -2,11 +2,12 @@ import ctypes
 import argparse
 import os
 from random import getrandbits, sample
-
+from time import sleep
+import sys
 
 import cnc_structs
 from gameplay import TDGameplay
-from decoders import layers_term, sidebar_term
+from decoders import layers_term, sidebar_term, layers_list
 
 
 class COORD(ctypes.Structure):
@@ -88,35 +89,27 @@ def main(args):
     TD.start_game(multiplayer_options, ctypes.c_int(50))
 
     static_map = TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
-
     units = None
-    selected = None
 
     frame = 1
     while TD.advance():
         if units is None:
             units = TD.get_units(0)
-        elif selected is None:
+        else:
             selected = units[0]
-            TD.register_request(
-                0, 'INPUT_REQUEST_SELECT_AT_POSITION', selected.PositionX, selected.PositionY
-            )
-        elif selected is not None:
             TD.register_request(
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
-
         dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
         layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
+        occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
         move_cursor(0, 0)
-        print(layers_term(layers, dynamic_map, static_map))
-        # occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
+        print(layers_term(layers, dynamic_map, static_map, occupiers))
         sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
         move_cursor(0, 0)
         sidebar_term(sidebar)
         # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
         # print(placement)
-        # TD.show_image()
         frame += 1
     TD.retrieve_players_info()
     for player in TD.players:

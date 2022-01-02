@@ -45,19 +45,13 @@ def layers_list(layers, static_map):
     ]
 
 
-def layers_term(layers, dynamic_map, static_map):
+def layers_term(layers, dynamic_map, static_map, occupiers):
     tiberium = tiberium_array(dynamic_map, static_map)
     term_array = [
         [termcolor.colored(' ', 'grey', 'on_green') if i else ' ' for i in row] for row in tiberium
     ]
-    number_of_units = [
-        [0 for i in range(static_map.MapCellWidth)] for j in range(static_map.MapCellHeight)
-    ]
 
-    for o in layers.Objects:
-        i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
-        if o.Type >= 1 and o.Type <= 3:
-            number_of_units[i][j] += 1
+    occupiers = occupiers_array(occupiers, static_map)
 
     for o in layers.Objects:
         i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
@@ -72,29 +66,28 @@ def layers_term(layers, dynamic_map, static_map):
         else:
             color = tuple()
 
-        if o.Type == 1:
-            term_array[i][j] = termcolor.colored(str(number_of_units[i][j]), *(color + background))
-        elif o.Type == 2 or o.Type == 3:
+        if o.Type >= 1 and o.Type <= 3:
             term_array[i][j] = termcolor.colored(
                 o.AssetName.decode('ascii')[0].lower(), *(color + background)
             )
         elif o.Type == 4:
-            for tile in o.OccupyList[: o.OccupyListLength]:
-                i_inc, j_inc = tile // 64, tile % 64
-                term_array[i + i_inc][j + j_inc] = termcolor.colored(
-                    o.AssetName.decode('ascii')[0].upper(), *(color + background)
-                )
+            name = o.AssetName.decode('ascii')[0].upper()
+            for sub_i, sub_j in zip(*np.where(occupiers == (o.Type << 32) + o.ID)):
+                if tiberium[sub_i, sub_j]:
+                    background = ('on_green',)
+                else:
+                    background = tuple()
+                term_array[sub_i][sub_j] = termcolor.colored(name, *(color + background))
 
-    return '\n'.join(map(''.join, term_array))
+    return '|' + '|\n|'.join(map(''.join, term_array)) + '|'
 
 
 def sidebar_term(sidebar: cnc_structs.CNCSidebarStruct):
     print(
         f'Tiberium: {(100 * sidebar.Tiberium) // sidebar.MaxTiberium if sidebar.MaxTiberium > 0 else 0 :3d}%',
         f'Power: {(100 * sidebar.PowerDrained) // sidebar.PowerProduced if sidebar.PowerProduced > 0 else 0:3d}%',
-        f'Credits: {sidebar.Credits},',
-    )
-    print(
+        f'Credits: {sidebar.Credits}',
+        '|',
         ', '.join(
             sidebar.Entries[i].AssetName.decode('ascii') for i in range(sidebar.EntryCount[0])
         ),
@@ -116,9 +109,19 @@ def shroud_array(shrouds: cnc_structs.CNCShroudStruct, static_map):
     )
 
 
-def occupiers(occupiers_struct, static_map):
+def occupiers_list(occupiers_struct, static_map):
     return [
         {'X': i % static_map.MapCellWidth, 'Y': i // static_map.MapCellWidth, 'Objects': e.Objects}
         for i, e in enumerate(occupiers_struct.Entries)
         if e.Count > 0
     ]
+
+
+def occupiers_array(occupiers_struct, static_map):
+    return np.array(
+        [
+            ((-1 if len(e.Objects) == 0 else e.Objects[0].Type) << 32)
+            + (-1 if len(e.Objects) == 0 else e.Objects[0].ID)
+            for e in occupiers_struct.Entries
+        ]
+    ).reshape((static_map.MapCellHeight, static_map.MapCellWidth))
