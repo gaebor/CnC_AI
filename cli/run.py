@@ -6,6 +6,7 @@ from random import getrandbits, sample
 
 import cnc_structs
 from gameplay import TDGameplay
+from decoders import layers_term
 
 
 def get_args():
@@ -98,12 +99,13 @@ def main(args):
         if frame % 1000 == 0:
             dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
             layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
-            occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
+            print(layers_term(layers, dynamic_map, static_map))
+            # occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
             sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
             # print(sidebar)
             # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
             # print(placement)
-            TD.show_image()
+            # TD.show_image()
         frame += 1
     print()
     TD.retrieve_players_info()

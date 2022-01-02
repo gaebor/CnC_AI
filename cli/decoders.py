@@ -1,4 +1,5 @@
 import numpy as np
+import termcolor
 
 import cnc_structs
 
@@ -11,7 +12,7 @@ def staticmap_array(map: cnc_structs.CNCMapDataStruct) -> np.ndarray:
     return tile_names.reshape((map.MapCellHeight, map.MapCellWidth))
 
 
-def dynamicmap_array(map: cnc_structs.CNCDynamicMapStruct, static_map):
+def tiberium_array(map: cnc_structs.CNCDynamicMapStruct, static_map):
     array = np.zeros((static_map.MapCellHeight, static_map.MapCellWidth), dtype=bool)
     for entry in map.Entries:
         array[
@@ -41,6 +42,49 @@ def layers_list(layers, static_map):
         for o in layers.Objects
         if o.Type > 0
     ]
+
+
+def layers_term(layers, dynamic_map, static_map):
+    term_array = [
+        [' ' for i in range(static_map.MapCellWidth)] for j in range(static_map.MapCellHeight)
+    ]
+    number_of_units = [
+        [0 for i in range(static_map.MapCellWidth)] for j in range(static_map.MapCellHeight)
+    ]
+    tiberium = tiberium_array(dynamic_map, static_map)
+
+    for o in layers.Objects:
+        i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
+        if o.Type >= 1 and o.Type <= 3:
+            number_of_units[i][j] += 1
+
+    for o in layers.Objects:
+        i, j = o.CellY - static_map.MapCellY, o.CellX - static_map.MapCellX
+
+        if tiberium[i, j]:
+            background = ('on_green',)
+        else:
+            background = tuple()
+
+        if o.Owner != b'\xff':
+            color = (['yellow', 'blue', 'red', 'white', 'magenta', 'cyan'][ord(o.Owner) - 4],)
+        else:
+            color = tuple()
+
+        if o.Type == 1:
+            term_array[i][j] = termcolor.colored(str(number_of_units[i][j]), *(color + background))
+        elif o.Type == 2 or o.Type == 3:
+            term_array[i][j] = termcolor.colored(
+                o.AssetName.decode('ascii')[0].lower(), *(color + background)
+            )
+        elif o.Type == 4:
+            for tile in o.OccupyList[: o.OccupyListLength]:
+                i_inc, j_inc = tile // 64, tile % 64
+                term_array[i + i_inc][j + j_inc] = termcolor.colored(
+                    o.AssetName.decode('ascii')[0].upper(), *(color + background)
+                )
+
+    return '\n'.join(map(''.join, term_array))
 
 
 def players_units(layers, house):
