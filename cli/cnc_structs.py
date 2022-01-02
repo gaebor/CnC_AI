@@ -1,5 +1,4 @@
 import ctypes
-from functools import partial
 
 
 class CncStruct(ctypes.Structure):
