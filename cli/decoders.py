@@ -43,6 +43,10 @@ def layers_list(layers, static_map):
     ]
 
 
+def players_units(layers, house):
+    return [o for o in layers.Objects if ord(o.Owner) == house and o.IsSelectable]
+
+
 def shroud_array(shrouds: cnc_structs.CNCShroudStruct, static_map):
     return np.array([entry.IsVisible for entry in shrouds.Entries], dtype=bool).reshape(
         (static_map.MapCellHeight, static_map.MapCellWidth)
