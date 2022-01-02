@@ -186,9 +186,17 @@ def main(args):
         print(frame, end='\r')
         if frame % 1000 == 0:
             dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
+            # print(
+            #     [
+            #         {'Type': e.AssetName.decode('ascii'), 'X': e.CellX, 'Y': e.CellY}
+            #         for e in dynamic_map.Entries
+            #         if e.Type > 0  # and o.Type <= 4
+            #     ]
+            # )
             layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
-            TD.get_game_state('GAME_STATE_OCCUPIER', 0)
-
+            # Image.fromarray(decoders.layers(layers, map) > 0).show()
+            occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
+            print(decoders.occupiers(occupiers, map))
             # for player in players:
             #     TD.get_game_state('GAME_STATE_SIDEBAR', player.GlyphxPlayerID)
             #     TD.get_game_state('GAME_STATE_SHROUD', player.GlyphxPlayerID)
