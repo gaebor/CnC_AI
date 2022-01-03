@@ -35,7 +35,12 @@ These calls basically copy a struct to caller's memory.
  * `DLLExportClass::Get_Layer_State`
  * `CNCObjectListStruct`
  * trees, smoke effects (bullets), units, buildings
- * independent of player (include all players' data)
+ * dependents on player but in subtle ways
+   * pips of enemy units do not show
+   * control groups of enemy units do not show
+   * selection of enemy units **do** show (?)
+   * what about cloaked units?
+   * enemy units outside of shroud do show!
  * contains variable length of `CNCObjectStruct`
  * each contains:
    * `ID` for referencing it in game logic
@@ -46,14 +51,15 @@ These calls basically copy a struct to caller's memory.
    * `Strength` (`MaxStrength`) if it is destructible
    * pips: dots marking how full it is
    * in case of buildings: `short OccupyList[MAX_OCCUPY_CELLS]`
-     * other types only occupy one cell right underneath
+     * other types only occupy at most one cell right underneath
+     * although, in case of buildings its better to retrieve the cells of the building from `Occupier`
    * `unsigned int IsSelectedMask`: bit field with `Owner` bit shifts
 
 ## Occupier
  * `GameStateRequestEnum::GAME_STATE_OCCUPIER`
  * `DLLExportClass::Get_Occupier_State`
  * `CNCOccupierHeaderStruct` is kind of a vector of vector of `CNCOccupierObjectStruct`
- * independent of player (include all players' data)
+ * independent of player?
  * contains only `Type` and `ID`
  * These infos are contained in the "Layers"
    * here the same info is listed by map cell

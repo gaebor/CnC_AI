@@ -21,6 +21,66 @@ def tiberium_array(map: cnc_structs.CNCDynamicMapStruct, static_map):
     return array
 
 
+def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFlags):
+    fixed_pos_map_assets = np.zeros(MapCellHeight * MapCellWidth, dtype='S32')
+    fixed_pos_map_shapes = np.zeros(MapCellHeight * MapCellWidth, dtype='uint8')
+
+    actors = []
+    terrains = {}
+
+    for o in layers.Objects:
+        if o.Type == 5:  # terrain
+            terrains[o.ID] = (o.AssetName.decode('ascii'), o.ShapeIndex)
+        else:
+            if (ord(o.Owner) & AllyFlags) or o.Cloak != 2:  # CLOAKED
+                actors.append(
+                    {
+                        'Asset': o.AssetName.decode('ascii'),
+                        'Shape': o.ShapeIndex,
+                        'Position': (o.PositionY, o.PositionX),
+                        'Owner': ord(o.Owner),
+                        'Strength': o.Strength,
+                        'IsSelected': (o.IsSelectedMask & (1 << House)) != 0,
+                        'ControlGroup': o.ControlGroup,
+                        'IsRepairing': o.IsRepairing,
+                        'IsPrimaryFactory': o.IsPrimaryFactory,
+                        'Cloak': o.Cloak,
+                        'Pips': list(o.Pips),
+                    }
+                )
+
+    for i, entry in enumerate(dynamic_map.Entries):
+        if entry.IsOverlay and entry.Type >= 1 and entry.Type <= 5:  # walls
+            actors.append(
+                {
+                    'Asset': entry.AssetName.decode('ascii'),
+                    'Shape': entry.ShapeIndex,
+                    'Position': (entry.PositionY, entry.PositionX),
+                    'Owner': ord(entry.Owner),
+                    'Strength': 0,
+                    'IsSelected': False,
+                    'ControlGroup': -1,
+                    'IsRepairing': False,
+                    'IsPrimaryFactory': False,
+                    'Cloak': 0,
+                    'Pips': [],
+                }
+            )
+        else:
+            fixed_pos_map_assets[i] = entry.AssetName
+            fixed_pos_map_shapes[i] = entry.ShapeIndex
+
+    for i, o in enumerate(occupiers.Entries):
+        if len(o.Objects) == 1 and o.Objects[0].Type == 5:  # terrain
+            fixed_pos_map_assets[i], fixed_pos_map_shapes[i] = terrains[o.Objects[0].ID]
+
+    return (
+        fixed_pos_map_assets.reshape((MapCellHeight, MapCellWidth)),
+        fixed_pos_map_shapes.reshape((MapCellHeight, MapCellWidth)),
+        actors,
+    )
+
+
 def layers_array(objects: cnc_structs.CNCObjectListStruct, static_map):
     array = np.zeros((static_map.MapCellHeight, static_map.MapCellWidth), dtype=int)
     for thing in objects.Objects:

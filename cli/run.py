@@ -84,9 +84,8 @@ def main(args):
         ModernBalance=True,
     )
 
-    TD.start_game(multiplayer_options, ctypes.c_int(50))
+    TD.start_game(multiplayer_options, 50, 2)
 
-    static_map = TD.get_game_state('GAME_STATE_STATIC_MAP', 0)
     units = None
 
     frame = 1
@@ -98,13 +97,14 @@ def main(args):
             TD.register_request(
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
-        dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
-        layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
-        occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
 
         if frame % 10 == 0:
+            # TD.get_what_player_see(1)
+            dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
+            layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
+            occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
             move_cursor(0, 0)
-            print(layers_term(layers, dynamic_map, static_map, occupiers))
+            print(layers_term(layers, dynamic_map, TD.static_map, occupiers))
             sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
             print(sidebar_term(sidebar))
         # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)

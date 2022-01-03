@@ -35,11 +35,14 @@ class TDGameplay:
         self.players.append(playerinfo)
 
     def start_game(
-        self, multiplayer_options: cnc_structs.CNCMultiplayerOptionsStruct, scenario_index
+        self,
+        multiplayer_options: cnc_structs.CNCMultiplayerOptionsStruct,
+        scenario_index,
+        difficulty=0,
     ):
         self.players = (cnc_structs.CNCPlayerInfoStruct * len(self.players))(*self.players)
         if False == self.dll.CNC_Set_Multiplayer_Data(
-            scenario_index,
+            ctypes.c_int(scenario_index),
             ctypes.byref(multiplayer_options),
             ctypes.c_int(len(self.players)),
             self.players,
@@ -48,7 +51,7 @@ class TDGameplay:
             raise ValueError('CNC_Set_Multiplayer_Data')
 
         if False == self.dll.CNC_Start_Instance_Variation(
-            scenario_index,
+            ctypes.c_int(scenario_index),
             ctypes.c_int(-1),  # scenario_variation
             ctypes.c_int(0),  # scenario_direction
             ctypes.c_int(7),  # build_level
@@ -60,7 +63,7 @@ class TDGameplay:
         ):
             raise ValueError('CNC_Start_Instance_Variation')
 
-        self.dll.CNC_Set_Difficulty(ctypes.c_int(0))
+        self.dll.CNC_Set_Difficulty(ctypes.c_int(difficulty))
 
         for player in self.players:
             StartLocationIndex = ctypes.c_int()
@@ -75,6 +78,7 @@ class TDGameplay:
         self.retrieve_players_info()
 
         self.init_palette()
+        self.static_map = self.get_game_state('GAME_STATE_STATIC_MAP', 0)
 
     def retrieve_players_info(self):
         # overrides House info: GOOD/BAD becomes MULTI1-6
@@ -196,6 +200,22 @@ class TDGameplay:
             )
         else:
             raise ValueError(request_type)
+
+    def get_what_player_see(self, player_index):
+        player = self.players[player_index]
+        dynamic_map = self.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
+        layers = self.get_game_state('GAME_STATE_LAYERS', player_index)
+        occupiers = self.get_game_state('GAME_STATE_OCCUPIER', 0)
+        fixed_pos_map_assets, fixed_pos_map_shape, actors = decoders.f(
+            dynamic_map,
+            layers,
+            occupiers,
+            self.static_map.MapCellHeight,
+            self.static_map.MapCellWidth,
+            player.House,
+            player.AllyFlags,
+        )
+        return fixed_pos_map_assets, fixed_pos_map_shape, actors
 
     def __del__(self):
         ctypes.windll.kernel32.FreeLibrary(self.dll._handle)
