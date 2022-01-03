@@ -2,12 +2,10 @@ import ctypes
 import argparse
 import os
 from random import getrandbits, sample
-from time import sleep
-import sys
 
 import cnc_structs
 from gameplay import TDGameplay
-from decoders import layers_term, sidebar_term, layers_list
+from decoders import layers_term, sidebar_term
 
 
 class COORD(ctypes.Structure):
@@ -16,7 +14,7 @@ class COORD(ctypes.Structure):
 
 Stdhandle = ctypes.windll.kernel32.GetStdHandle(-11)
 
-
+# from https://rosettacode.org/wiki/Terminal_control/Cursor_positioning#Python
 def move_cursor(r, c):
     ctypes.windll.kernel32.SetConsoleCursorPosition(Stdhandle, COORD(c, r))
 
@@ -103,10 +101,12 @@ def main(args):
         dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
         layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
         occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
-        move_cursor(0, 0)
-        layers_term(layers, dynamic_map, static_map, occupiers)
-        sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
-        sidebar_term(sidebar)
+
+        if frame % 10 == 0:
+            move_cursor(0, 0)
+            print(layers_term(layers, dynamic_map, static_map, occupiers))
+            sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
+            print(sidebar_term(sidebar))
         # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
         # print(placement)
         frame += 1

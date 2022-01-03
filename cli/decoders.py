@@ -1,6 +1,5 @@
 import numpy as np
 import termcolor
-import ctypes
 
 import cnc_structs
 
@@ -53,43 +52,59 @@ def layers_term(layers, dynamic_map, static_map, occupiers):
     units_and_buildings = units_and_buildings_dict(layers)
     tiberium = tiberium_array(dynamic_map, static_map)
 
-    for i, (occupier, is_tiberium) in enumerate(zip(occupiers.Entries, tiberium.flat)):
+    text = ''
+
+    for i, (occupier, is_tiberium, static_cell) in enumerate(
+        zip(occupiers.Entries, tiberium.flat, static_map.StaticCells)
+    ):
         if i < static_map.MapCellWidth or i >= static_map.MapCellWidth * (
             static_map.MapCellHeight - 1
         ):
             continue
 
-        text = ' '
+        cell_text = ' '
         color = 'white'
         background = 'on_green' if is_tiberium else 'on_grey'
-
+        # print(static_cell.TemplateTypeName)
         if i % static_map.MapCellWidth == 0:
-            text = '|'
+            cell_text = '|'
         elif i % static_map.MapCellWidth == static_map.MapCellWidth - 1:
-            text = '|\n'
-        elif len(occupier.Objects) > 0:
+            cell_text = '|\n'
+        elif static_cell.TemplateTypeName.startswith(
+            b'W'
+        ) or static_cell.TemplateTypeName.startswith(
+            b'RV'
+        ):  # river or water
+            background = 'on_blue'
+        elif static_cell.TemplateTypeName.startswith(
+            b'S'
+        ) and not static_cell.TemplateTypeName.startswith(
+            b'SH'
+        ):  # slope but not shore
+            background = 'on_white'
+
+        if len(occupier.Objects) > 0:
             occupier = occupier.Objects[0]
             if (occupier.Type, occupier.ID) in units_and_buildings:
                 occupier = units_and_buildings[(occupier.Type, occupier.ID)]
                 color = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan'][
                     ord(occupier.Owner) - 4
                 ]
-                text = occupier.AssetName.decode('ascii')[0]
+                cell_text = occupier.AssetName.decode('ascii')[0]
                 if occupier.Type >= 1 and occupier.Type <= 3:
-                    text = text.lower()
+                    cell_text = cell_text.lower()
                 elif occupier.Type == 4:
-                    text = text.upper()
-
-        print(termcolor.colored(text, color, background), end='')
+                    cell_text = cell_text.upper()
+        text += termcolor.colored(cell_text, color, background)
+    return text.rstrip('\n')
 
 
 def sidebar_term(sidebar: cnc_structs.CNCSidebarStruct):
-    print(
-        f'Tiberium: {(100 * sidebar.Tiberium) // sidebar.MaxTiberium if sidebar.MaxTiberium > 0 else 0 :3d}%',
-        f'Power: {(100 * sidebar.PowerDrained) // sidebar.PowerProduced if sidebar.PowerProduced > 0 else 0:3d}%',
-        f'Credits: {sidebar.Credits}',
-        '|',
-        ', '.join(
+    return (
+        f'Tiberium: {(100 * sidebar.Tiberium) // sidebar.MaxTiberium if sidebar.MaxTiberium > 0 else 0 :3d}% '
+        f'Power: {(100 * sidebar.PowerDrained) // sidebar.PowerProduced if sidebar.PowerProduced > 0 else 0:3d}%'
+        f' Credits: {sidebar.Credits} | '
+        + ', '.join(
             sidebar.Entries[i].AssetName.decode('ascii') for i in range(sidebar.EntryCount[0])
         ),
         '|',
