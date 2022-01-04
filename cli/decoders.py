@@ -35,7 +35,7 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
 
     for o in layers.Objects:
         if o.Type == 5:  # terrain
-            terrains[o.ID] = (o.AssetName.decode('ascii'), o.ShapeIndex)
+            terrains[o.ID] = (o.AssetName, o.ShapeIndex)
         else:
             if (ord(o.Owner) & AllyFlags) or o.Cloak != 2:  # CLOAKED
                 actors.append(
@@ -77,7 +77,8 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
             fixed_pos_map_shapes[entry.CellY * MapCellWidth + entry.CellX] = entry.ShapeIndex
 
     for i, o in enumerate(occupiers.Entries):
-        if len(o.Objects) == 1 and o.Objects[0].Type == 5:  # terrain
+        if len(o.Objects) >= 1 and o.Objects[0].Type == 5:  # terrain
+            assert len(o.Objects) == 1
             fixed_pos_map_assets[i], fixed_pos_map_shapes[i] = terrains[o.Objects[0].ID]
 
     return (
