@@ -4,6 +4,11 @@ import termcolor
 import cnc_structs
 
 
+def string_array_to_char_array(m):
+    c = np.array([x.decode('ascii')[0] if len(x) > 0 else ' ' for x in m.flat]).reshape(m.shape)
+    return '\n'.join(map(''.join, c))
+
+
 def staticmap_array(map: cnc_structs.CNCMapDataStruct) -> np.ndarray:
     tile_names = np.zeros(map.MapCellHeight * map.MapCellWidth, dtype='S32')
     for i in range(tile_names.size):
@@ -50,14 +55,14 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
                     }
                 )
 
-    for i, entry in enumerate(dynamic_map.Entries):
+    for entry in dynamic_map.Entries:
         if entry.IsOverlay and entry.Type >= 1 and entry.Type <= 5:  # walls
             actors.append(
                 {
                     'Asset': entry.AssetName.decode('ascii'),
                     'Shape': entry.ShapeIndex,
                     'Position': (entry.PositionY, entry.PositionX),
-                    'Owner': ord(entry.Owner),
+                    'Owner': ord(entry.Owner) if ord(entry.Owner) == House else 255,
                     'Strength': 0,
                     'IsSelected': False,
                     'ControlGroup': -1,
@@ -68,8 +73,8 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
                 }
             )
         else:
-            fixed_pos_map_assets[i] = entry.AssetName
-            fixed_pos_map_shapes[i] = entry.ShapeIndex
+            fixed_pos_map_assets[entry.CellY * MapCellWidth + entry.CellX] = entry.AssetName
+            fixed_pos_map_shapes[entry.CellY * MapCellWidth + entry.CellX] = entry.ShapeIndex
 
     for i, o in enumerate(occupiers.Entries):
         if len(o.Objects) == 1 and o.Objects[0].Type == 5:  # terrain
