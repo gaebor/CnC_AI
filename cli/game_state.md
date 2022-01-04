@@ -27,7 +27,8 @@ These calls basically copy a struct to caller's memory.
    * `HousesType Owner` stored as `char`
    * position, both in pixel and in cell
    * shape (?)
-   * `SmudgeType Type` stored as `short`
+   * `Type` is `SmudgeType` or `OverlayType` stored as `short`
+     * or `-1` for flag
    * `char AssetName[16]`
  
 ## Layers
