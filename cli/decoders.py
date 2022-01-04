@@ -45,7 +45,8 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
                         'IsRepairing': o.IsRepairing,
                         'IsPrimaryFactory': o.IsPrimaryFactory,
                         'Cloak': o.Cloak,
-                        'Pips': list(o.Pips),
+                        'Pips': list(o.Pips[: o.MaxPips])
+                        + [-1] * (cnc_structs.MAX_OBJECT_PIPS - o.MaxPips),
                     }
                 )
 
@@ -63,7 +64,7 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
                     'IsRepairing': False,
                     'IsPrimaryFactory': False,
                     'Cloak': 0,
-                    'Pips': [],
+                    'Pips': [-1] * cnc_structs.MAX_OBJECT_PIPS,
                 }
             )
         else:
