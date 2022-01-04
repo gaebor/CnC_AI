@@ -26,7 +26,10 @@ def tiberium_array(map: cnc_structs.CNCDynamicMapStruct, static_map):
     return array
 
 
-def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFlags):
+def f(dynamic_map, layers, occupiers, shroud_array, map_shape, House, AllyFlags):
+    # TODO Owner should be Color, not House
+
+    MapCellHeight, MapCellWidth = map_shape
     fixed_pos_map_assets = np.zeros(MapCellHeight * MapCellWidth, dtype='S32')
     fixed_pos_map_shapes = np.zeros(MapCellHeight * MapCellWidth, dtype='uint8')
 
@@ -36,8 +39,11 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
     for o in layers.Objects:
         if o.Type == 5:  # terrain
             terrains[o.ID] = (o.AssetName, o.ShapeIndex)
+        # exclude ANIM and BULLET?
         else:
             if (ord(o.Owner) & AllyFlags) or o.Cloak != 2:  # CLOAKED
+                # TODO obey shroud
+                # buildings have multiple cells, shroud is a bt tricky there
                 actors.append(
                     {
                         'Asset': o.AssetName.decode('ascii'),
@@ -82,8 +88,8 @@ def f(dynamic_map, layers, occupiers, MapCellHeight, MapCellWidth, House, AllyFl
             fixed_pos_map_assets[i], fixed_pos_map_shapes[i] = terrains[o.Objects[0].ID]
 
     return (
-        fixed_pos_map_assets.reshape((MapCellHeight, MapCellWidth)),
-        fixed_pos_map_shapes.reshape((MapCellHeight, MapCellWidth)),
+        fixed_pos_map_assets.reshape(map_shape),
+        fixed_pos_map_shapes.reshape(map_shape),
         actors,
     )
 
@@ -186,9 +192,9 @@ def players_units(layers, house):
     return [o for o in layers.Objects if ord(o.Owner) == house and o.IsSelectable]
 
 
-def shroud_array(shrouds: cnc_structs.CNCShroudStruct, static_map):
+def shroud_array(shrouds: cnc_structs.CNCShroudStruct, static_map_shape):
     return np.array([entry.IsVisible for entry in shrouds.Entries], dtype=bool).reshape(
-        (static_map.MapCellHeight, static_map.MapCellWidth)
+        static_map_shape
     )
 
 

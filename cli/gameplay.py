@@ -205,13 +205,17 @@ class TDGameplay:
         player = self.players[player_index]
         dynamic_map = self.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
         layers = self.get_game_state('GAME_STATE_LAYERS', player_index)
+        shroud = decoders.shroud_array(
+            self.get_game_state('GAME_STATE_SHROUD', player_index),
+            (self.static_map.MapCellHeight, self.static_map.MapCellWidth),
+        )
         occupiers = self.get_game_state('GAME_STATE_OCCUPIER', 0)
         fixed_pos_map_assets, fixed_pos_map_shape, actors = decoders.f(
             dynamic_map,
             layers,
             occupiers,
-            self.static_map.MapCellHeight,
-            self.static_map.MapCellWidth,
+            shroud,
+            (self.static_map.MapCellHeight, self.static_map.MapCellWidth),
             player.House,
             player.AllyFlags,
         )
