@@ -5,7 +5,6 @@ from random import getrandbits, sample
 
 import cnc_structs
 from gameplay import TDGameplay
-from decoders import layers_term, sidebar_term
 
 
 class COORD(ctypes.Structure):
@@ -98,17 +97,10 @@ def main(args):
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
 
-        if frame % 10 == 0:
-            # TD.get_what_player_see(1)
-            dynamic_map = TD.get_game_state('GAME_STATE_DYNAMIC_MAP', 0)
-            layers = TD.get_game_state('GAME_STATE_LAYERS', 0)
-            occupiers = TD.get_game_state('GAME_STATE_OCCUPIER', 0)
-            move_cursor(0, 0)
-            print(layers_term(layers, dynamic_map, TD.static_map, occupiers))
-            sidebar = TD.get_game_state('GAME_STATE_SIDEBAR', 0)
-            print(sidebar_term(sidebar))
-        # placement = TD.get_game_state('GAME_STATE_PLACEMENT', 0)
-        # print(placement)
+        if frame % 100 == 0:
+            result = TD.get_what_player_see(1)
+            print(result[2])
+
         frame += 1
     TD.retrieve_players_info()
     for player in TD.players:
