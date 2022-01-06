@@ -5,6 +5,7 @@ defaults:
     shell: cmd
 jobs:
   test_py_lib:
+    runs-on: windows-2019
     steps:
     - uses: actions/checkout@v2
     - name: Install
