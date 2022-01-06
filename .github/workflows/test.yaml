@@ -5,7 +5,6 @@ defaults:
     shell: cmd
 jobs:
   test_py_lib:
-    runs-on: windows-2019
     steps:
     - uses: actions/checkout@v2
     - name: Install
@@ -14,3 +13,20 @@ jobs:
       run: |
         cd \
         python -m cnc_ai.background_model -h
+  build_cli:
+    runs-on: windows-2019
+    steps:
+    - uses: actions/checkout@v2
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.1
+    - name: Build
+      run: |
+        cd cli
+        cmake -A Win32 .
+        msbuild /p:Configuration=Release /p:Platform=Win32 cnc_cli.sln
+        msbuild /p:Configuration=Debug /p:Platform=Win32 cnc_cli.sln
+    - name: Upload files
+      uses: actions/upload-artifact@v2
+      with:
+        name: bin
+        path: cnc_cli/*/*.exe
