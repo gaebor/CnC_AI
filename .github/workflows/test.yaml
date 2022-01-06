@@ -30,4 +30,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: bin
-        path: cnc_cli/*/*.exe
+        path: cli/*/*.exe
