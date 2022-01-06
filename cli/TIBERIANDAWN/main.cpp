@@ -180,7 +180,7 @@ const CNCRulesDataStruct GamePlay::rule_data_struct = { {
     {0.9f, 0.9f, 0.9f, 1.05f, 1.05f, 1.f, 1.f, 0.05f, 0.1f, true, true, true}
 } };
 
-int wmain(int argc, const TCHAR* argv[])
+int wmain(const int argc, const TCHAR* argv[])
 {
     const TCHAR* dll_name = TEXT("TiberianDawn.dll");
     if (argc > 1)
