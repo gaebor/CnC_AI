@@ -46,9 +46,19 @@ These calls basically copy a struct to caller's memory.
  * `GameStateRequestEnum::GAME_STATE_LAYERS`
  * `DLLExportClass::Get_Layer_State`
  * `CNCObjectListStruct`
- * trees, smoke effects (bullets), units, buildings
+ * contains:
+   * _"static"_ elements
+     * trees
+     * buildings
+   * _"dynamic"_ elements
+     * _"owned"_
+       * infantry, units (naval and vehicles), aircrafts
+     * "unowned"
+       * there is an owner, but not with color
+         * animations: gunfire, smoke
+         * bullets, projectiles
  * dependents on player but in subtle ways
-   * although does not reference the variable `player_id`
+   * (although does not reference the variable `player_id`)
    * pips of enemy units do not show
    * control groups of enemy units do not show
    * selection of enemy units **do** show (?)
@@ -64,8 +74,11 @@ These calls basically copy a struct to caller's memory.
    * `Strength` (`MaxStrength`) if it is destructible
    * pips: dots marking how full it is
    * in case of buildings: `short OccupyList[MAX_OCCUPY_CELLS]`
-     * other types only occupy at most one cell right underneath
-     * although, in case of buildings its better to retrieve the cells of the building from `Occupier`
+     * although, its better to retrieve the cells of the building from `Occupier`
+   * trees can occupy more than one cell
+     * but they don't have an `OccupyList`
+     * it is worth lookung up those in `Occupier` as well
+   * other types only occupy at most one cell right underneath
    * `unsigned int IsSelectedMask`: bit field with `Owner` bit shifts
 
 ## Occupier
