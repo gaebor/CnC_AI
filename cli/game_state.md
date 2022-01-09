@@ -21,8 +21,19 @@ These calls basically copy a struct to caller's memory.
  * `DLLExportClass::Get_Dynamic_Map_State`
  * `CNCDynamicMapStruct`
  * contains variable length of `CNCDynamicMapEntryStruct`
- * independent of player (include all players' data)
- * stores: tiberium, smudges, overlays, walls, crates, flags
+ * looks like it is independent of player because doesn't use the variable `player_id`
+   * but who knows
+ * content types:
+   * smudges
+     * craters, scorch
+     * bibs: trampled grass under and in front of builds
+   * overlays
+     * walls
+     * crates
+     * tiberium
+     * plant fields
+     * road
+   * flags
  * each entry contains
    * `HousesType Owner` stored as `char`
    * position, both in pixel and in cell
@@ -37,6 +48,7 @@ These calls basically copy a struct to caller's memory.
  * `CNCObjectListStruct`
  * trees, smoke effects (bullets), units, buildings
  * dependents on player but in subtle ways
+   * although does not reference the variable `player_id`
    * pips of enemy units do not show
    * control groups of enemy units do not show
    * selection of enemy units **do** show (?)
