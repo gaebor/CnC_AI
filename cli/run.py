@@ -26,6 +26,7 @@ def get_args():
         default="C:\\Program Files (x86)\\Steam\\steamapps\\common\\CnCRemastered",
         help='Path to the CnC installation directory.',
     )
+    parser.add_argument('--diff', type=int, default=0, choices=[0, 1, 2], help='AI difficulty')
 
     return parser.parse_args()
 
@@ -83,25 +84,26 @@ def main(args):
         ModernBalance=True,
     )
 
-    TD.start_game(multiplayer_options, 50, 2)
+    TD.start_game(multiplayer_options, 50, args.diff)
 
     units = None
 
     frame = 1
     while TD.advance():
-        if units is None:
+        if frame == 1:
             units = TD.get_units(0)
-        else:
+        elif frame == 2:
             selected = units[0]
             TD.register_request(
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
 
-        if frame % 100 == 0:
-            result = TD.get_what_player_see(1)
-            print(result[2])
+        # if frame % 100 == 0:
+        #     result = TD.get_what_player_see(1)
+        #     print(result[2])
 
         frame += 1
+    print(frame)
     TD.retrieve_players_info()
     for player in TD.players:
         print(player)
