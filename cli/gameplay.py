@@ -27,6 +27,7 @@ class TDGameplay:
         self.dll.CNC_Clear_Object_Selection.restype = ctypes.c_bool
         self.dll.CNC_Select_Object.restype = ctypes.c_bool
         self.dll.CNC_Get_Game_State.restype = ctypes.c_bool
+        self.dll.CNC_Save_Load.restype = ctypes.c_bool
 
         self.game_state_buffer = (ctypes.c_uint8 * (4 * 1024 ** 2))()
         self.image_buffer = (ctypes.c_uint8 * ((64 * 24) ** 2))()
@@ -80,6 +81,32 @@ class TDGameplay:
         self.init_palette()
         self.static_map = self.get_game_state('GAME_STATE_STATIC_MAP', 0)
 
+    def load(self, filename):
+        if False == self.dll.CNC_Save_Load(
+            ctypes.c_bool(False),
+            ctypes.c_char_p(filename.encode('ascii')),
+            ctypes.c_char_p(b'GAME_GLYPHX_MULTIPLAYER'),
+        ):
+            raise ValueError('CNC_Save_Load')
+
+        self.players = (cnc_structs.CNCPlayerInfoStruct * len(self.players))(*self.players)
+
+        self.dll.CNC_Handle_Game_Request(ctypes.c_int(1))  # INPUT_GAME_LOADING_DONE
+        self.retrieve_players_info()
+
+        self.init_palette()
+        self.static_map = self.get_game_state('GAME_STATE_STATIC_MAP', 0)
+
+    def save(self, filename):
+        if False == self.dll.CNC_Save_Load(
+            ctypes.c_bool(True),
+            ctypes.c_char_p(filename.encode('ascii')),
+            ctypes.c_char_p(b'GAME_GLYPHX_MULTIPLAYER'),
+        ):
+            raise ValueError('CNC_Save_Load')
+        else:
+            return
+
     def retrieve_players_info(self):
         # overrides House info: GOOD/BAD becomes MULTI1-6
         for player in self.players:
@@ -125,11 +152,14 @@ class TDGameplay:
         units = decoders.players_units(self.get_game_state('GAME_STATE_LAYERS', 0), player.House)
         return units
 
-    def advance(self):
+    def advance(self, count=1):
         for player_id, (action, args) in self.actions.items():
             self.handle_request(action, player_id, *args)
         self.actions = {}
-        return self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
+        result = self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
+        for _ in range(1, count):
+            result = self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
+        return result
 
     def register_request(self, player_index, request_type, arg1, *args):
         player = self.players[player_index]
@@ -176,7 +206,7 @@ class TDGameplay:
                 ctypes.c_int(input_requests.UnitRequestEnum[request_type]),
                 ctypes.c_uint64(player_id),
             )
-        elif request_type.startswith('SIDEBAR_REQUEST'):
+        elif request_type.startswith('SIDEBAR'):
             self.dll.CNC_Handle_Sidebar_Request(
                 ctypes.c_int(input_requests.SidebarRequestEnum[request_type]),
                 ctypes.c_uint64(player_id),
