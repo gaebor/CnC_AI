@@ -9,7 +9,10 @@ foreach(target TIBERIANDAWN)
         file(DOWNLOAD https://raw.githubusercontent.com/electronicarts/CnC_Remastered_Collection/master/${target}/${header} ${CMAKE_SOURCE_DIR}/${target}/${header})
     endforeach(header)
 
-    add_executable(${target} ${target}/main.cpp)
+    file(GLOB SOURCE_FILES "${CMAKE_SOURCE_DIR}/${target}/*.cpp")
+    file(GLOB HEADER_FILES "${CMAKE_SOURCE_DIR}/${target}/*.h" "${CMAKE_SOURCE_DIR}/${target}/*.hpp")
+
+    add_executable(${target} ${SOURCE_FILES} ${HEADER_FILES})
     target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/${target})
 
 endforeach(target)
