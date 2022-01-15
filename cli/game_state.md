@@ -22,7 +22,6 @@ These calls basically copy a struct to caller's memory.
  * `CNCDynamicMapStruct`
  * contains variable length of `CNCDynamicMapEntryStruct`
  * looks like it is independent of player because doesn't use the variable `player_id`
-   * but who knows
  * content types:
    * smudges
      * craters, scorch
@@ -57,12 +56,7 @@ These calls basically copy a struct to caller's memory.
        * there is an owner, but not with color
          * animations: gunfire, smoke
          * bullets, projectiles
- * dependents on player but in subtle ways
-   * (although does not reference the variable `player_id`)
-   * pips of enemy units do not show
-   * control groups of enemy units do not show
-   * selection of enemy units **do** show (?)
-   * what about cloaked units?
+ * independent of player (one can see enemy units as well)
    * enemy units outside of shroud do show!
  * contains variable length of `CNCObjectStruct`
  * each contains:
@@ -85,7 +79,7 @@ These calls basically copy a struct to caller's memory.
  * `GameStateRequestEnum::GAME_STATE_OCCUPIER`
  * `DLLExportClass::Get_Occupier_State`
  * `CNCOccupierHeaderStruct` is kind of a vector of vector of `CNCOccupierObjectStruct`
- * independent of player?
+ * independent of player
  * contains only `Type` and `ID`
  * These infos are contained in the "Layers"
    * here the same info is listed by map cell
@@ -114,6 +108,9 @@ These calls basically copy a struct to caller's memory.
  * `GameStateRequestEnum::GAME_STATE_PLACEMENT`
  * `DLLExportClass::Get_Sidebar_State`
  * `CNCPlacementInfoStruct` contains a list of `CNCPlacementCellInfoStruct`
+ * If a placement is started then it contains a list of all cells where a building could be placed
+ * player dependent
+
 
  ## Player Info
  * `GameStateRequestEnum::GAME_STATE_PLAYER_INFO`
