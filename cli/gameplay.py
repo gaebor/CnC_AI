@@ -156,9 +156,7 @@ class TDGameplay:
         for player_id, (action, args) in self.actions.items():
             self.handle_request(action, player_id, *args)
         self.actions = {}
-        result = self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
-        for _ in range(1, count):
-            result = self.dll.CNC_Advance_Instance(ctypes.c_uint64(0))
+        result = all(self.dll.CNC_Advance_Instance(ctypes.c_uint64(0)) for _ in range(count))
         return result
 
     def register_request(self, player_index, request_type, arg1, *args):
