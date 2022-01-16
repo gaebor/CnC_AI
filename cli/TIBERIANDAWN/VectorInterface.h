@@ -7,6 +7,7 @@ struct StaticTile
 {
     char AssetName[CNC_OBJECT_ASSET_NAME_LENGTH];
     unsigned short ShapeIndex;
+
 	StaticTile& operator=(const CNCStaticCellStruct&);
 	StaticTile& operator=(const CNCDynamicMapEntryStruct&);
 	StaticTile();
@@ -24,13 +25,12 @@ struct DynamicObject
 	bool				IsSelected;
 	bool				IsRepairing;
 	unsigned char		Cloak;
-	
 	bool				IsPrimaryFactory;
 	unsigned char		ControlGroup;
 
 	DynamicObject();
-	DynamicObject(const CNCObjectStruct&, const unsigned char House);
-	DynamicObject(const CNCDynamicMapEntryStruct&, const unsigned char House);
+	void Assign(const CNCObjectStruct&, const unsigned char House);
+	void Assign(const CNCDynamicMapEntryStruct&, const unsigned char House);
 };
 
 
@@ -49,8 +49,6 @@ struct StaticMap {
 	StaticMap(const CNCMapDataStruct&);
 	StaticMap(const StaticMap&);
 	~StaticMap();
-
-	void Add(const CNCDynamicMapStruct&);
 };
 
 struct VectorRepresentation
@@ -59,5 +57,7 @@ struct VectorRepresentation
 	DynamicObject* dynamic_objects;
 	int n_objects;
 	VectorRepresentation();
+	VectorRepresentation(const StaticMap&);
+	void Render(const CNCDynamicMapStruct&, const CNCObjectListStruct&, const unsigned char House);
 	~VectorRepresentation();
 };

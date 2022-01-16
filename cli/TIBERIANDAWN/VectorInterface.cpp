@@ -25,7 +25,7 @@ StaticTile& StaticTile::operator=(const CNCStaticCellStruct& tile)
 StaticTile& StaticTile::operator=(const CNCDynamicMapEntryStruct& entry)
 {
     std::copy(entry.AssetName, entry.AssetName + CNC_OBJECT_ASSET_NAME_LENGTH, AssetName);
-    ShapeIndex = (decltype(ShapeIndex))entry.ShapeIndex;
+    ShapeIndex = entry.ShapeIndex;
     return *this;
 }
 
@@ -46,25 +46,6 @@ StaticMap::~StaticMap()
     delete[] StaticCells;
 }
 
-void StaticMap::Add(const CNCDynamicMapStruct& dynamic_map)
-{
-    const auto end_ptr = dynamic_map.Entries + dynamic_map.Count;
-    for (auto entry = dynamic_map.Entries; entry != end_ptr; ++entry)
-    {
-        if (entry->IsOverlay)
-        {
-            if (entry->IsFlag)
-                continue;
-            if (entry->Type >= 1 && entry->Type <= 5) // wall
-                continue;
-            if (entry->Type >= 28) // crate
-                continue;
-        }
-        const int i = (entry->CellY - OriginalMapCellY) * OriginalMapCellWidth + entry->CellX - OriginalMapCellX;
-        strcpy_s(StaticCells[i].AssetName, entry->AssetName);
-        StaticCells[i].ShapeIndex = entry->ShapeIndex;
-    }
-}
 
 StaticMap::StaticMap(const CNCMapDataStruct& static_map)
     : MapCellX(static_map.MapCellX), MapCellY(static_map.MapCellY),
@@ -98,46 +79,55 @@ DynamicObject::DynamicObject()
     AssetName[0] = '\0';
 }
 
-DynamicObject::DynamicObject(const CNCObjectStruct& object, const unsigned char House)
-    : PositionX(object.PositionX), PositionY(object.PositionY),
-    Strength(object.Strength),
-    ShapeIndex(object.ShapeIndex),
-    Owner(GamePlay::HouseColorMap[object.Owner]),
-    IsSelected(object.IsSelectedMask & (1 << House)),
-    IsRepairing(object.IsRepairing),
-    Cloak(object.Cloak),
-    IsPrimaryFactory(object.Owner == House ? object.IsPrimaryFactory : false),
-    ControlGroup(object.ControlGroup)
+void DynamicObject::Assign(const CNCObjectStruct& object, const unsigned char House)
 {
     std::copy(object.AssetName, object.AssetName + CNC_OBJECT_ASSET_NAME_LENGTH, AssetName);
+    
+    PositionX = object.PositionX;
+    PositionY = object.PositionY;
+    Strength = object.Strength;
+    ShapeIndex = object.ShapeIndex;
+    IsRepairing = object.IsRepairing;
+
+    Cloak = object.Cloak; // some other logic elsewhere
+
+    Owner = GamePlay::HouseColorMap[object.Owner];
+    IsSelected = object.IsSelectedMask & (1 << House);
+
     if (object.Owner == House)
     {
         std::copy(object.Pips, object.Pips + object.MaxPips, Pips);
         std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, -1);
+        IsPrimaryFactory = object.IsPrimaryFactory;
+        ControlGroup = object.ControlGroup;
     }
-    else // one cannot see the pips of other teams
+    else
+    {
         std::fill_n(Pips, MAX_OBJECT_PIPS, -1);
+        IsPrimaryFactory = false;
+        ControlGroup = decltype(ControlGroup)(-1);
+    }
 }
 
-DynamicObject::DynamicObject(const CNCDynamicMapEntryStruct& entry, const unsigned char House)
-    :PositionX(entry.PositionX), PositionY(entry.PositionY),
-    ShapeIndex(entry.ShapeIndex),
-    Strength(0),
-    IsSelected(false),
-    IsRepairing(false),
-    Cloak(0),
-    IsPrimaryFactory(false),
-    ControlGroup(-1)
+void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry, const unsigned char House)
 {
-    if (entry.IsFlag)
-        Owner = entry.Owner;
-    else if (entry.IsSellable) // wall
+    if (entry.IsSellable) // wall
         // One can distinguish only one's own wall, not even ally's walls
         Owner = entry.Owner == House ? House : 0xff;
     else
-        Owner = 0xff;
+        Owner = entry.Owner;
 
     Owner = GamePlay::HouseColorMap[Owner];
+
+    PositionX = entry.PositionX;
+    PositionY = entry.PositionY;
+    ShapeIndex = entry.ShapeIndex;
+    Strength = 0;
+    IsSelected = false;
+    IsRepairing = false;
+    Cloak = 0;
+    IsPrimaryFactory = false;
+    ControlGroup = decltype(ControlGroup)(-1);
 
     std::copy(entry.AssetName, entry.AssetName + CNC_OBJECT_ASSET_NAME_LENGTH, AssetName);
     std::fill_n(Pips, MAX_OBJECT_PIPS, -1);
@@ -147,6 +137,48 @@ VectorRepresentation::VectorRepresentation()
     : static_map(), dynamic_objects(nullptr), n_objects(0)
 {
 }
+
+VectorRepresentation::VectorRepresentation(const StaticMap& static_map)
+    : static_map(static_map), dynamic_objects(nullptr), n_objects(0)
+{
+}
+
+void VectorRepresentation::Render(const CNCDynamicMapStruct& dynamic_map, const CNCObjectListStruct& layers, const unsigned char House)
+{
+    if (n_objects > 0)
+        delete[] dynamic_objects;
+    
+    n_objects = 0;
+    dynamic_objects = new DynamicObject[dynamic_map.Count + layers.Count]; // over-estimate
+
+    const auto end_of_dynamic_map= dynamic_map.Entries + dynamic_map.Count;
+    for (auto entry = dynamic_map.Entries; entry != end_of_dynamic_map; ++entry)
+    {
+        //      flag                                             wall                             crate
+        if (entry->IsFlag || (entry->IsOverlay && ((entry->Type >= 1 && entry->Type <= 5) || entry->Type >= 28)))
+        {
+            dynamic_objects[n_objects++].Assign(*entry, House);
+        }
+        else
+        {
+            const int i = (entry->CellY - static_map.OriginalMapCellY) * static_map.OriginalMapCellWidth + entry->CellX - static_map.OriginalMapCellX;
+            if (static_map.StaticCells[i].AssetName == '\0' || entry->IsResource)
+            {
+                // this will prefer tiberium
+                static_map.StaticCells[i] = *entry;
+            }
+        }
+    }
+    const auto end_of_layers = layers.Objects + layers.Count;
+    for (auto object = layers.Objects; object != end_of_layers; ++object)
+    {
+        if (object->Cloak != 2 || House == object->Owner)
+        {
+            dynamic_objects[n_objects++].Assign(*object, House);
+        }
+    }
+}
+
 
 VectorRepresentation::~VectorRepresentation()
 {
