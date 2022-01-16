@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 
+#include "VectorInterface.h"
+
 typedef void(__cdecl* CNC_Event_Callback_Type)(const EventCallbackStruct& event);
 typedef unsigned __int64 uint64;
 typedef __int64 int64;
@@ -52,6 +54,8 @@ class GamePlay
     std::vector<unsigned char> buffer;
     std::vector<unsigned char[256][3]> palette;
 
+    StaticMap static_map;
+
 public:
     GamePlay(const TCHAR* dll_filename, const char* content_directory = "-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1");
     ~GamePlay();
@@ -63,6 +67,9 @@ public:
     bool start_game(const CNCMultiplayerOptionsStruct& multiplayer_options, int scenario_index, int build_level = 7, int difficulty = 0);
     bool save_game(const char* filename);
     bool load_game(const char* filename);
+    bool prepare();
 
+    bool retrieve_satic_map();
+    
     static unsigned char HouseColorMap[256];
 };

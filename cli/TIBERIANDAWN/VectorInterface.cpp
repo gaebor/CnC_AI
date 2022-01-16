@@ -5,7 +5,7 @@
 
 #include "GamePlay.hpp"
 
-StaticTile::StaticTile() 
+StaticTile::StaticTile()
 {
     AssetName[0] = '\0';
 }
@@ -29,7 +29,16 @@ StaticTile& StaticTile::operator=(const CNCDynamicMapEntryStruct& entry)
     return *this;
 }
 
-StaticMap::StaticMap() : StaticCells(nullptr)
+StaticMap::StaticMap() 
+  : MapCellX(0),
+    MapCellY(0),
+    MapCellWidth(0),
+    MapCellHeight(0),
+    OriginalMapCellX(0),
+    OriginalMapCellY(0),
+    OriginalMapCellWidth(0),
+    OriginalMapCellHeight(0),
+    StaticCells(nullptr)
 {
 
 }
@@ -47,18 +56,25 @@ StaticMap::~StaticMap()
 }
 
 
-StaticMap::StaticMap(const CNCMapDataStruct& static_map)
-    : MapCellX(static_map.MapCellX), MapCellY(static_map.MapCellY),
-    MapCellWidth(static_map.MapCellWidth), MapCellHeight(static_map.MapCellHeight),
-    OriginalMapCellX(static_map.OriginalMapCellX), OriginalMapCellY(static_map.OriginalMapCellY),
-    OriginalMapCellWidth(static_map.OriginalMapCellWidth), OriginalMapCellHeight(static_map.OriginalMapCellHeight)
+StaticMap& StaticMap::operator=(const CNCMapDataStruct& static_map)
 {
+    MapCellX = static_map.MapCellX;
+    MapCellY = static_map.MapCellY;
+    MapCellWidth = static_map.MapCellWidth;
+    MapCellHeight = static_map.MapCellHeight;
+    OriginalMapCellX = static_map.OriginalMapCellX;
+    OriginalMapCellY = static_map.OriginalMapCellY;
+    OriginalMapCellWidth = static_map.OriginalMapCellWidth;
+    OriginalMapCellHeight = static_map.OriginalMapCellHeight;
+
     const auto x_preset = OriginalMapCellX - MapCellX;
     const auto y_preset = OriginalMapCellY - MapCellY;
     
     const auto x_postset = MapCellWidth - OriginalMapCellWidth - x_preset;
     const auto y_postset = MapCellHeight - OriginalMapCellHeight - y_preset;
 
+    if (StaticCells != nullptr)
+        delete[] StaticCells;
     StaticCells = new StaticTile[OriginalMapCellHeight * OriginalMapCellWidth];
 
     int source_i = y_preset * MapCellWidth;
@@ -72,6 +88,8 @@ StaticMap::StaticMap(const CNCMapDataStruct& static_map)
         }
         source_i += x_postset;
     }
+
+    return *this;
 }
 
 DynamicObject::DynamicObject()

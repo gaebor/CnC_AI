@@ -46,7 +46,7 @@ struct StaticMap {
 	StaticTile* StaticCells;
 
 	StaticMap();
-	StaticMap(const CNCMapDataStruct&);
+	StaticMap& operator=(const CNCMapDataStruct&);
 	StaticMap(const StaticMap&);
 	~StaticMap();
 };

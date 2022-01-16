@@ -121,21 +121,13 @@ bool GamePlay::start_game(const CNCMultiplayerOptionsStruct& multiplayer_options
 
     CNC_Set_Difficulty(difficulty);
 
-    for (auto& player : players)
-    {
-        if (!CNC_Get_Start_Game_Info(player.GlyphxPlayerID, player.StartLocationIndex))
-            return false;
-    }
+    //for (auto& player : players)
+    //{
+    //    if (!CNC_Get_Start_Game_Info(player.GlyphxPlayerID, player.StartLocationIndex))
+    //        return false;
+    //}
 
-    if (!retrieve_players_info())
-        return false;
-
-    if (!init_palette())
-        return false;
-
-    CNC_Handle_Game_Request(INPUT_GAME_LOADING_DONE);
-
-    return true;
+    return prepare();
 }
 
 bool GamePlay::save_game(const char* filename)
@@ -154,13 +146,34 @@ bool GamePlay::load_game(const char* filename)
     if (!CNC_Save_Load(false, filename, "GAME_GLYPHX_MULTIPLAYER"))
         return false;
 
+    return prepare();
+}
+
+bool GamePlay::prepare()
+{
     if (!retrieve_players_info())
         return false;
 
     if (!init_palette())
         return false;
 
+    if (!retrieve_satic_map())
+        return false;
+
     CNC_Handle_Game_Request(INPUT_GAME_LOADING_DONE);
+    
+    return true;
+}
+
+bool GamePlay::retrieve_satic_map()
+{
+    if (!is_initialized())
+        return false;
+
+    if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, buffer.data(), buffer.size()))
+        return false;
+
+    static_map = *((const CNCMapDataStruct*)buffer.data());
 
     return true;
 }
