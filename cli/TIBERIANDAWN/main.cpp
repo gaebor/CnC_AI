@@ -20,23 +20,24 @@ int wmain(const int argc, const TCHAR* argv[])
     if (!TD.is_initialized())
         return 1;
 
-    CNCPlayerInfoStruct player1 = { "gaebor",
-        0, // GOOD
+    SimplePlayerInfoStruct player1 = { "gaebor",
+        0, // GOOD (GDI)
         0, // color
-        271828182,
-             0, // Team
-            127, //StartLocationIndex
+        314159265,
+        0, // Team
+        127, //StartLocationIndex
+        false // IsAI
     };
-    player1.IsAI = false;
 
-    CNCPlayerInfoStruct player2 = { "ai1",
-    1, // BAD  
-    271828182,
-         1,
-        0,
-        1,
-        true,
-        127 };
+    SimplePlayerInfoStruct player2 = { "ai1",
+        1, // BAD (NOD)
+        2, // color
+        271828182,
+        1, // Team
+        127, //StartLocationIndex
+        true // IsAI
+    };
+
     CNCMultiplayerOptionsStruct multiplayer_options = { 2,
         1,
         5000,

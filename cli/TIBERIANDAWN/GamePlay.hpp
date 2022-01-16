@@ -12,6 +12,16 @@ typedef void(__cdecl* CNC_Event_Callback_Type)(const EventCallbackStruct& event)
 typedef unsigned __int64 uint64;
 typedef __int64 int64;
 
+struct SimplePlayerInfoStruct {
+    char Name[64];
+    unsigned char House;
+    int ColorIndex;
+    unsigned __int64 GlyphxPlayerID;
+    int Team;
+    int StartLocationIndex;
+    bool IsAI;
+};
+
 class GamePlay
 {
     const HMODULE dll_handle;
@@ -60,16 +70,21 @@ public:
     GamePlay(const TCHAR* dll_filename, const char* content_directory = "-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1");
     ~GamePlay();
     bool is_initialized()const;
-    void add_player(const CNCPlayerInfoStruct& player);
-    bool retrieve_players_info();
-    bool init_palette();
+    void add_player(const SimplePlayerInfoStruct& player);
+
 
     bool start_game(const CNCMultiplayerOptionsStruct& multiplayer_options, int scenario_index, int build_level = 7, int difficulty = 0);
     bool save_game(const char* filename);
     bool load_game(const char* filename);
+private:
+    bool retrieve_players_info();
+    bool init_palette();
+
     bool prepare();
 
     bool retrieve_satic_map();
     
     static unsigned char HouseColorMap[256];
+public:
+    static const unsigned char* GetHouseColorMap();
 };

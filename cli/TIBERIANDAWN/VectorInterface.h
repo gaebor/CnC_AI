@@ -51,6 +51,34 @@ struct StaticMap {
 	~StaticMap();
 };
 
+struct SidebarEntry
+{
+    char AssetName[16];
+	float Progress;
+	bool Constructing;
+	bool ConstructionOnHold;
+	bool Busy;
+
+	SidebarEntry();
+	SidebarEntry& operator=(const CNCSidebarEntryStruct&);
+};
+
+struct SideBar {
+	int Credits;
+	int PowerProduced;
+	int PowerDrained;
+	bool RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
+	bool SellBtnEnabled;
+	bool RadarMapActive; // TODO implement radar map view
+	int EntryCount;
+	SidebarEntry* Entries;
+
+	SideBar();
+	~SideBar();
+	SideBar& operator=(const CNCSidebarStruct&);
+};
+
+
 struct VectorRepresentation
 {
 	StaticMap static_map;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <algorithm>
+#include <type_traits>
 
 #include "GamePlay.hpp"
 
@@ -14,7 +15,7 @@ StaticTile::StaticTile()
 StaticTile& StaticTile::operator=(const CNCStaticCellStruct& tile)
 {
     ShapeIndex = (decltype(ShapeIndex))tile.IconNumber;
-    for (int i = sizeof(tile.TemplateTypeName) - 1; i >= 0; --i)
+    for (int i = 0; i < std::extent<decltype(tile.TemplateTypeName)>::value; ++i)
     {
         if (tile.TemplateTypeName[i] == '_')
             strncpy_s(AssetName, tile.TemplateTypeName, i);
@@ -67,26 +68,15 @@ StaticMap& StaticMap::operator=(const CNCMapDataStruct& static_map)
     OriginalMapCellWidth = static_map.OriginalMapCellWidth;
     OriginalMapCellHeight = static_map.OriginalMapCellHeight;
 
-    const auto x_preset = OriginalMapCellX - MapCellX;
-    const auto y_preset = OriginalMapCellY - MapCellY;
-    
-    const auto x_postset = MapCellWidth - OriginalMapCellWidth - x_preset;
-    const auto y_postset = MapCellHeight - OriginalMapCellHeight - y_preset;
-
     if (StaticCells != nullptr)
         delete[] StaticCells;
     StaticCells = new StaticTile[OriginalMapCellHeight * OriginalMapCellWidth];
 
-    int source_i = y_preset * MapCellWidth;
-    int dest_i = 0;
-    for (int y = 0; y < OriginalMapCellHeight; ++y)
+    auto dest = StaticCells;
+    auto src = static_map.StaticCells + ((OriginalMapCellY - MapCellY) * MapCellWidth + OriginalMapCellX - MapCellX);
+    for (int y = 0; y < OriginalMapCellHeight; ++y, src += OriginalMapCellWidth)
     {
-        source_i += x_preset;
-        for (int x = 0; x < OriginalMapCellWidth; ++x, ++source_i, ++dest_i)
-        {
-            StaticCells[dest_i] = static_map.StaticCells[source_i];
-        }
-        source_i += x_postset;
+        dest = std::copy(src, src + OriginalMapCellWidth, dest);
     }
 
     return *this;
@@ -109,7 +99,7 @@ void DynamicObject::Assign(const CNCObjectStruct& object, const unsigned char Ho
 
     Cloak = object.Cloak; // some other logic elsewhere
 
-    Owner = GamePlay::HouseColorMap[object.Owner];
+    Owner = GamePlay::GetHouseColorMap()[object.Owner];
     IsSelected = object.IsSelectedMask & (1 << House);
 
     if (object.Owner == House)
@@ -135,7 +125,7 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry, const unsigned
     else
         Owner = entry.Owner;
 
-    Owner = GamePlay::HouseColorMap[Owner];
+    Owner = GamePlay::GetHouseColorMap()[Owner];
 
     PositionX = entry.PositionX;
     PositionY = entry.PositionY;
@@ -180,7 +170,7 @@ void VectorRepresentation::Render(const CNCDynamicMapStruct& dynamic_map, const 
         else
         {
             const int i = (entry->CellY - static_map.OriginalMapCellY) * static_map.OriginalMapCellWidth + entry->CellX - static_map.OriginalMapCellX;
-            if (static_map.StaticCells[i].AssetName == '\0' || entry->IsResource)
+            if (static_map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
             {
                 // this will prefer tiberium
                 static_map.StaticCells[i] = *entry;
@@ -202,4 +192,53 @@ VectorRepresentation::~VectorRepresentation()
 {
     if (n_objects > 0)
         delete[] dynamic_objects;
+}
+
+SidebarEntry::SidebarEntry()
+    : Progress(0), Constructing(false), ConstructionOnHold(false), Busy(false)
+{
+    AssetName[0] = '\0';
+}
+
+SidebarEntry& SidebarEntry::operator=(const CNCSidebarEntryStruct& entry)
+{
+    std::copy(entry.AssetName, entry.AssetName + std::extent<decltype(entry.AssetName)>::value, AssetName);
+    if (entry.Completed)
+        Progress = 1;
+    else
+        Progress = entry.Progress;
+    
+    Constructing = entry.Constructing;
+    ConstructionOnHold = entry.ConstructionOnHold;
+    Busy = entry.Busy;
+
+    return *this;
+}
+
+SideBar::SideBar():EntryCount(0), Entries(nullptr)
+{
+}
+
+SideBar::~SideBar()
+{
+    if (Entries != nullptr)
+        delete[] Entries;
+}
+
+
+SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
+{
+    Credits = sidebar.Credits;
+    PowerProduced = sidebar.PowerProduced;
+    PowerDrained = sidebar.PowerDrained;
+
+    RepairBtnEnabled = false;
+    SellBtnEnabled = false;
+    RadarMapActive = sidebar.RadarMapActive;
+    EntryCount = sidebar.EntryCount[0] + sidebar.EntryCount[1];
+    
+    Entries = new SidebarEntry[EntryCount];
+    std::copy(sidebar.Entries, sidebar.Entries + EntryCount, Entries);
+
+    return *this;
 }

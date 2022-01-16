@@ -1,5 +1,7 @@
 #include "GamePlay.hpp"
 
+#include <type_traits>
+
 static const CNCRulesDataStruct rule_data_struct = { {
     {1.2f, 1.2f, 1.2f, 0.3f, 0.8f, 0.8f, 0.6f, 0.001f, 0.001f, false, true, true},
     {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 0.02f, 0.03f, true, true, true},
@@ -59,9 +61,17 @@ GamePlay::~GamePlay() {
 
 bool GamePlay::is_initialized() const { return dll_handle != NULL; }
 
-void GamePlay::add_player(const CNCPlayerInfoStruct& player)
+void GamePlay::add_player(const SimplePlayerInfoStruct& player)
 {
-    players.emplace_back(player);
+    players.emplace_back();
+    auto& player_info = players.back();
+    std::copy(player.Name, player.Name + 64, player_info.Name);
+    player_info.House = player.House;
+    player_info.ColorIndex = player.ColorIndex;
+    player_info.GlyphxPlayerID = player.GlyphxPlayerID;
+    player_info.Team = player.Team;
+    player_info.StartLocationIndex = player.StartLocationIndex;
+    player_info.IsAI = player.IsAI;
 }
 
 bool GamePlay::retrieve_players_info()
@@ -69,14 +79,11 @@ bool GamePlay::retrieve_players_info()
     if (!is_initialized())
         return false;
 
-    std::fill_n(HouseColorMap, 256, (std::remove_extent<decltype(HouseColorMap)>::type)0xff);
-
     for (auto& player : players)
     {
         if (!CNC_Get_Game_State(GAME_STATE_PLAYER_INFO, player.GlyphxPlayerID, (unsigned char*)(&player), sizeof(player) + 33))
             return false;
-        HouseColorMap[player.House] = std::remove_extent<decltype(HouseColorMap)>::type(player.ColorIndex);
-            
+        HouseColorMap[player.House] = std::remove_extent<decltype(HouseColorMap)>::type(player.ColorIndex);    
     }
     return true;
 }
@@ -178,8 +185,14 @@ bool GamePlay::retrieve_satic_map()
     return true;
 }
 
+const unsigned char* GamePlay::GetHouseColorMap()
+{
+    return HouseColorMap;
+}
+
+// based on HousesType and PlayerColorType
 unsigned char GamePlay::HouseColorMap[] = {
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0, 2, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
