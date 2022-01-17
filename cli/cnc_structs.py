@@ -367,6 +367,18 @@ class CNCObjectListStruct(CncStruct):
     ]
 
 
+PipEnum = {
+    'EMPTY': 0,
+    'FULL': 1,
+    'PRIMARY': 2,
+    'READY': 3,
+    'HOLDING': 4,
+    'ENGINEER': 5,
+    'CIVILIAN': 6,
+    'COMMANDO': 7,
+}
+
+
 class CNCOccupierObjectStruct(CncStruct):
     _fields_ = [
         ('Type', ctypes.c_int),  # DllObjectTypeEnum
