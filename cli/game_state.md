@@ -15,6 +15,7 @@ These calls basically copy a struct to caller's memory.
  * independent of player
  * contains tile asset name and icon number
  * does not change during a game
+   * except when a bridge collapses
  
 ## Dynamic Map
  * `GameStateRequestEnum::GAME_STATE_DYNAMIC_MAP`
@@ -56,7 +57,7 @@ These calls basically copy a struct to caller's memory.
        * there is an owner, but not with color
          * animations: gunfire, smoke
          * bullets, projectiles
- * independent of player (one can see enemy units as well)
+ * independent of player
    * enemy units outside of shroud do show!
  * contains variable length of `CNCObjectStruct`
  * each contains:
