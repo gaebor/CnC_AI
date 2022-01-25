@@ -102,6 +102,11 @@ void DynamicObject::Assign(const CNCObjectStruct& object, const unsigned char Ho
     Owner = GamePlay::GetHouseColorMap()[object.Owner];
     IsSelected = object.IsSelectedMask & (1 << House);
 
+    if (object.IsPrimaryFactory)
+    {
+        // TODO convert to pip
+        const unsigned char p = 2U;
+    }
     if (object.Owner == House)
     {
         std::copy(object.Pips, object.Pips + object.MaxPips, Pips);
@@ -159,7 +164,7 @@ void VectorRepresentation::Render(const CNCDynamicMapStruct& dynamic_map, const 
     n_objects = 0;
     dynamic_objects = new DynamicObject[dynamic_map.Count + layers.Count]; // over-estimate
 
-    const auto end_of_dynamic_map= dynamic_map.Entries + dynamic_map.Count;
+    const auto end_of_dynamic_map = dynamic_map.Entries + dynamic_map.Count;
     for (auto entry = dynamic_map.Entries; entry != end_of_dynamic_map; ++entry)
     {
         //      flag                                             wall                             crate
@@ -169,6 +174,7 @@ void VectorRepresentation::Render(const CNCDynamicMapStruct& dynamic_map, const 
         }
         else
         {
+            // TODO bibs should be placed by the 'occupiers' because they cover more than one tile
             const int i = (entry->CellY - static_map.OriginalMapCellY) * static_map.OriginalMapCellWidth + entry->CellX - static_map.OriginalMapCellX;
             if (static_map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
             {
