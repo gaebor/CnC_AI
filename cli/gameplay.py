@@ -81,6 +81,49 @@ class TDGameplay:
         self.init_palette()
         self.static_map = self.get_game_state('GAME_STATE_STATIC_MAP', 0)
 
+    def start_custom_game(
+        self,
+        multiplayer_options: cnc_structs.CNCMultiplayerOptionsStruct,
+        scenario_dir,
+        scenario_name,
+        difficulty=0,
+    ):
+        self.players = (cnc_structs.CNCPlayerInfoStruct * len(self.players))(*self.players)
+        if False == self.dll.CNC_Set_Multiplayer_Data(
+            ctypes.c_int(-1),
+            ctypes.byref(multiplayer_options),
+            ctypes.c_int(len(self.players)),
+            self.players,
+            ctypes.c_int(6),  # max number of players
+        ):
+            raise ValueError('CNC_Set_Multiplayer_Data')
+
+        if False == self.dll.CNC_Start_Custom_Instance(
+            ctypes.c_char_p(self.content_directory),
+            ctypes.c_char_p(scenario_dir),
+            ctypes.c_char_p(scenario_name),
+            ctypes.c_int(7),  # build_level
+            ctypes.c_bool(True),  # multiplayer
+        ):
+            raise ValueError('CNC_Start_Instance_Variation')
+
+        self.dll.CNC_Set_Difficulty(ctypes.c_int(difficulty))
+
+        for player in self.players:
+            StartLocationIndex = ctypes.c_int()
+            if self.dll.CNC_Get_Start_Game_Info(
+                ctypes.c_uint64(player.GlyphxPlayerID), ctypes.byref(StartLocationIndex)
+            ):
+                player.StartLocationIndex = StartLocationIndex.value
+            else:
+                raise ValueError('CNC_Get_Start_Game_Info')
+
+        self.dll.CNC_Handle_Game_Request(ctypes.c_int(1))  # INPUT_GAME_LOADING_DONE
+        self.retrieve_players_info()
+
+        self.init_palette()
+        self.static_map = self.get_game_state('GAME_STATE_STATIC_MAP', 0)
+
     def load(self, filename):
         if False == self.dll.CNC_Save_Load(
             ctypes.c_bool(False),
