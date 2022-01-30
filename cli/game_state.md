@@ -16,7 +16,7 @@ These calls basically copy a struct to caller's memory.
  * contains tile asset name and icon number
  * does not change during a game
    * except when a bridge collapses
- 
+
 ## Dynamic Map
  * `GameStateRequestEnum::GAME_STATE_DYNAMIC_MAP`
  * `DLLExportClass::Get_Dynamic_Map_State`
@@ -31,8 +31,7 @@ These calls basically copy a struct to caller's memory.
      * walls
      * crates
      * tiberium
-     * plant fields
-     * road
+     * plant fields (V12-V18)
    * flags
  * each entry contains
    * `HousesType Owner` stored as `char`
@@ -48,7 +47,7 @@ These calls basically copy a struct to caller's memory.
  * `CNCObjectListStruct`
  * contains:
    * _"static"_ elements
-     * trees
+     * trees, rocks (on desert map)
      * buildings
    * _"dynamic"_ elements
      * _"owned"_
