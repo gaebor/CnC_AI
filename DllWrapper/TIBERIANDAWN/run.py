@@ -66,7 +66,16 @@ def TD_process(
         if i % 10 == 0:
             if i > 0:
                 move_cursor(0, 0)
-            print(cnc_structs.print_game_state(buffer), end='')
+            print(
+                cnc_structs.print_game_state(
+                    cnc_structs.VectorRepresentationView(
+                        map=players_buffer[1].map,
+                        dynamic_objects_count=players_buffer[1].dynamic_objects_count,
+                        dynamic_objects=players_buffer[1].dynamic_objects,
+                    )
+                ),
+                end='',
+            )
 
         if i >= 5000:
             break

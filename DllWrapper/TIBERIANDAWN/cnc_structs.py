@@ -148,15 +148,15 @@ class PlayerVectorRepresentationView(VectorRepresentationView):
 def decode_cell(data):
     text = data.AssetName.decode('ascii')[:2]
     if text == 'TI':  # tiberium
-        text = '  '
+        text = ''
         background = 'on_green'
     elif text == 'CL':  # CLEAR1
-        text = '  '
+        text = ''
         background = 'on_grey'
     else:
         background = 'on_grey'
 
-    return (text, 'white', background)
+    return ('{:2s}'.format(text), 'white', background)
 
 
 def print_game_state(game_state: VectorRepresentationView):

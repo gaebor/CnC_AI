@@ -8,7 +8,7 @@
 #include "data_utils.hpp"
 
 
-StaticTile::StaticTile()
+StaticTile::StaticTile() : ShapeIndex(0)
 {
     AssetName[0] = '\0';
 }
@@ -236,10 +236,57 @@ VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepres
 
 void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, unsigned char Owner)
 {
-    /* TODO
-    *  * conver IsSelectedMask to IsSelected (using color)
-    *  * hide cloaked vehicles from non-owners
-    *  * cover shroud
-    *  * hide pips from non-owners
-    */
+    target.map.MapCellX = source.map.MapCellX;
+    target.map.MapCellY = source.map.MapCellY;
+    target.map.MapCellWidth = source.map.MapCellWidth;
+    target.map.MapCellHeight = source.map.MapCellHeight;
+    target.map.OriginalMapCellX = source.map.OriginalMapCellX;
+    target.map.OriginalMapCellY = source.map.OriginalMapCellY;
+    target.map.OriginalMapCellWidth = source.map.OriginalMapCellWidth;
+    target.map.OriginalMapCellHeight = source.map.OriginalMapCellHeight;
+
+    target.map.StaticCells.clear();
+    target.map.StaticCells.resize(source.map.OriginalMapCellHeight * source.map.OriginalMapCellWidth);
+
+    const auto offset = (source.map.OriginalMapCellY - source.map.MapCellY) * source.map.MapCellWidth + source.map.OriginalMapCellX - source.map.MapCellX;
+    {
+        const auto column_stepping = source.map.MapCellWidth - source.map.OriginalMapCellWidth;
+        auto map_dest = target.map.StaticCells.begin();
+        auto map_src = source.map.StaticCells.begin();
+        auto shroud_ptr = shroud->Entries + offset;
+
+        for (int y = 0; y < target.map.OriginalMapCellHeight; ++y, shroud_ptr += column_stepping)
+        {
+            for (int x = 0; x < target.map.OriginalMapCellWidth; ++x, ++shroud_ptr, ++map_dest, ++map_src)
+            {
+                const auto shroud_offset = shroud_ptr - shroud->Entries;
+                const auto map_offset = map_dest - target.map.StaticCells.begin();
+                if (shroud_ptr->IsVisible && shroud_ptr->ShadowIndex == (char)(-1))
+                    *map_dest = *map_src;
+            }
+        }
+    }
+    target.dynamic_objects.clear();
+
+    for (const auto& source_object : source.dynamic_objects)
+    {
+        const auto x = source_object.PositionX / 24;
+        const auto y = source_object.PositionY / 24;
+        const auto& shroud_ptr = shroud->Entries[offset + y * source.map.MapCellWidth + x];
+        if (shroud_ptr.IsVisible && shroud_ptr.ShadowIndex == (char)(-1))
+        {
+            if (source_object.Cloak == 2U && source_object.Owner != Owner) // TODO one should see the cloaked allies too
+                continue;
+            target.dynamic_objects.emplace_back(source_object);
+            auto& target_object = target.dynamic_objects.back();
+            
+            target_object.IsSelected = (target_object.IsSelected & (1 << Owner)) ? 1 : 0;
+
+            if (target_object.Owner != Owner)
+            {
+                std::fill_n(target_object.Pips, MAX_OBJECT_PIPS, -1);
+                target_object.ControlGroup = 255U;
+            }
+        }
+    }
 }
