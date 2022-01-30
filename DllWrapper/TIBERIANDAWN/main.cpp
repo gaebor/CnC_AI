@@ -62,7 +62,7 @@ extern "C" {
         return CNC_Get_Palette(palette_in);
     }
     __declspec(dllexport) bool __cdecl Advance();
-    __declspec(dllexport) void __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView&);
+    __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView&);
 }
 
 HMODULE dll_handle;
@@ -281,7 +281,22 @@ bool __cdecl Advance()
     return CNC_Advance_Instance(0);
 }
 
-void __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView& view)
+bool __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView& view)
 {
+    if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
+        return false;
+    if (!CNC_Get_Game_State(GAME_STATE_DYNAMIC_MAP, 0, dynamic_map_buffer.data(), dynamic_map_buffer.size()))
+        return false;
+    if (!CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size()))
+        return false;
+
+    game_state.Render(
+        reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
+        reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
+        reinterpret_cast<const CNCObjectListStruct*>(layers_buffer.data())
+    );
+
     view = game_state;
+
+    return true;
 }
