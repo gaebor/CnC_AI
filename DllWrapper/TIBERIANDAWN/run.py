@@ -1,5 +1,4 @@
 import sys
-import os
 
 import ctypes
 from multiprocessing import Pipe
