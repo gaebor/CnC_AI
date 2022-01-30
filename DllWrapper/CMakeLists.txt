@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.12)
-project (cnc_cli)
+project (DllWrapper)
 
 add_compile_options(/W4 /Zp1)
 add_compile_definitions(WINDOWS_IGNORE_PACKING_MISMATCH)

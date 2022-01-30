@@ -22,14 +22,14 @@ jobs:
       uses: microsoft/setup-msbuild@v1.1
     - name: Build
       run: |
-        cd cli
+        cd DllWrapper
         cmake -A Win32 .
-        msbuild /p:Configuration=Release /p:Platform=Win32 cnc_cli.sln
-        msbuild /p:Configuration=Debug /p:Platform=Win32 cnc_cli.sln
+        msbuild /p:Configuration=Release /p:Platform=Win32 DllWrapper.sln
+        msbuild /p:Configuration=Debug /p:Platform=Win32 DllWrapper.sln
     - name: Upload files
       uses: actions/upload-artifact@v2
       with:
         name: bin
         path: |
-          cli/Release/*.exe
-          cli/Debug/*.*
+          DllWrapper/Release/*.exe
+          DllWrapper/Debug/*.*

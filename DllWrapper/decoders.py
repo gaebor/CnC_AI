@@ -26,6 +26,36 @@ def tiberium_array(map: cnc_structs.CNCDynamicMapStruct, static_map):
     return array
 
 
+def bib_term(dynapic_map: cnc_structs.CNCDynamicMapStruct, static_map):
+    bibs = np.zeros((static_map.MapCellHeight, static_map.MapCellWidth), dtype='S32')
+    for entry in dynapic_map.Entries:
+        if entry.IsSmudge and entry.Type >= 12:
+            bibs[
+                entry.CellY - static_map.MapCellY, entry.CellX - static_map.MapCellX
+            ] = entry.AssetName
+    return '\n'.join(
+        map(lambda row: ''.join(f'{column.decode("ascii")[:2]:2s}' for column in row), bibs)
+    )
+
+
+def static_map_list(static_map):
+    result = ''
+    for i, cell in enumerate(
+        static_map.StaticCells[: static_map.MapCellHeight * static_map.MapCellWidth]
+    ):
+        if cell.TemplateTypeName.startswith(b'CLEAN'):
+            result += '  '
+        else:
+            result += f'{cell.TemplateTypeName.decode("ascii")[:2]:2s}'
+        if (i + 1) % static_map.MapCellWidth == 0:
+            result += '\n'
+    return result
+
+
+def render_term(static_map, dynamic_map, layers, occupiers, shroud, House, AllyFlags):
+    result_list
+
+
 def f(dynamic_map, layers, occupiers, shroud_array, map_shape, House, AllyFlags):
     # TODO Owner should be Color, not House
 
@@ -43,7 +73,7 @@ def f(dynamic_map, layers, occupiers, shroud_array, map_shape, House, AllyFlags)
         else:
             if (ord(o.Owner) & AllyFlags) or o.Cloak != 2:  # CLOAKED
                 # TODO obey shroud
-                # buildings have multiple cells, shroud is a bt tricky there
+                # buildings have multiple cells, shroud is a bit tricky there
                 actors.append(
                     {
                         'Asset': o.AssetName.decode('ascii'),
@@ -193,9 +223,9 @@ def players_units(layers, house):
 
 
 def shroud_array(shrouds: cnc_structs.CNCShroudStruct, static_map_shape):
-    return np.array([entry.IsVisible for entry in shrouds.Entries], dtype=bool).reshape(
-        static_map_shape
-    )
+    return np.array(
+        [entry.IsVisible and entry.ShadowIndex == b'\xff' for entry in shrouds.Entries], dtype=bool
+    ).reshape(static_map_shape)
 
 
 def occupiers_list(occupiers_struct, static_map):

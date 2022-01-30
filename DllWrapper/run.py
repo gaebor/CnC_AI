@@ -6,6 +6,8 @@ from random import getrandbits, sample
 import cnc_structs
 from gameplay import TDGameplay
 
+import decoders
+
 
 class COORD(ctypes.Structure):
     _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
@@ -70,12 +72,12 @@ def main(args):
         MPlayerBases=1,
         MPlayerCredits=5000,
         MPlayerTiberium=1,
-        MPlayerGoodies=0,
+        MPlayerGoodies=1,
         MPlayerGhosts=0,
         MPlayerSolo=1,
         MPlayerUnitCount=0,
         IsMCVDeploy=False,
-        SpawnVisceroids=False,
+        SpawnVisceroids=True,
         EnableSuperweapons=True,
         MPlayerShadowRegrow=False,
         MPlayerAftermathUnits=True,
@@ -95,18 +97,23 @@ def main(args):
         elif frame == 2:
             selected = units[0]
             TD.register_request(
+                0, 'INPUT_REQUEST_SELECT_AT_POSITION', selected.PositionX, selected.PositionY
+            )
+        elif frame == 3:
+            selected = units[0]
+            TD.register_request(
                 0, 'INPUT_REQUEST_COMMAND_AT_POSITION', selected.PositionX, selected.PositionY
             )
-
-        # if frame % 100 == 0:
-        #     result = TD.get_what_player_see(1)
-        #     print(result[2])
-
+        # layers = TD.get_game_state('GAME_STATE_LAYERS', 1)
+        # print({o.Type for o in layers.Objects if o.OccupyListLength > 0})
+        print(TD.get_game_state('GAME_STATE_STATIC_MAP', 0))
+        break
         frame += 1
     print(frame)
     TD.retrieve_players_info()
-    for player in TD.players:
+    for i, player in enumerate(TD.players):
         print(player)
+        print(TD.get_game_state('GAME_STATE_SIDEBAR', i))
 
 
 if __name__ == '__main__':

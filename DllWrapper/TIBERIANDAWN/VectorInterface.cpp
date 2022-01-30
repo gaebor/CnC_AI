@@ -144,10 +144,6 @@ void CommonVectorRepresentation::Render(
         }
         else
         {
-            if (strncmp(entry->AssetName, "BIB", 3) == 0)
-            {
-                // bibs should be placed by the 'occupiers' because they cover more than one tile
-            }
             const int i = (entry->CellY - static_map.OriginalMapCellY) * static_map.OriginalMapCellWidth + entry->CellX - static_map.OriginalMapCellX;
             if (map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
             {

@@ -88,7 +88,7 @@ extern "C" __declspec(dllexport) bool __cdecl Init(
         const auto dll_filename = FromUtf8(dll_filename_utf8);
         dll_handle = LoadLibraryW(dll_filename.data());
     }
-    content_directory = content_directory_ascii;
+    content_directory = content_directory_ascii + 3;
     if (dll_handle == NULL)
         return false;
 
@@ -112,7 +112,7 @@ extern "C" __declspec(dllexport) bool __cdecl Init(
     LoadSymbolFromDll(CNC_Set_Difficulty);
     LoadSymbolFromDll(CNC_Get_Start_Game_Info);
     
-    CNC_Init(content_directory.data(), NULL);
+    CNC_Init(content_directory_ascii, NULL);
     CNC_Config(rule_data_struct);
 
     return true;
@@ -137,16 +137,16 @@ bool retrieve_players_info()
         {
             return false;
         }
-        HouseColorMap[player.House] = player.ColorIndex;
+        HouseColorMap[player.House] = (std::remove_extent<decltype(HouseColorMap)>::type)player.ColorIndex;
     }
     return true;
 }
 
 extern "C" __declspec(dllexport) bool __cdecl StartGame(
-    CNCMultiplayerOptionsStruct & multiplayer_options,
+    const CNCMultiplayerOptionsStruct & multiplayer_options,
     int scenario_index, int build_level, int difficulty)
 {
-    if (!CNC_Set_Multiplayer_Data(scenario_index, multiplayer_options, (int)players.size(), players.data(), 6))
+    if (!CNC_Set_Multiplayer_Data(scenario_index, const_cast<CNCMultiplayerOptionsStruct&>(multiplayer_options), (int)players.size(), players.data(), 6))
     {
         return false;
     }
@@ -180,8 +180,8 @@ extern "C" __declspec(dllexport) unsigned char __cdecl GetGameResult()
 {
     retrieve_players_info();
 
-    unsigned short result = 0;
-    for (int i = 0; i < players.size(); ++i)
+    unsigned char result = 0;
+    for (size_t i = 0; i < players.size(); ++i)
     {
         result |= (players[i].IsDefeated ? 0 : 1) << i;
     }
