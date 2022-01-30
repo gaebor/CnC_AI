@@ -98,18 +98,27 @@ struct SideBarView {
 };
 
 
-struct CommonVectorRepresentation
+struct VectorRepresentation
 {
 	StaticMap map;
 	std::vector<DynamicObject> dynamic_objects;
 	void Render(const CNCMapDataStruct*, const CNCDynamicMapStruct*, const CNCObjectListStruct*);
 };
 
-struct CommonVectorRepresentationView
+struct VectorRepresentationView
 {
 	StaticMapView map;
 	size_t dynamic_objects_count;
 	const DynamicObject* dynamic_objects;
 
-	CommonVectorRepresentationView& operator=(const CommonVectorRepresentation&);
+	VectorRepresentationView& operator=(const VectorRepresentation&);
 };
+
+struct PlayerVectorRepresentationView
+{
+	VectorRepresentationView map_and_objects;
+	SideBarView sidebar;
+};
+
+
+void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, unsigned char Owner);

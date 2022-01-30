@@ -62,19 +62,21 @@ extern "C" {
         return CNC_Get_Palette(palette_in);
     }
     __declspec(dllexport) bool __cdecl Advance();
-    __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView&);
+    __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView&);
 }
 
 HMODULE dll_handle;
 std::vector<CNCPlayerInfoStruct> players;
 std::vector<unsigned char> orginal_houses;
-CommonVectorRepresentation game_state;
+VectorRepresentation game_state;
+std::vector<VectorRepresentation> players_view;
+std::vector<SideBar> players_sidebar;
 
 std::string content_directory;
 std::vector<unsigned char> static_map_buffer(4 * 1024 * 1024);
 std::vector<unsigned char> dynamic_map_buffer(4 * 1024 * 1024);
 std::vector<unsigned char> layers_buffer(4 * 1024 * 1024);
-std::vector<unsigned char> sidebar_buffer(4 * 1024 * 1024);
+std::vector<unsigned char> general_buffer(4 * 1024 * 1024);
 
 static const CNCRulesDataStruct rule_data_struct = { {
     {1.2f, 1.2f, 1.2f, 0.3f, 0.8f, 0.8f, 0.6f, 0.001f, 0.001f, false, true, true},
@@ -233,10 +235,10 @@ unsigned char CalculateScores()
 
     for (size_t i = 0; i < players.size(); ++i)
     {
-        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, sidebar_buffer.data(), sidebar_buffer.size()))
+        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
             return 0xff;
         SideBar s;
-        s = *reinterpret_cast<const CNCSidebarStruct*>(sidebar_buffer.data());
+        s = *reinterpret_cast<const CNCSidebarStruct*>(general_buffer.data());
         // scores[i] += s.Credits;
     }
 
@@ -281,7 +283,7 @@ bool __cdecl Advance()
     return CNC_Advance_Instance(0);
 }
 
-bool __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView& view)
+bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView& view)
 {
     if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
         return false;
@@ -298,5 +300,30 @@ bool __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView& view)
 
     view = game_state;
 
+    return true;
+}
+
+bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* output)
+{
+    {
+        VectorRepresentationView dummy;
+        if (!GetCommonVectorRepresentation(dummy))
+            return false;
+    }
+    players_view.resize(players.size());
+    players_sidebar.resize(players.size());
+
+    for (size_t i = 0; i < players.size(); ++i, ++output)
+    {
+        if (!CNC_Get_Game_State(GAME_STATE_SHROUD, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
+            return false;
+        RenderPOV(players_view[i], game_state, (const CNCShroudStruct*)general_buffer.data(), (std::remove_extent<decltype(HouseColorMap)>::type)(players[i].ColorIndex));
+        output->map_and_objects = players_view[i];
+
+        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
+            return false;
+        players_sidebar[i] = *(const CNCSidebarStruct*)(general_buffer.data());
+        output->sidebar = players_sidebar[i];
+    }
     return true;
 }

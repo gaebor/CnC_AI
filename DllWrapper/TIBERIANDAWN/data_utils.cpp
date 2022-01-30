@@ -88,7 +88,7 @@ unsigned char HouseColorMap[] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
-unsigned char ConvertSelectedMask(const unsigned int per_house_mask)
+unsigned char ConvertMask(const unsigned int per_house_mask)
 {
     unsigned char per_color_mask = 0;
     for (int i = 4; i < 10; ++i) // HOUSE_MULTI1 ... HOUSE_MULTI6

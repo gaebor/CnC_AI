@@ -89,7 +89,7 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
     Strength = object.Strength;
     ShapeIndex = object.ShapeIndex;
     Owner = HouseColorMap[(unsigned char)object.Owner];
-    IsSelected = ConvertSelectedMask(object.IsSelectedMask);
+    IsSelected = ConvertMask(object.IsSelectedMask);
     IsRepairing = object.IsRepairing;
     Cloak = object.Cloak;
     if (object.IsPrimaryFactory)
@@ -120,7 +120,7 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
     ControlGroup = decltype(ControlGroup)(-1);
 }
 
-void CommonVectorRepresentation::Render(
+void VectorRepresentation::Render(
     const CNCMapDataStruct* static_map,
     const CNCDynamicMapStruct* dynamic_map,
     const CNCObjectListStruct* layers)
@@ -225,11 +225,21 @@ SideBarView& SideBarView::operator=(const SideBar& other)
     return *this;
 }
 
-CommonVectorRepresentationView& CommonVectorRepresentationView::operator=(const CommonVectorRepresentation& other)
+VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepresentation& other)
 {
     map = other.map;
     dynamic_objects_count = other.dynamic_objects.size();
     dynamic_objects = other.dynamic_objects.data();
 
     return *this;
+}
+
+void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, unsigned char Owner)
+{
+    /* TODO
+    *  * conver IsSelectedMask to IsSelected (using color)
+    *  * hide cloaked vehicles from non-owners
+    *  * cover shroud
+    *  * hide pips from non-owners
+    */
 }
