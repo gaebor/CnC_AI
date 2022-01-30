@@ -234,7 +234,7 @@ VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepres
     return *this;
 }
 
-void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, unsigned char Owner)
+void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, unsigned char Owner)
 {
     /* TODO
     *  * conver IsSelectedMask to IsSelected (using color)

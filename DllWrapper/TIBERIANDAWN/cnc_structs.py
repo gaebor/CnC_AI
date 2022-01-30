@@ -110,12 +110,39 @@ class DynamicObject(CncStruct):
     ]
 
 
-class CommonVectorRepresentationView(CncStruct):
+class SidebarEntry(CncStruct):
+    _fields_ = [
+        ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
+        ('Progress', ctypes.c_float),
+        ('Constructing', ctypes.c_bool),
+        ('ConstructionOnHold', ctypes.c_bool),
+        ('Busy', ctypes.c_bool),
+    ]
+
+
+class SideBarView(CncStruct):
+    _fields_ = [
+        ('Credits', ctypes.c_int),
+        ('PowerProduced', ctypes.c_int),
+        ('PowerDrained', ctypes.c_int),
+        ('RepairBtnEnabled', ctypes.c_bool),
+        ('SellBtnEnabled', ctypes.c_bool),
+        ('RadarMapActive', ctypes.c_bool),
+        ('Count', ctypes.c_size_t),
+        ('Entries', ctypes.POINTER(SidebarEntry)),
+    ]
+
+
+class VectorRepresentationView(CncStruct):
     _fields_ = [
         ('map', StaticMapView),
         ('dynamic_objects_count', ctypes.c_size_t),
         ('dynamic_objects', ctypes.POINTER(DynamicObject)),
     ]
+
+
+class PlayerVectorRepresentationView(VectorRepresentationView):
+    _fields_ = [('sidebar', SideBarView)]
 
 
 def decode_cell(data):
@@ -132,7 +159,7 @@ def decode_cell(data):
     return (text, 'white', background)
 
 
-def print_game_state(game_state: CommonVectorRepresentationView):
+def print_game_state(game_state: VectorRepresentationView):
     map_list = [
         [
             decode_cell(game_state.map.StaticCells[i * game_state.map.MapCellWidth + j])

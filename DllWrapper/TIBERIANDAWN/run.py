@@ -54,12 +54,14 @@ def TD_process(
     ):
         return
 
-    buffer = cnc_structs.CommonVectorRepresentationView()
+    buffer = cnc_structs.VectorRepresentationView()
+    players_buffer = (cnc_structs.PlayerVectorRepresentationView * len(players))()
 
     i = 0
     while TD.Advance():
-
-        if False == TD.GetCommonVectorRepresentation(ctypes.byref(buffer)):
+        # if False == TD.GetCommonVectorRepresentation(ctypes.byref(buffer)):
+        #     return
+        if False == TD.GetPlayersVectorRepresentation(players_buffer):
             return
         if i % 10 == 0:
             if i > 0:

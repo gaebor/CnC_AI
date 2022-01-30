@@ -63,6 +63,7 @@ extern "C" {
     }
     __declspec(dllexport) bool __cdecl Advance();
     __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView&);
+    __declspec(dllexport) bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* output);
 }
 
 HMODULE dll_handle;
@@ -318,7 +319,7 @@ bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* outp
         if (!CNC_Get_Game_State(GAME_STATE_SHROUD, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
             return false;
         RenderPOV(players_view[i], game_state, (const CNCShroudStruct*)general_buffer.data(), (std::remove_extent<decltype(HouseColorMap)>::type)(players[i].ColorIndex));
-        output->map_and_objects = players_view[i];
+        static_cast<VectorRepresentationView&>(*output) = (players_view[i]);
 
         if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
             return false;

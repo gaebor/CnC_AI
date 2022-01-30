@@ -114,9 +114,8 @@ struct VectorRepresentationView
 	VectorRepresentationView& operator=(const VectorRepresentation&);
 };
 
-struct PlayerVectorRepresentationView
+struct PlayerVectorRepresentationView : VectorRepresentationView
 {
-	VectorRepresentationView map_and_objects;
 	SideBarView sidebar;
 };
 
