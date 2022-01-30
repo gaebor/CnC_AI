@@ -23,6 +23,9 @@ def TD_process(
     TD.Advance.restype = ctypes.c_bool
     TD.GetGameResult.restype = ctypes.c_ubyte
 
+    TD.CNC_Get_Palette_.restype = ctypes.c_bool
+    TD.CNC_Get_Visible_Page.restype = ctypes.c_bool
+
     if False == TD.Init(ctypes.c_char_p(game_dll.encode('utf8')), ctypes.c_char_p(content_dir)):
         return
 
@@ -36,6 +39,13 @@ def TD_process(
         ctypes.c_int(build_level),
         ctypes.c_int(2),
     ):
+        return
+
+    palette = (ctypes.c_uint8 * (256 * 3))()
+    if TD.CNC_Get_Palette_(palette):
+        for i in range(len(palette)):
+            palette[i] *= 4
+    else:
         return
 
     while TD.Advance():
