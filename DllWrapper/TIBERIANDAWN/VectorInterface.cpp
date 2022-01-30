@@ -1,10 +1,11 @@
-#include "VectorInterface.h"
+#include "VectorInterface.hpp"
 
 #include <string>
 #include <type_traits>
 #include <algorithm>
 
 #include "template_utils.hpp"
+#include "data_utils.hpp"
 
 
 StaticTile::StaticTile()
@@ -87,8 +88,8 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
     PositionY = object.PositionY;
     Strength = object.Strength;
     ShapeIndex = object.ShapeIndex;
-    Owner = object.Owner;
-    IsSelected = 0;
+    Owner = HouseColorMap[(unsigned char)object.Owner];
+    IsSelected = ConvertSelectedMask(object.IsSelectedMask);
     IsRepairing = object.IsRepairing;
     Cloak = object.Cloak;
     if (object.IsPrimaryFactory)
@@ -111,7 +112,7 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
     PositionY = entry.PositionY;
     Strength = 0;
     ShapeIndex = entry.ShapeIndex;
-    Owner = entry.Owner;
+    Owner = HouseColorMap[(unsigned char)entry.Owner];
     IsSelected = 0;
     IsRepairing = false;
     Cloak = 0;
@@ -119,44 +120,51 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
     ControlGroup = decltype(ControlGroup)(-1);
 }
 
-CommonVectorRepresentation::CommonVectorRepresentation()
-    : map(), dynamic_objects()
-{
-}
-
 void CommonVectorRepresentation::Render(
-    const CNCMapDataStruct& static_map,
-    const CNCDynamicMapStruct& dynamic_map,
-    const CNCObjectListStruct& layers,
-    const CNCOccupierHeaderStruct* occupiers)
+    const CNCMapDataStruct* static_map,
+    const CNCDynamicMapStruct* dynamic_map,
+    const CNCObjectListStruct* layers)
 {
-    map = static_map;
+    map = *static_map;
 
     dynamic_objects.clear();
     
-    const auto end_of_dynamic_map = dynamic_map.Entries + dynamic_map.Count;
-    for (auto entry = dynamic_map.Entries; entry != end_of_dynamic_map; ++entry)
+    const auto end_of_dynamic_map = dynamic_map->Entries + dynamic_map->Count;
+    for (auto entry = dynamic_map->Entries; entry != end_of_dynamic_map; ++entry)
     {
         //      flag                                             wall                             crate
         if (entry->IsFlag || (entry->IsOverlay && ((entry->Type >= 1 && entry->Type <= 5) || entry->Type >= 28)))
         {
-            dynamic_objects[n_objects++].Assign(*entry);
+            dynamic_objects.emplace_back();
+            dynamic_objects.back().Assign(*entry);
         }
         else
         {
-            const int i = (entry->CellY - static_map.OriginalMapCellY) * static_map.OriginalMapCellWidth + entry->CellX - static_map.OriginalMapCellX;
-            if (map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
+            const auto x = entry->CellX - static_map->OriginalMapCellX;
+            const auto y = entry->CellY - static_map->OriginalMapCellY;
+            if (x >= 0 && x <= static_map->OriginalMapCellWidth && y >= 0 && y <= static_map->OriginalMapCellHeight)
             {
-                // this will prefer tiberium
-                map.StaticCells[i] = *entry;
+                const int i = y * static_map->OriginalMapCellWidth + x;
+                if (map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
+                {
+                    // this will prefer tiberium
+                    map.StaticCells[i] = *entry;
+                }
             }
+        }
+    }
+
+    const auto end_of_layers = layers->Objects + layers->Count;
+    for (auto object = layers->Objects; object != end_of_layers; ++object)
+    {
+        if (object->Type <= TERRAIN)
+        {
+            dynamic_objects.emplace_back();
+            dynamic_objects.back().Assign(*object);
         }
     }
 }
 
-CommonVectorRepresentation::~CommonVectorRepresentation()
-{
-}
 
 SidebarEntry::SidebarEntry()
     : Progress(0), Constructing(false), ConstructionOnHold(false), Busy(false)
@@ -179,16 +187,6 @@ SidebarEntry& SidebarEntry::operator=(const CNCSidebarEntryStruct& entry)
     return *this;
 }
 
-SideBar::SideBar():EntryCount(0), Entries(nullptr)
-{
-}
-
-SideBar::~SideBar()
-{
-    if (Entries != nullptr)
-        delete[] Entries;
-}
-
 
 SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
 {
@@ -199,10 +197,8 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
     RepairBtnEnabled = false;
     SellBtnEnabled = false;
     RadarMapActive = sidebar.RadarMapActive;
-    EntryCount = sidebar.EntryCount[0] + sidebar.EntryCount[1];
-    
-    Entries = new SidebarEntry[EntryCount];
-    std::copy(sidebar.Entries, sidebar.Entries + EntryCount, Entries);
+    Entries.resize(sidebar.EntryCount[0] + sidebar.EntryCount[1]);
+    std::copy_n(sidebar.Entries, Entries.size(), Entries.begin());
 
     return *this;
 }

@@ -2,8 +2,11 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "DllInterface.h"
+#include "data_utils.hpp"
+#include "VectorInterface.hpp"
 
 typedef void(__cdecl* CNC_Event_Callback_Type)(const EventCallbackStruct& event);
 typedef unsigned __int64 uint64;
@@ -47,8 +50,10 @@ std::vector<CNCPlayerInfoStruct> players;
 std::vector<unsigned char> orginal_houses;
 
 std::string content_directory;
-std::vector<unsigned char> buffer(4 * 1024 * 1024);
-unsigned char HouseColorMap[256];
+std::vector<unsigned char> static_map_buffer(4 * 1024 * 1024);
+std::vector<unsigned char> dynamic_map_buffer(4 * 1024 * 1024);
+std::vector<unsigned char> layers_buffer(4 * 1024 * 1024);
+std::vector<unsigned char> sidebar_buffer(4 * 1024 * 1024);
 
 static const CNCRulesDataStruct rule_data_struct = { {
     {1.2f, 1.2f, 1.2f, 0.3f, 0.8f, 0.8f, 0.6f, 0.001f, 0.001f, false, true, true},
@@ -176,25 +181,71 @@ extern "C" __declspec(dllexport) bool __cdecl StartGame(
     return retrieve_players_info();
 }
 
+unsigned char CalculateScores()
+{
+    std::vector<int> scores(players.size(), 0);
+    CommonVectorRepresentation game_state;
+    CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size());
+    CNC_Get_Game_State(GAME_STATE_DYNAMIC_MAP, 0, dynamic_map_buffer.data(), dynamic_map_buffer.size());
+    CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size());
+    game_state.Render(
+        reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
+        reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
+        reinterpret_cast<const CNCObjectListStruct*>(layers_buffer.data())
+    );
+
+    for (const auto& unit : game_state.dynamic_objects)
+    {
+        const auto owner = unit.Owner;
+        for (size_t i = 0; i < players.size(); ++i)
+        {
+            if (players[i].ColorIndex == owner)
+            {
+                scores[i] += buildables.at(unit.AssetName);
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < players.size(); ++i)
+    {
+        CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, sidebar_buffer.data(), sidebar_buffer.size());
+        SideBar s;
+        s = *reinterpret_cast<const CNCSidebarStruct*>(sidebar_buffer.data());
+        // scores[i] += s.Credits;
+    }
+
+    unsigned char loser_mask = 0;
+    auto max_score = scores[0];
+    for (auto score : scores)
+        if (score > max_score)
+            max_score = score;
+    for (size_t i = 0; i < players.size(); ++i)
+    {
+        loser_mask |= (scores[i] < max_score ? 1 : 0) << i;
+    }
+    return loser_mask;
+}
+
 extern "C" __declspec(dllexport) unsigned char __cdecl GetGameResult()
 {
     retrieve_players_info();
 
-    unsigned char result = 0;
+    unsigned char loser_mask = 0;
     for (size_t i = 0; i < players.size(); ++i)
     {
-        result |= (players[i].IsDefeated ? 0 : 1) << i;
+        loser_mask |= (players[i].IsDefeated ? 1 : 0) << i;
     }
-    if (result != 0U)
+    if (loser_mask != 0U)
     {
-        return result;
+        return loser_mask;
     }
     else
     {
-        // TODO calculate scores and return who has reached the highest score
-        return result;
+        return CalculateScores();
     }
 }
+
 
 extern "C" __declspec(dllexport) void __cdecl FreeDll()
 {
