@@ -202,3 +202,34 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
 
     return *this;
 }
+
+StaticMapView& StaticMapView::operator=(const StaticMap& other)
+{
+    MapCellWidth = other.OriginalMapCellWidth;
+    MapCellHeight = other.OriginalMapCellHeight;
+    StaticCells = other.StaticCells.data();
+    return *this;
+}
+
+SideBarView& SideBarView::operator=(const SideBar& other)
+{
+    Credits = other.Credits;
+    PowerProduced = other.PowerProduced;
+    PowerDrained = other.PowerDrained;
+    RepairBtnEnabled = other.RepairBtnEnabled;
+    SellBtnEnabled = other.SellBtnEnabled;
+    RadarMapActive = other.RadarMapActive;
+    
+    Count = other.Entries.size();
+    Entries = other.Entries.data();
+    return *this;
+}
+
+CommonVectorRepresentationView& CommonVectorRepresentationView::operator=(const CommonVectorRepresentation& other)
+{
+    map = other.map;
+    dynamic_objects_count = other.dynamic_objects.size();
+    dynamic_objects = other.dynamic_objects.data();
+
+    return *this;
+}

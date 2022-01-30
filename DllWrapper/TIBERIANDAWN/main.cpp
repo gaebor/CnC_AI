@@ -46,7 +46,6 @@ extern "C" {
     bool(__cdecl * CNC_Get_Palette)(unsigned char(&palette_in)[256][3]) = NULL;
 }
 
-
 extern "C" {
     __declspec(dllexport) bool __cdecl ChDir(const char* dirname_utf8);
     __declspec(dllexport) bool __cdecl Init(const char* dll_filename_utf8, const char* content_directory_ascii);
@@ -63,12 +62,13 @@ extern "C" {
         return CNC_Get_Palette(palette_in);
     }
     __declspec(dllexport) bool __cdecl Advance();
+    __declspec(dllexport) void __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView&);
 }
-
 
 HMODULE dll_handle;
 std::vector<CNCPlayerInfoStruct> players;
 std::vector<unsigned char> orginal_houses;
+CommonVectorRepresentation game_state;
 
 std::string content_directory;
 std::vector<unsigned char> static_map_buffer(4 * 1024 * 1024);
@@ -144,7 +144,6 @@ bool __cdecl Init(const char* dll_filename_utf8, const char* content_directory_a
     return true;
 }
 
-
 void __cdecl AddPlayer(const CNCPlayerInfoStruct& player)
 {
     players.emplace_back(player);
@@ -205,7 +204,6 @@ bool __cdecl StartGame(
 unsigned char CalculateScores()
 {
     std::vector<int> scores(players.size(), 0);
-    CommonVectorRepresentation game_state;
 
     if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
         return 0xff;
@@ -273,7 +271,6 @@ unsigned char __cdecl GetGameResult()
     }
 }
 
-
 void __cdecl FreeDll()
 {
     FreeLibrary(dll_handle);
@@ -282,4 +279,9 @@ void __cdecl FreeDll()
 bool __cdecl Advance()
 {
     return CNC_Advance_Instance(0);
+}
+
+void __cdecl GetCommonVectorRepresentation(CommonVectorRepresentationView& view)
+{
+    view = game_state;
 }

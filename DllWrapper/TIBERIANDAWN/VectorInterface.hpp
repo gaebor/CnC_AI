@@ -51,6 +51,15 @@ struct StaticMap {
 	~StaticMap();
 };
 
+
+struct StaticMapView {
+	int	MapCellWidth;
+	int	MapCellHeight;
+	const StaticTile* StaticCells;
+
+	StaticMapView& operator=(const StaticMap&);
+};
+
 struct SidebarEntry
 {
     char AssetName[16];
@@ -75,10 +84,32 @@ struct SideBar {
 	SideBar& operator=(const CNCSidebarStruct&);
 };
 
+struct SideBarView {
+	int Credits;
+	int PowerProduced;
+	int PowerDrained;
+	bool RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
+	bool SellBtnEnabled;
+	bool RadarMapActive; // TODO implement radar map view
+	size_t Count;
+	const SidebarEntry* Entries;
+
+	SideBarView& operator=(const SideBar&);
+};
+
 
 struct CommonVectorRepresentation
 {
 	StaticMap map;
 	std::vector<DynamicObject> dynamic_objects;
 	void Render(const CNCMapDataStruct*, const CNCDynamicMapStruct*, const CNCObjectListStruct*);
+};
+
+struct CommonVectorRepresentationView
+{
+	StaticMapView map;
+	size_t dynamic_objects_count;
+	const DynamicObject* dynamic_objects;
+
+	CommonVectorRepresentationView& operator=(const CommonVectorRepresentation&);
 };
