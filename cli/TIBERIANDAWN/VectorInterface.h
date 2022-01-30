@@ -1,6 +1,8 @@
 #pragma once
 #include <stdlib.h>
 
+#include <vector>
+
 #include "DLLInterface.h"
 
 struct StaticTile
@@ -18,19 +20,18 @@ struct DynamicObject
 	char 				AssetName[CNC_OBJECT_ASSET_NAME_LENGTH];
 	int					PositionX;
 	int					PositionY;
-	int					Pips[MAX_OBJECT_PIPS];
 	short				Strength;
 	unsigned short		ShapeIndex;
 	unsigned char		Owner;
-	bool				IsSelected;
+	unsigned short		IsSelected;
 	bool				IsRepairing;
 	unsigned char		Cloak;
-	bool				IsPrimaryFactory;
+	int					Pips[MAX_OBJECT_PIPS];
 	unsigned char		ControlGroup;
 
 	DynamicObject();
-	void Assign(const CNCObjectStruct&, const unsigned char House);
-	void Assign(const CNCDynamicMapEntryStruct&, const unsigned char House);
+	void Assign(const CNCObjectStruct&);
+	void Assign(const CNCDynamicMapEntryStruct&);
 };
 
 
@@ -43,11 +44,10 @@ struct StaticMap {
 	int	OriginalMapCellY;
 	int	OriginalMapCellWidth;
 	int	OriginalMapCellHeight;
-	StaticTile* StaticCells;
+	std::vector<StaticTile> StaticCells;
 
 	StaticMap();
 	StaticMap& operator=(const CNCMapDataStruct&);
-	StaticMap(const StaticMap&);
 	~StaticMap();
 };
 
@@ -79,13 +79,13 @@ struct SideBar {
 };
 
 
-struct VectorRepresentation
+struct CommonVectorRepresentation
 {
-	StaticMap static_map;
-	DynamicObject* dynamic_objects;
+	StaticMap map;
+	std::vector<DynamicObject> dynamic_objects;
 	int n_objects;
-	VectorRepresentation();
-	VectorRepresentation(const StaticMap&);
-	void Render(const CNCDynamicMapStruct&, const CNCObjectListStruct&, const unsigned char House);
-	~VectorRepresentation();
+	CommonVectorRepresentation();
+	void Render(const CNCMapDataStruct&, const CNCDynamicMapStruct&, const CNCObjectListStruct&, const CNCOccupierHeaderStruct*);
+	void RenderPlayer(const CNCShroudStruct&, const unsigned char House);
+	~CommonVectorRepresentation();
 };
