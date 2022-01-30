@@ -16,8 +16,8 @@ typedef __int64 int64;
 void(__cdecl* CNC_Init)(const char* command_line, CNC_Event_Callback_Type event_callback);
 void(__cdecl* CNC_Config)(const CNCRulesDataStruct& rules);
 // void(__cdecl* CNC_Add_Mod_Path)(const char* mod_path);
-// bool(__cdecl* CNC_Get_Visible_Page)(unsigned char* buffer_in, unsigned int& width, unsigned int& height);
-// bool(__cdecl* CNC_Get_Palette)(unsigned char(&palette_in)[256][3]);
+bool(__cdecl* CNC_Get_Visible_Page)(unsigned char* buffer_in, unsigned int& width, unsigned int& height);
+bool(__cdecl* CNC_Get_Palette)(unsigned char(&palette_in)[256][3]);
 // bool(__cdecl* CNC_Start_Instance)(int scenario_index, int build_level, const char* faction, const char* game_type, const char* content_directory, int sabotaged_structure, const char* override_map_name);
 bool(__cdecl* CNC_Start_Instance_Variation)(int scenario_index, int scenario_variation, int scenario_direction, int build_level, const char* faction, const char* game_type, const char* content_directory, int sabotaged_structure, const char* override_map_name);
 bool(__cdecl* CNC_Start_Custom_Instance)(const char* content_directory, const char* directory_path, const char* scenario_name, int build_level, bool multiplayer);
@@ -116,6 +116,8 @@ extern "C" __declspec(dllexport) bool __cdecl Init(
     LoadSymbolFromDll(CNC_Save_Load);
     LoadSymbolFromDll(CNC_Set_Difficulty);
     LoadSymbolFromDll(CNC_Get_Start_Game_Info);
+    LoadSymbolFromDll(CNC_Get_Palette);
+    LoadSymbolFromDll(CNC_Get_Visible_Page);
     
     CNC_Init(content_directory_ascii, NULL);
     CNC_Config(rule_data_struct);
@@ -185,9 +187,14 @@ unsigned char CalculateScores()
 {
     std::vector<int> scores(players.size(), 0);
     CommonVectorRepresentation game_state;
-    CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size());
-    CNC_Get_Game_State(GAME_STATE_DYNAMIC_MAP, 0, dynamic_map_buffer.data(), dynamic_map_buffer.size());
-    CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size());
+
+    if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
+        return 0xff;
+    if (!CNC_Get_Game_State(GAME_STATE_DYNAMIC_MAP, 0, dynamic_map_buffer.data(), dynamic_map_buffer.size()))
+        return 0xff;
+    if (!CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size()))
+        return 0xff;
+
     game_state.Render(
         reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
         reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
@@ -207,9 +214,10 @@ unsigned char CalculateScores()
         }
     }
 
-    for (int i = 0; i < players.size(); ++i)
+    for (size_t i = 0; i < players.size(); ++i)
     {
-        CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, sidebar_buffer.data(), sidebar_buffer.size());
+        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, sidebar_buffer.data(), sidebar_buffer.size()))
+            return 0xff;
         SideBar s;
         s = *reinterpret_cast<const CNCSidebarStruct*>(sidebar_buffer.data());
         // scores[i] += s.Credits;
