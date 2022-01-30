@@ -14,5 +14,5 @@ foreach(target TIBERIANDAWN)
 
     add_library("${target}_wrapper" SHARED ${SOURCE_FILES} ${HEADER_FILES})
     target_include_directories("${target}_wrapper" PRIVATE ${CMAKE_SOURCE_DIR}/${target})
-    
+
 endforeach(target)
