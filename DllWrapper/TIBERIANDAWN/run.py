@@ -1,9 +1,21 @@
 import sys
+import os
 
 import ctypes
 from multiprocessing import Pipe
 
 import cnc_structs
+
+
+class COORD(ctypes.Structure):
+    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+
+Stdhandle = ctypes.windll.kernel32.GetStdHandle(-11)
+
+# from https://rosettacode.org/wiki/Terminal_control/Cursor_positioning#Python
+def move_cursor(r, c):
+    ctypes.windll.kernel32.SetConsoleCursorPosition(Stdhandle, COORD(c, r))
 
 
 def TD_process(
@@ -15,6 +27,7 @@ def TD_process(
     scenario_index,
     build_level=7,
     content_dir=b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1',
+    working_dir=None,
 ):
     TD = ctypes.WinDLL(wrapper_dll)
     TD.Init.restype = ctypes.c_bool
@@ -23,8 +36,9 @@ def TD_process(
     TD.Advance.restype = ctypes.c_bool
     TD.GetGameResult.restype = ctypes.c_ubyte
 
-    TD.CNC_Get_Palette_.restype = ctypes.c_bool
-    TD.CNC_Get_Visible_Page.restype = ctypes.c_bool
+    if working_dir is not None:
+        if False == TD.ChDir(ctypes.c_char_p(working_dir.encode('utf8'))):
+            return
 
     if False == TD.Init(ctypes.c_char_p(game_dll.encode('utf8')), ctypes.c_char_p(content_dir)):
         return
@@ -41,15 +55,21 @@ def TD_process(
     ):
         return
 
-    palette = (ctypes.c_uint8 * (256 * 3))()
-    if TD.CNC_Get_Palette_(palette):
-        for i in range(len(palette)):
-            palette[i] *= 4
-    else:
-        return
+    buffer = cnc_structs.CommonVectorRepresentationView()
 
+    i = 0
     while TD.Advance():
-        x = TD.GetGameResult()
+
+        if False == TD.GetCommonVectorRepresentation(ctypes.byref(buffer)):
+            return
+        if i % 10 == 0:
+            if i > 0:
+                move_cursor(0, 0)
+            print(cnc_structs.print_game_state(buffer), end='')
+
+        if i >= 5000:
+            break
+        i += 1
         continue
         # returns a list of per-player representation of the game from the player's POV
         vectorized_game_states = TD.get_what_players_see()
@@ -59,55 +79,67 @@ def TD_process(
         if actions is None:
             # caller decided to stop game
             # return who was winning
-            connection.send({'stop': TD.GetGameResult()})
-    connection.send({'finish': TD.GetGameResult()})
-    TD.FreeDll()
+            connection.send(TD.GetGameResult())
+            return
+        else:
+            for player_id, action in enumerate(actions):
+                if action is not None:
+                    pass
+                    # perform player's action
+    print()
+    print(TD.GetGameResult())
 
 
-parent_connection, child_connection = Pipe()
-TD_process(
-    child_connection,
-    sys.argv[1],
-    sys.argv[2],
-    [
-        cnc_structs.CNCPlayerInfoStruct(
-            GlyphxPlayerID=314159265,
-            Name=b"gaebor",
-            House=0,
-            Team=0,
-            AllyFlags=0,
-            ColorIndex=0,
-            IsAI=False,
-            StartLocationIndex=127,
+def main():
+    parent_connection, child_connection = Pipe()
+    TD_process(
+        child_connection,
+        sys.argv[1],
+        sys.argv[2],
+        [
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=314159265,
+                Name=b"gaebor",
+                House=0,
+                Team=0,
+                AllyFlags=0,
+                ColorIndex=0,
+                IsAI=False,
+                StartLocationIndex=127,
+            ),
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=271828182,
+                Name=b"ai1",
+                House=1,
+                Team=1,
+                AllyFlags=0,
+                ColorIndex=2,
+                IsAI=True,
+                StartLocationIndex=127,
+            ),
+        ],
+        cnc_structs.CNCMultiplayerOptionsStruct(
+            MPlayerCount=2,
+            MPlayerBases=1,
+            MPlayerCredits=5000,
+            MPlayerTiberium=1,
+            MPlayerGoodies=1,
+            MPlayerGhosts=0,
+            MPlayerSolo=1,
+            MPlayerUnitCount=0,
+            IsMCVDeploy=False,
+            SpawnVisceroids=True,
+            EnableSuperweapons=True,
+            MPlayerShadowRegrow=False,
+            MPlayerAftermathUnits=True,
+            CaptureTheFlag=False,
+            DestroyStructures=False,
+            ModernBalance=True,
         ),
-        cnc_structs.CNCPlayerInfoStruct(
-            GlyphxPlayerID=271828182,
-            Name=b"ai1",
-            House=1,
-            Team=1,
-            AllyFlags=0,
-            ColorIndex=2,
-            IsAI=True,
-            StartLocationIndex=127,
-        ),
-    ],
-    cnc_structs.CNCMultiplayerOptionsStruct(
-        MPlayerCount=2,
-        MPlayerBases=1,
-        MPlayerCredits=5000,
-        MPlayerTiberium=1,
-        MPlayerGoodies=1,
-        MPlayerGhosts=0,
-        MPlayerSolo=1,
-        MPlayerUnitCount=0,
-        IsMCVDeploy=False,
-        SpawnVisceroids=True,
-        EnableSuperweapons=True,
-        MPlayerShadowRegrow=False,
-        MPlayerAftermathUnits=True,
-        CaptureTheFlag=False,
-        DestroyStructures=False,
-        ModernBalance=True,
-    ),
-    50,
-)
+        50,
+        working_dir=None if len(sys.argv) <= 3 else sys.argv[3],
+    )
+
+
+if __name__ == '__main__':
+    main()
