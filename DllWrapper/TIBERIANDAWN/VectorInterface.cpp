@@ -145,7 +145,7 @@ void VectorRepresentation::Render(
             if (x >= 0 && x <= static_map->OriginalMapCellWidth && y >= 0 && y <= static_map->OriginalMapCellHeight)
             {
                 const int i = y * static_map->OriginalMapCellWidth + x;
-                if (map.StaticCells[i].AssetName[0] == '\0' || entry->IsResource)
+                if (!(map.StaticCells[i].AssetName[0] == 'T' && map.StaticCells[i].AssetName[1] == 'I'))
                 {
                     // this will prefer tiberium
                     map.StaticCells[i] = *entry;
