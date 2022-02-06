@@ -236,7 +236,6 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
         {
             for (int x = 0; x < target.map.OriginalMapCellWidth; ++x, ++shroud_ptr)
             {
-                const auto shroud_offset = shroud_ptr - shroud->Entries;
                 if (shroud_ptr->IsVisible && shroud_ptr->ShadowIndex == (char)(-1))
                     target.map.StaticCells[y][x] = source.map.StaticCells[y][x];
             }
