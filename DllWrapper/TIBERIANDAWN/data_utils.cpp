@@ -1,8 +1,8 @@
 #include "data_utils.hpp"
 
 const std::unordered_map<std::string, int> buildables = { 
-    {"FACT", 5000},
-    {"FACTMAKE", 5000},
+    {"FACT", 6000},
+    {"FACTMAKE", 6000},
     {"NUKE", 300},
     {"NUKEMAKE", 300},
     {"NUK2", 700},
