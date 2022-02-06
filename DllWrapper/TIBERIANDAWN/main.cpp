@@ -64,6 +64,9 @@ extern "C" {
     __declspec(dllexport) bool __cdecl Advance();
     __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView&);
     __declspec(dllexport) bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* output);
+    
+    __declspec(dllexport) void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, const char* assetName);
+    __declspec(dllexport) void __cdecl HandleInputRequest(size_t player_id, InputRequestEnum requestType, int x1, int y1);
 }
 
 HMODULE dll_handle;
@@ -327,4 +330,38 @@ bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* outp
         output->sidebar = players_sidebar[i];
     }
     return true;
+}
+
+void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, const char* assetName)
+{
+    if (player_id >= players.size())
+        return;
+
+    const auto& player = players.at(player_id);
+    if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, player.GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
+        return;
+
+    auto sidebar = (const CNCSidebarStruct*)general_buffer.data();
+
+    if (requestType == SIDEBAR_REQUEST_PLACE)
+        return; // buildings are placed with click for now
+    
+    const auto end = sidebar->Entries + sidebar->EntryCount[0] + sidebar->EntryCount[1];
+    for (auto entry = sidebar->Entries; entry != end; ++entry)
+    {
+        if (strncmp(entry->AssetName, assetName, CNC_OBJECT_ASSET_NAME_LENGTH) == 0)
+        {
+            CNC_Handle_Sidebar_Request(requestType, player.GlyphxPlayerID, entry->BuildableType, entry->BuildableID, 0, 0);
+            return;
+        }
+    }
+}
+
+void __cdecl HandleInputRequest(size_t player_id, InputRequestEnum requestType, int x1, int y1)
+{
+    if (player_id >= players.size())
+        return;
+
+    const auto& player = players.at(player_id);
+    CNC_Handle_Input(requestType, 0U, player.GlyphxPlayerID, x1, y1, 0, 0);
 }
