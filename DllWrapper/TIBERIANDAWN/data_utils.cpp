@@ -26,6 +26,7 @@ const std::unordered_map<std::string, int> buildables = {
     {"AFLD", 2000},
     {"AFLDMAKE", 2000},
     {"WEAP", 2000},
+    {"WEAP2", 0},
     {"WEAPMAKE", 2000},
     {"HQ", 1000},
     {"HQMAKE", 1000},
