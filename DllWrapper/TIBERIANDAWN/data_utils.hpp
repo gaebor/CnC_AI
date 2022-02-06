@@ -2,7 +2,11 @@
 #include <unordered_map>
 #include <string>
 
-extern const std::unordered_map<std::string, int> buildables;
-extern unsigned char HouseColorMap[256];
+extern const float cost_lookup_table[];
 
-unsigned char ConvertMask(const unsigned int per_house_mask);
+extern const std::unordered_map<std::string, std::int32_t> static_tile_names;
+extern const std::unordered_map<std::string, std::int32_t> dynamic_object_names;
+
+extern std::int32_t HouseColorMap[256];
+
+std::int32_t ConvertMask(const unsigned int per_house_mask);

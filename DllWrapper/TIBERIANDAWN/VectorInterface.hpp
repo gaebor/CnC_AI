@@ -7,8 +7,8 @@
 
 struct StaticTile
 {
-    char AssetName[CNC_OBJECT_ASSET_NAME_LENGTH];
-    unsigned short ShapeIndex;
+    std::int32_t AssetName;
+	std::int32_t ShapeIndex;
 
 	StaticTile& operator=(const CNCStaticCellStruct&);
 	StaticTile& operator=(const CNCDynamicMapEntryStruct&);
@@ -17,17 +17,19 @@ struct StaticTile
 
 struct DynamicObject
 {
-	char 				AssetName[CNC_OBJECT_ASSET_NAME_LENGTH];
-	int					PositionX;
-	int					PositionY;
-	short				Strength;
-	unsigned short		ShapeIndex;
-	unsigned char		Owner;
-	unsigned char		IsSelected;
-	bool				IsRepairing;
-	unsigned char		Cloak;
-	int					Pips[MAX_OBJECT_PIPS];
-	unsigned char		ControlGroup;
+	std::int32_t AssetName;
+	std::int32_t ShapeIndex;
+	std::int32_t Owner;
+	std::int32_t Pips[MAX_OBJECT_PIPS];
+
+	float PositionX;
+	float PositionY;
+	float Strength;
+
+	float IsSelected;
+	float IsRepairing;
+	float Cloak;
+	float ControlGroup;
 
 	DynamicObject();
 	void Assign(const CNCObjectStruct&);
@@ -52,11 +54,13 @@ struct StaticMap {
 
 struct SidebarEntry
 {
-    char AssetName[16];
+    std::int32_t AssetName;
 	float Progress;
-	bool Constructing;
-	bool ConstructionOnHold;
-	bool Busy;
+	float Cost;
+	float BuildTime;
+	float Constructing;
+	float ConstructionOnHold;
+	float Busy;
 
 	SidebarEntry();
 	SidebarEntry& operator=(const CNCSidebarEntryStruct&);
@@ -75,12 +79,12 @@ struct SideBar {
 };
 
 struct SideBarView {
-	int Credits;
-	int PowerProduced;
-	int PowerDrained;
-	bool RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
-	bool SellBtnEnabled;
-	bool RadarMapActive; // TODO implement radar map view
+	float Credits;
+	float PowerProduced;
+	float PowerDrained;
+	float RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
+	float SellBtnEnabled;
+	float RadarMapActive; // TODO implement radar map view
 	size_t Count;
 	const SidebarEntry* Entries;
 
@@ -110,4 +114,4 @@ struct PlayerVectorRepresentationView : VectorRepresentationView
 };
 
 
-void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, unsigned char Owner);
+void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, std::int32_t Owner);

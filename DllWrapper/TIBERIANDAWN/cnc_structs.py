@@ -75,13 +75,10 @@ class CNCPlayerInfoStruct(CncStruct):
     ]
 
 
-CNC_OBJECT_ASSET_NAME_LENGTH = 16
-
-
 class StaticTile(CncStruct):
     _fields_ = [
-        ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
-        ('ShapeIndex', ctypes.c_ushort),
+        ('AssetName', ctypes.c_int32),
+        ('ShapeIndex', ctypes.c_int32),
     ]
 
 
@@ -90,38 +87,40 @@ MAX_OBJECT_PIPS = 18
 
 class DynamicObject(CncStruct):
     _fields_ = [
-        ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
-        ('PositionX', ctypes.c_int),
-        ('PositionY', ctypes.c_int),
-        ('Strength', ctypes.c_short),
-        ('ShapeIndex', ctypes.c_ushort),
-        ('Owner', ctypes.c_ubyte),
-        ('IsSelected', ctypes.c_ubyte),
-        ('IsRepairing', ctypes.c_bool),
-        ('Cloak', ctypes.c_ubyte),
-        ('Pips', ctypes.c_int * MAX_OBJECT_PIPS),
-        ('ControlGroup', ctypes.c_ubyte),
+        ('AssetName', ctypes.c_int32),
+        ('ShapeIndex', ctypes.c_int32),
+        ('Owner', ctypes.c_int32),
+        ('Pips', ctypes.c_int32 * MAX_OBJECT_PIPS),
+        ('PositionX', ctypes.c_float),
+        ('PositionY', ctypes.c_float),
+        ('Strength', ctypes.c_float),
+        ('IsSelected', ctypes.c_float),
+        ('IsRepairing', ctypes.c_float),
+        ('Cloak', ctypes.c_float),
+        ('ControlGroup', ctypes.c_float),
     ]
 
 
 class SidebarEntry(CncStruct):
     _fields_ = [
-        ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
+        ('AssetName', ctypes.c_int32),
         ('Progress', ctypes.c_float),
-        ('Constructing', ctypes.c_bool),
-        ('ConstructionOnHold', ctypes.c_bool),
-        ('Busy', ctypes.c_bool),
+        ('Cost', ctypes.c_float),
+        ('BuildTime', ctypes.c_float),
+        ('Constructing', ctypes.c_float),
+        ('ConstructionOnHold', ctypes.c_float),
+        ('Busy', ctypes.c_float),
     ]
 
 
 class SideBarView(CncStruct):
     _fields_ = [
-        ('Credits', ctypes.c_int),
-        ('PowerProduced', ctypes.c_int),
-        ('PowerDrained', ctypes.c_int),
-        ('RepairBtnEnabled', ctypes.c_bool),
-        ('SellBtnEnabled', ctypes.c_bool),
-        ('RadarMapActive', ctypes.c_bool),
+        ('Credits', ctypes.c_float),
+        ('PowerProduced', ctypes.c_float),
+        ('PowerDrained', ctypes.c_float),
+        ('RepairBtnEnabled', ctypes.c_float),
+        ('SellBtnEnabled', ctypes.c_float),
+        ('RadarMapActive', ctypes.c_float),
         ('Count', ctypes.c_size_t),
         ('Entries', ctypes.POINTER(SidebarEntry)),
     ]

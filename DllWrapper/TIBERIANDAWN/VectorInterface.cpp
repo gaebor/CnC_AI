@@ -8,26 +8,25 @@
 #include "data_utils.hpp"
 
 
-StaticTile::StaticTile() : ShapeIndex(0)
+StaticTile::StaticTile() : AssetName(0), ShapeIndex(0)
 {
-    AssetName[0] = '\0';
 }
 
 
 StaticTile& StaticTile::operator=(const CNCStaticCellStruct& tile)
 {
     ShapeIndex = (decltype(ShapeIndex))tile.IconNumber;
-    for (int i = 0; i < std::extent<decltype(tile.TemplateTypeName)>::value; ++i)
+    for (size_t i = 0; i < std::extent<decltype(tile.TemplateTypeName)>::value; ++i)
     {
         if (tile.TemplateTypeName[i] == '_')
-            strncpy_s(AssetName, tile.TemplateTypeName, i);
+            AssetName = static_tile_names.at(std::string(tile.TemplateTypeName, i));
     }
     return *this;
 }
 
 StaticTile& StaticTile::operator=(const CNCDynamicMapEntryStruct& entry)
 {
-    copy_array(entry.AssetName, AssetName);
+    AssetName = static_tile_names.at(entry.AssetName);
     ShapeIndex = entry.ShapeIndex;
     return *this;
 }
@@ -66,23 +65,22 @@ StaticMap& StaticMap::operator=(const CNCMapDataStruct& static_map)
     return *this;
 }
 
-DynamicObject::DynamicObject()
+DynamicObject::DynamicObject() : AssetName(0), ShapeIndex(0)
 {
-    AssetName[0] = '\0';
 }
 
 void DynamicObject::Assign(const CNCObjectStruct& object)
 {
-    copy_array(object.AssetName, AssetName);
+    AssetName = dynamic_object_names.at(object.AssetName);
 
-    PositionX = object.PositionX;
-    PositionY = object.PositionY;
-    Strength = object.Strength;
+    PositionX = (float)object.PositionX;
+    PositionY = (float)object.PositionY;
+    Strength = (float)object.Strength;
     ShapeIndex = object.ShapeIndex;
     Owner = HouseColorMap[(unsigned char)object.Owner];
-    IsSelected = ConvertMask(object.IsSelectedMask);
-    IsRepairing = object.IsRepairing;
-    Cloak = object.Cloak;
+    IsSelected = (float)ConvertMask(object.IsSelectedMask);
+    IsRepairing = (float)object.IsRepairing;
+    Cloak = (float)object.Cloak;
     if (object.IsPrimaryFactory)
     {
         Pips[0] = 2U; // PIP_PRIMARY // "Primary" building marker
@@ -93,20 +91,20 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
         std::copy_n(object.Pips, object.MaxPips, Pips);
         std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, -1);
     }
-    ControlGroup = object.ControlGroup;
+    ControlGroup = (float)object.ControlGroup;
 }
 
 void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
 {
-    copy_array(entry.AssetName, AssetName);
-    PositionX = entry.PositionX;
-    PositionY = entry.PositionY;
-    Strength = 0;
+    AssetName = dynamic_object_names.at(entry.AssetName);
+    PositionX = (float)entry.PositionX;
+    PositionY = (float)entry.PositionY;
+    Strength = 0.f;
     ShapeIndex = entry.ShapeIndex;
     Owner = HouseColorMap[(unsigned char)entry.Owner];
-    IsSelected = 0;
-    IsRepairing = false;
-    Cloak = 0;
+    IsSelected = 0.f;
+    IsRepairing = 0.f;
+    Cloak = 0.f;
     std::fill_n(Pips, MAX_OBJECT_PIPS, -1);
     ControlGroup = decltype(ControlGroup)(-1);
 }
@@ -135,9 +133,8 @@ void VectorRepresentation::Render(
             const auto y = entry->CellY - static_map->OriginalMapCellY;
             if (x >= 0 && x <= static_map->OriginalMapCellWidth && y >= 0 && y <= static_map->OriginalMapCellHeight)
             {
-                if (!(map.StaticCells[y][x].AssetName[0] == 'T' && map.StaticCells[y][x].AssetName[1] == 'I'))
+                if (!(map.StaticCells[y][x].AssetName >= 232 && map.StaticCells[y][x].AssetName <= 243)) // tiberium
                 {
-                    // this will prefer tiberium
                     map.StaticCells[y][x] = *entry;
                 }
             }
@@ -156,23 +153,22 @@ void VectorRepresentation::Render(
 }
 
 
-SidebarEntry::SidebarEntry()
-    : Progress(0), Constructing(false), ConstructionOnHold(false), Busy(false)
+SidebarEntry::SidebarEntry() : AssetName(0), Progress(0.f), Constructing(0.0f), ConstructionOnHold(0.0f), Busy(0.0f)
 {
-    AssetName[0] = '\0';
 }
 
 SidebarEntry& SidebarEntry::operator=(const CNCSidebarEntryStruct& entry)
 {
-    copy_array(entry.AssetName, AssetName);
+    AssetName = dynamic_object_names.at(entry.AssetName);
     if (entry.Completed)
-        Progress = 1;
+        Progress = 1.f;
     else
         Progress = entry.Progress;
-    
-    Constructing = entry.Constructing;
-    ConstructionOnHold = entry.ConstructionOnHold;
-    Busy = entry.Busy;
+    Cost = (float)entry.Cost;
+    BuildTime = (float)entry.BuildTime;
+    Constructing = entry.Constructing ? 1.f : 0.f;
+    ConstructionOnHold = entry.ConstructionOnHold ? 1.f : 0.f;
+    Busy = entry.Busy ? 1.f : 0.f;
 
     return *this;
 }
@@ -195,12 +191,12 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
 
 SideBarView& SideBarView::operator=(const SideBar& other)
 {
-    Credits = other.Credits;
-    PowerProduced = other.PowerProduced;
-    PowerDrained = other.PowerDrained;
-    RepairBtnEnabled = other.RepairBtnEnabled;
-    SellBtnEnabled = other.SellBtnEnabled;
-    RadarMapActive = other.RadarMapActive;
+    Credits = (float)other.Credits;
+    PowerProduced = (float)other.PowerProduced;
+    PowerDrained = (float)other.PowerDrained;
+    RepairBtnEnabled = other.RepairBtnEnabled ? 1.f : 0.f;
+    SellBtnEnabled = other.SellBtnEnabled ? 1.f : 0.f;
+    RadarMapActive = other.RadarMapActive ? 1.f : 0.f;
     
     Count = other.Entries.size();
     Entries = other.Entries.data();
@@ -216,7 +212,7 @@ VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepres
     return *this;
 }
 
-void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, unsigned char Owner)
+void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, std::int32_t Owner)
 {
     target.map.MapCellX = source.map.MapCellX;
     target.map.MapCellY = source.map.MapCellY;
@@ -245,8 +241,8 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
 
     for (const auto& source_object : source.dynamic_objects)
     {
-        const auto x = source_object.PositionX / 24;
-        const auto y = source_object.PositionY / 24;
+        const auto x = (int)source_object.PositionX / 24;
+        const auto y = (int)source_object.PositionY / 24;
         const auto& shroud_ptr = shroud->Entries[offset + y * source.map.MapCellWidth + x];
         if (shroud_ptr.IsVisible && shroud_ptr.ShadowIndex == (char)(-1))
         {
@@ -255,7 +251,7 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
             target.dynamic_objects.emplace_back(source_object);
             auto& target_object = target.dynamic_objects.back();
             
-            target_object.IsSelected = (target_object.IsSelected & (1 << Owner)) ? 1 : 0;
+            target_object.IsSelected = (((unsigned int)target_object.IsSelected) & (1 << Owner)) ? 1.f : 0.f;
 
             if (target_object.Owner != Owner)
             {

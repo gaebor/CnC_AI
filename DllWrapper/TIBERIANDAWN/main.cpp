@@ -209,7 +209,7 @@ bool __cdecl StartGame(
 
 unsigned char CalculateScores()
 {
-    std::vector<int> scores(players.size(), 0);
+    std::vector<float> scores(players.size(), 0);
 
     if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
         return 0xff;
@@ -231,7 +231,7 @@ unsigned char CalculateScores()
         {
             if (players[i].ColorIndex == owner)
             {
-                scores[i] += buildables.at(unit.AssetName);
+                scores[i] += cost_lookup_table[unit.AssetName];
                 break;
             }
         }
