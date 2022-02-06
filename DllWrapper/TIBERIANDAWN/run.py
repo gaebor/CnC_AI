@@ -54,7 +54,6 @@ def TD_process(
     ):
         return
 
-    buffer = cnc_structs.VectorRepresentationView()
     players_buffer = (cnc_structs.PlayerVectorRepresentationView * len(players))()
 
     i = 0
