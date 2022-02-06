@@ -42,6 +42,8 @@ class CNCMultiplayerOptionsStruct(CncStruct):
 
 MAX_HOUSES = 32
 MAX_EXPORT_CELLS = 128 * 128
+MAP_MAX_WIDTH = 62
+MAP_MAX_HEIGHT = MAP_MAX_WIDTH
 
 
 class CNCSpiedInfoStruct(CncStruct):
@@ -80,14 +82,6 @@ class StaticTile(CncStruct):
     _fields_ = [
         ('AssetName', ctypes.c_char * CNC_OBJECT_ASSET_NAME_LENGTH),
         ('ShapeIndex', ctypes.c_ushort),
-    ]
-
-
-class StaticMapView(CncStruct):
-    _fields_ = [
-        ('MapCellWidth', ctypes.c_int),
-        ('MapCellHeight', ctypes.c_int),
-        ('StaticCells', ctypes.POINTER(StaticTile)),
     ]
 
 
@@ -135,7 +129,7 @@ class SideBarView(CncStruct):
 
 class VectorRepresentationView(CncStruct):
     _fields_ = [
-        ('map', StaticMapView),
+        ('map', ctypes.POINTER(StaticTile)),
         ('dynamic_objects_count', ctypes.c_size_t),
         ('dynamic_objects', ctypes.POINTER(DynamicObject)),
     ]
@@ -161,11 +155,8 @@ def decode_cell(data):
 
 def print_game_state(game_state: VectorRepresentationView):
     map_list = [
-        [
-            decode_cell(game_state.map.StaticCells[i * game_state.map.MapCellWidth + j])
-            for j in range(game_state.map.MapCellWidth)
-        ]
-        for i in range(game_state.map.MapCellHeight)
+        [decode_cell(game_state.map[i * MAP_MAX_WIDTH + j]) for j in range(MAP_MAX_WIDTH)]
+        for i in range(MAP_MAX_HEIGHT)
     ]
     for i in range(game_state.dynamic_objects_count):
         thing = game_state.dynamic_objects[i]

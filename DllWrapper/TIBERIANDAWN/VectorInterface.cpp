@@ -40,14 +40,9 @@ StaticMap::StaticMap()
     OriginalMapCellX(0),
     OriginalMapCellY(0),
     OriginalMapCellWidth(0),
-    OriginalMapCellHeight(0),
-    StaticCells()
+    OriginalMapCellHeight(0)
 {
-}
-
-
-StaticMap::~StaticMap()
-{
+    new (StaticCells) StaticTile[62 * 62];
 }
 
 
@@ -62,14 +57,10 @@ StaticMap& StaticMap::operator=(const CNCMapDataStruct& static_map)
     OriginalMapCellWidth = static_map.OriginalMapCellWidth;
     OriginalMapCellHeight = static_map.OriginalMapCellHeight;
 
-    StaticCells.clear();
-    StaticCells.resize(OriginalMapCellHeight * OriginalMapCellWidth);
-
-    auto dest = StaticCells.begin();
     auto src = static_map.StaticCells + ((OriginalMapCellY - MapCellY) * MapCellWidth + OriginalMapCellX - MapCellX);
     for (int y = 0; y < OriginalMapCellHeight; ++y, src += MapCellWidth)
     {
-        dest = std::copy_n(src, OriginalMapCellWidth, dest);
+        std::copy_n(src, OriginalMapCellWidth, StaticCells[y]);
     }
 
     return *this;
@@ -144,11 +135,10 @@ void VectorRepresentation::Render(
             const auto y = entry->CellY - static_map->OriginalMapCellY;
             if (x >= 0 && x <= static_map->OriginalMapCellWidth && y >= 0 && y <= static_map->OriginalMapCellHeight)
             {
-                const int i = y * static_map->OriginalMapCellWidth + x;
-                if (!(map.StaticCells[i].AssetName[0] == 'T' && map.StaticCells[i].AssetName[1] == 'I'))
+                if (!(map.StaticCells[y][x].AssetName[0] == 'T' && map.StaticCells[y][x].AssetName[1] == 'I'))
                 {
                     // this will prefer tiberium
-                    map.StaticCells[i] = *entry;
+                    map.StaticCells[y][x] = *entry;
                 }
             }
         }
@@ -203,14 +193,6 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
     return *this;
 }
 
-StaticMapView& StaticMapView::operator=(const StaticMap& other)
-{
-    MapCellWidth = other.OriginalMapCellWidth;
-    MapCellHeight = other.OriginalMapCellHeight;
-    StaticCells = other.StaticCells.data();
-    return *this;
-}
-
 SideBarView& SideBarView::operator=(const SideBar& other)
 {
     Credits = other.Credits;
@@ -227,7 +209,7 @@ SideBarView& SideBarView::operator=(const SideBar& other)
 
 VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepresentation& other)
 {
-    map = other.map;
+    map = &(other.map.StaticCells[0][0]);
     dynamic_objects_count = other.dynamic_objects.size();
     dynamic_objects = other.dynamic_objects.data();
 
@@ -245,24 +227,18 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
     target.map.OriginalMapCellWidth = source.map.OriginalMapCellWidth;
     target.map.OriginalMapCellHeight = source.map.OriginalMapCellHeight;
 
-    target.map.StaticCells.clear();
-    target.map.StaticCells.resize(source.map.OriginalMapCellHeight * source.map.OriginalMapCellWidth);
-
     const auto offset = (source.map.OriginalMapCellY - source.map.MapCellY) * source.map.MapCellWidth + source.map.OriginalMapCellX - source.map.MapCellX;
     {
         const auto column_stepping = source.map.MapCellWidth - source.map.OriginalMapCellWidth;
-        auto map_dest = target.map.StaticCells.begin();
-        auto map_src = source.map.StaticCells.begin();
         auto shroud_ptr = shroud->Entries + offset;
 
         for (int y = 0; y < target.map.OriginalMapCellHeight; ++y, shroud_ptr += column_stepping)
         {
-            for (int x = 0; x < target.map.OriginalMapCellWidth; ++x, ++shroud_ptr, ++map_dest, ++map_src)
+            for (int x = 0; x < target.map.OriginalMapCellWidth; ++x, ++shroud_ptr)
             {
                 const auto shroud_offset = shroud_ptr - shroud->Entries;
-                const auto map_offset = map_dest - target.map.StaticCells.begin();
                 if (shroud_ptr->IsVisible && shroud_ptr->ShadowIndex == (char)(-1))
-                    *map_dest = *map_src;
+                    target.map.StaticCells[y][x] = source.map.StaticCells[y][x];
             }
         }
     }

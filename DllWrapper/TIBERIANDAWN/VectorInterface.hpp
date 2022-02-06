@@ -44,20 +44,10 @@ struct StaticMap {
 	int	OriginalMapCellY;
 	int	OriginalMapCellWidth;
 	int	OriginalMapCellHeight;
-	std::vector<StaticTile> StaticCells;
+	StaticTile StaticCells[62][62];
 
 	StaticMap();
 	StaticMap& operator=(const CNCMapDataStruct&);
-	~StaticMap();
-};
-
-
-struct StaticMapView {
-	int	MapCellWidth;
-	int	MapCellHeight;
-	const StaticTile* StaticCells;
-
-	StaticMapView& operator=(const StaticMap&);
 };
 
 struct SidebarEntry
@@ -107,7 +97,7 @@ struct VectorRepresentation
 
 struct VectorRepresentationView
 {
-	StaticMapView map;
+	const StaticTile* map; // 62*62 but tiles may be empty
 	size_t dynamic_objects_count;
 	const DynamicObject* dynamic_objects;
 
