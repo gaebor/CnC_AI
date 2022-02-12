@@ -208,57 +208,6 @@ bool __cdecl StartGame(
     return retrieve_players_info();
 }
 
-unsigned char CalculateScores()
-{
-    std::vector<float> scores(players.size(), 0);
-
-    if (!CNC_Get_Game_State(GAME_STATE_STATIC_MAP, 0, static_map_buffer.data(), static_map_buffer.size()))
-        return 0xff;
-    if (!CNC_Get_Game_State(GAME_STATE_DYNAMIC_MAP, 0, dynamic_map_buffer.data(), dynamic_map_buffer.size()))
-        return 0xff;
-    if (!CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size()))
-        return 0xff;
-
-    game_state.Render(
-        reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
-        reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
-        reinterpret_cast<const CNCObjectListStruct*>(layers_buffer.data())
-    );
-
-    for (const auto& unit : game_state.dynamic_objects)
-    {
-        const auto owner = unit.Owner;
-        for (size_t i = 0; i < players.size(); ++i)
-        {
-            if (players[i].ColorIndex == owner)
-            {
-                scores[i] += cost_lookup_table[unit.AssetName];
-                break;
-            }
-        }
-    }
-
-    for (size_t i = 0; i < players.size(); ++i)
-    {
-        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
-            return 0xff;
-        SideBar s;
-        s = *reinterpret_cast<const CNCSidebarStruct*>(general_buffer.data());
-        // scores[i] += s.Credits;
-    }
-
-    unsigned char loser_mask = 0;
-    auto max_score = scores[0];
-    for (auto score : scores)
-        if (score > max_score)
-            max_score = score;
-    for (size_t i = 0; i < players.size(); ++i)
-    {
-        loser_mask |= (scores[i] < max_score ? 1 : 0) << i;
-    }
-    return loser_mask;
-}
-
 unsigned char __cdecl GetGameResult()
 {
     retrieve_players_info();
@@ -268,14 +217,7 @@ unsigned char __cdecl GetGameResult()
     {
         loser_mask |= (players[i].IsDefeated ? 1 : 0) << i;
     }
-    if (loser_mask != 0U)
-    {
-        return loser_mask;
-    }
-    else
-    {
-        return CalculateScores();
-    }
+    return loser_mask;
 }
 
 void __cdecl FreeDll()
@@ -342,11 +284,11 @@ void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestTy
     if (player_id >= players.size())
         return;
 
-    const auto& player = players.at(player_id);
+    const auto& player = players[player_id];
     if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, player.GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
         return;
 
-    const auto& sidebar = players_sidebar.at(player_id);
+    const auto& sidebar = players_sidebar[player_id];
 
     if (requestType == SIDEBAR_REQUEST_PLACE)
         return; // buildings are placed with click for now
@@ -366,6 +308,12 @@ void __cdecl HandleInputRequest(size_t player_id, InputRequestEnum requestType, 
     if (player_id >= players.size())
         return;
 
-    const auto& player = players.at(player_id);
-    CNC_Handle_Input(requestType, 0U, player.GlyphxPlayerID, x1, y1, 0, 0);
+    switch (requestType) {
+        // these should be handled differently
+        case INPUT_REQUEST_SPECIAL_KEYS:
+        case INPUT_REQUEST_MOUSE_AREA:
+        case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
+        return;
+    }
+    CNC_Handle_Input(requestType, 0U, players[player_id].GlyphxPlayerID, x1, y1, 0, 0);
 }
