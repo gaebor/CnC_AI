@@ -66,7 +66,7 @@ extern "C" {
     __declspec(dllexport) bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView&);
     __declspec(dllexport) bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* output);
     
-    __declspec(dllexport) void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, const char* assetName);
+    __declspec(dllexport) void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, std::int32_t assetNameIndex);
     __declspec(dllexport) void __cdecl HandleInputRequest(size_t player_id, InputRequestEnum requestType, int x1, int y1);
 }
 
@@ -337,7 +337,7 @@ bool __cdecl GetPlayersVectorRepresentation(PlayerVectorRepresentationView* outp
     return true;
 }
 
-void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, const char* assetName)
+void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestType, std::int32_t assetNameIndex)
 {
     if (player_id >= players.size())
         return;
@@ -350,12 +350,10 @@ void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestTy
 
     if (requestType == SIDEBAR_REQUEST_PLACE)
         return; // buildings are placed with click for now
-    
-    const auto asset_index = dynamic_object_names.at(assetName);
 
     for (const auto& entry : sidebar.Entries)
     {
-        if (entry.AssetName == asset_index)
+        if (entry.AssetName == assetNameIndex)
         {
             CNC_Handle_Sidebar_Request(requestType, player.GlyphxPlayerID, entry.BuildableType, entry.BuildableID, 0, 0);
             return;

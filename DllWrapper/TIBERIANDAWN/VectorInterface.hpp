@@ -55,8 +55,8 @@ struct StaticMap {
 struct SidebarEntry
 {
 	std::int32_t AssetName;
-	std::int32_t BuildableType;
-	std::int32_t BuildableID;
+	std::int32_t BuildableType; // only for internal use
+	std::int32_t BuildableID; // only for internal use
 	float Progress;
 	float Cost;
 	float BuildTime;
