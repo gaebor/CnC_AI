@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <stdexcept>
 
 #include "DllInterface.h"
 #include "data_utils.hpp"
@@ -295,13 +296,17 @@ bool __cdecl GetCommonVectorRepresentation(VectorRepresentationView& view)
         return false;
     if (!CNC_Get_Game_State(GAME_STATE_LAYERS, 0, layers_buffer.data(), layers_buffer.size()))
         return false;
-
-    game_state.Render(
-        reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
-        reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
-        reinterpret_cast<const CNCObjectListStruct*>(layers_buffer.data())
-    );
-
+    try {
+        game_state.Render(
+            reinterpret_cast<const CNCMapDataStruct*>(static_map_buffer.data()),
+            reinterpret_cast<const CNCDynamicMapStruct*>(dynamic_map_buffer.data()),
+            reinterpret_cast<const CNCObjectListStruct*>(layers_buffer.data())
+        );
+    }
+    catch (const std::out_of_range&)
+    {
+        return false;
+    }
     view = game_state;
 
     return true;
