@@ -91,7 +91,7 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
         std::copy_n(object.Pips, object.MaxPips, Pips);
         std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, -1);
     }
-    ControlGroup = (float)object.ControlGroup;
+    ControlGroup = object.ControlGroup;
 }
 
 void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
@@ -169,6 +169,8 @@ SidebarEntry& SidebarEntry::operator=(const CNCSidebarEntryStruct& entry)
     Constructing = entry.Constructing ? 1.f : 0.f;
     ConstructionOnHold = entry.ConstructionOnHold ? 1.f : 0.f;
     Busy = entry.Busy ? 1.f : 0.f;
+    BuildableType = entry.BuildableType;
+    BuildableID = entry.BuildableID;
 
     return *this;
 }

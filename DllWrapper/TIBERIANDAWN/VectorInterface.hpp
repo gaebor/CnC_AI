@@ -21,6 +21,7 @@ struct DynamicObject
 	std::int32_t ShapeIndex;
 	std::int32_t Owner;
 	std::int32_t Pips[MAX_OBJECT_PIPS];
+	std::int32_t ControlGroup;
 
 	float PositionX;
 	float PositionY;
@@ -29,7 +30,6 @@ struct DynamicObject
 	float IsSelected;
 	float IsRepairing;
 	float Cloak;
-	float ControlGroup;
 
 	DynamicObject();
 	void Assign(const CNCObjectStruct&);
@@ -54,7 +54,9 @@ struct StaticMap {
 
 struct SidebarEntry
 {
-    std::int32_t AssetName;
+	std::int32_t AssetName;
+	std::int32_t BuildableType;
+	std::int32_t BuildableID;
 	float Progress;
 	float Cost;
 	float BuildTime;

@@ -341,17 +341,18 @@ void __cdecl HandleSidebarRequest(size_t player_id, SidebarRequestEnum requestTy
     if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, player.GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
         return;
 
-    auto sidebar = (const CNCSidebarStruct*)general_buffer.data();
+    const auto& sidebar = players_sidebar.at(player_id);
 
     if (requestType == SIDEBAR_REQUEST_PLACE)
         return; // buildings are placed with click for now
     
-    const auto end = sidebar->Entries + sidebar->EntryCount[0] + sidebar->EntryCount[1];
-    for (auto entry = sidebar->Entries; entry != end; ++entry)
+    const auto asset_index = dynamic_object_names.at(assetName);
+
+    for (const auto& entry : sidebar.Entries)
     {
-        if (strncmp(entry->AssetName, assetName, CNC_OBJECT_ASSET_NAME_LENGTH) == 0)
+        if (entry.AssetName == asset_index)
         {
-            CNC_Handle_Sidebar_Request(requestType, player.GlyphxPlayerID, entry->BuildableType, entry->BuildableID, 0, 0);
+            CNC_Handle_Sidebar_Request(requestType, player.GlyphxPlayerID, entry.BuildableType, entry.BuildableID, 0, 0);
             return;
         }
     }
