@@ -9,10 +9,19 @@ foreach(target TIBERIANDAWN)
         file(DOWNLOAD https://raw.githubusercontent.com/electronicarts/CnC_Remastered_Collection/master/${target}/${header} ${CMAKE_SOURCE_DIR}/${target}/${header})
     endforeach(header)
 
-    file(GLOB SOURCE_FILES "${CMAKE_SOURCE_DIR}/${target}/*.cpp")
-    file(GLOB HEADER_FILES "${CMAKE_SOURCE_DIR}/${target}/*.h" "${CMAKE_SOURCE_DIR}/${target}/*.hpp")
+    file(GLOB SOURCE_FILES
+        "${CMAKE_SOURCE_DIR}/${target}/*.cpp"
+        "${CMAKE_SOURCE_DIR}/${target}/*.c"
+        "${CMAKE_SOURCE_DIR}/WebSocket.c"
+    )
+    file(GLOB HEADER_FILES
+        "${CMAKE_SOURCE_DIR}/${target}/*.h"
+        "${CMAKE_SOURCE_DIR}/${target}/*.hpp"
+        "${CMAKE_SOURCE_DIR}/WebSocket.h"
+    )
 
-    add_library("${target}_wrapper" SHARED ${SOURCE_FILES} ${HEADER_FILES})
+    add_executable("${target}_wrapper" ${SOURCE_FILES} ${HEADER_FILES})
     target_include_directories("${target}_wrapper" PRIVATE ${CMAKE_SOURCE_DIR}/${target})
+    TARGET_LINK_LIBRARIES("${target}_wrapper" winhttp)
 
 endforeach(target)
