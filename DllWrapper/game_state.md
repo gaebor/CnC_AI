@@ -13,7 +13,7 @@ These calls basically copy a struct to caller's memory.
  * `CNCMapDataStruct`
  * _map width * map height_ of `CNCStaticCellStruct`
  * independent of player
- * contains tile asset name and icon number
+ * contains tile asset name and icon number (`unsigned char` for tiles)
  * does not change during a game
    * except when a bridge collapses
 
@@ -36,7 +36,7 @@ These calls basically copy a struct to caller's memory.
  * each entry contains
    * `HousesType Owner` stored as `char`
    * position, both in pixel and in cell
-   * shape (?)
+   * `unsigned char ShapeIndex`
    * `Type` is `SmudgeType` or `OverlayType` stored as `short`
      * or `-1` for flag
    * `char AssetName[16]`
@@ -62,6 +62,7 @@ These calls basically copy a struct to caller's memory.
  * each contains:
    * `ID` for referencing it in game logic
    * `DllObjectTypeEnum Type`
+   * `char AssetName[]`, `unsigned short ShapeIndex`
    * position, shape
    * (`Rotation` stored as `unsigned char`)
    * `HousesType Owner` stored as `char`
