@@ -70,28 +70,18 @@ struct SidebarEntry
 };
 
 struct SideBar {
-	int Credits;
-	int PowerProduced;
-	int PowerDrained;
-	bool RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
-	bool SellBtnEnabled;
-	bool RadarMapActive; // TODO implement radar map view
+	struct {
+		float Credits;
+		float PowerProduced;
+		float PowerDrained;
+		float RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
+		float SellBtnEnabled;
+		float RadarMapActive; // TODO implement radar map view
+	} Members;
 	std::vector<SidebarEntry> Entries;
 
 	SideBar& operator=(const CNCSidebarStruct&);
-};
-
-struct SideBarView {
-	float Credits;
-	float PowerProduced;
-	float PowerDrained;
-	float RepairBtnEnabled; // this means that you HAVE a Repair button, not that it is toggled!
-	float SellBtnEnabled;
-	float RadarMapActive; // TODO implement radar map view
-	size_t Count;
-	const SidebarEntry* Entries;
-
-	SideBarView& operator=(const SideBar&);
+	bool Serialize(void* buffer, size_t buffer_size) const;
 };
 
 
@@ -100,21 +90,7 @@ struct VectorRepresentation
 	StaticMap map;
 	std::vector<DynamicObject> dynamic_objects;
 	void Render(const CNCMapDataStruct*, const CNCDynamicMapStruct*, const CNCObjectListStruct*);
+	bool Serialize(void* buffer, size_t buffer_size) const;
 };
-
-struct VectorRepresentationView
-{
-	const StaticTile* map; // 62*62 but tiles may be empty
-	size_t dynamic_objects_count;
-	const DynamicObject* dynamic_objects;
-
-	VectorRepresentationView& operator=(const VectorRepresentation&);
-};
-
-struct PlayerVectorRepresentationView : VectorRepresentationView
-{
-	SideBarView sidebar;
-};
-
 
 void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, std::int32_t Owner);

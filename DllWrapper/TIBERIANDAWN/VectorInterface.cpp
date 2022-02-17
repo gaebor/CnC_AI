@@ -178,40 +178,42 @@ SidebarEntry& SidebarEntry::operator=(const CNCSidebarEntryStruct& entry)
 
 SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
 {
-    Credits = sidebar.Credits;
-    PowerProduced = sidebar.PowerProduced;
-    PowerDrained = sidebar.PowerDrained;
+    Members.Credits = (float)sidebar.Credits;
+    Members.PowerProduced = (float)sidebar.PowerProduced;
+    Members.PowerDrained = (float)sidebar.PowerDrained;
 
-    RepairBtnEnabled = false;
-    SellBtnEnabled = false;
-    RadarMapActive = sidebar.RadarMapActive;
+    Members.RepairBtnEnabled = sidebar.RepairBtnEnabled ? 1.0f : 0.0f;
+    Members.SellBtnEnabled = sidebar.SellBtnEnabled ? 1.0f : 0.0f;
+    Members.RadarMapActive = sidebar.RadarMapActive ? 1.0f : 0.0f;
     Entries.resize(sidebar.EntryCount[0] + sidebar.EntryCount[1]);
     std::copy_n(sidebar.Entries, Entries.size(), Entries.begin());
 
     return *this;
 }
 
-SideBarView& SideBarView::operator=(const SideBar& other)
+template <typename T>
+void copy_to_buffer(void*& buffer, size_t& buffer_size, const T& data)
 {
-    Credits = (float)other.Credits;
-    PowerProduced = (float)other.PowerProduced;
-    PowerDrained = (float)other.PowerDrained;
-    RepairBtnEnabled = other.RepairBtnEnabled ? 1.f : 0.f;
-    SellBtnEnabled = other.SellBtnEnabled ? 1.f : 0.f;
-    RadarMapActive = other.RadarMapActive ? 1.f : 0.f;
-    
-    Count = other.Entries.size();
-    Entries = other.Entries.data();
-    return *this;
+    memcpy_s(buffer, buffer_size, &data, sizeof(T));
+    (const T*&)buffer += 1;
+    buffer_size -= sizeof(T);
 }
 
-VectorRepresentationView& VectorRepresentationView::operator=(const VectorRepresentation& other)
+bool SideBar::Serialize(void* buffer, size_t buffer_size) const
 {
-    map = &(other.map.StaticCells[0][0]);
-    dynamic_objects_count = other.dynamic_objects.size();
-    dynamic_objects = other.dynamic_objects.data();
+    const auto array_size = Entries.size() * sizeof(decltype(Entries)::value_type);
+    if (buffer_size < sizeof(Members) + sizeof(std::uint32_t) + array_size)
+    {
+        return false;
+    }
+    copy_to_buffer(buffer, buffer_size, Members);
+    copy_to_buffer(buffer, buffer_size, std::uint32_t(Entries.size()));
+    memcpy_s(buffer, buffer_size, Entries.data(), array_size);
+    
+    (const decltype(Entries)::value_type*&)buffer += Entries.size();
+    buffer_size -= array_size;
 
-    return *this;
+    return true;
 }
 
 void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, std::int32_t Owner)
@@ -262,4 +264,21 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
             }
         }
     }
+}
+
+bool VectorRepresentation::Serialize(void* buffer, size_t buffer_size) const
+{
+    const auto array_size = dynamic_objects.size() * sizeof(decltype(dynamic_objects)::value_type);
+    if (buffer_size < sizeof(map) + sizeof(std::uint32_t) + array_size)
+    {
+        return false;
+    }
+    copy_to_buffer(buffer, buffer_size, map);
+    copy_to_buffer(buffer, buffer_size, std::uint32_t(dynamic_objects.size()));
+    memcpy_s(buffer, buffer_size, dynamic_objects.data(), array_size);
+    
+    (const decltype(dynamic_objects)::value_type*&)buffer += dynamic_objects.size();
+    buffer_size -= array_size;
+
+    return true;
 }
