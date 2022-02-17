@@ -104,7 +104,6 @@ VectorRepresentation game_state;
 std::vector<SideBar> players_sidebar;
 
 std::string content_directory;
-std::vector<unsigned char> general_buffer(4 * 1024 * 1024);
 
 static const CNCRulesDataStruct rule_data_struct = { {
     {1.2f, 1.2f, 1.2f, 0.3f, 0.8f, 0.8f, 0.6f, 0.001f, 0.001f, false, true, true},
@@ -283,18 +282,19 @@ bool GetPlayersVectorRepresentation(void* buffer, size_t buffer_size)
         return false;
 
     static VectorRepresentation view;
+    static std::vector<unsigned char> internal_buffer(4 * 1024 * 1024);
 
     for (size_t i = 0; i < players.size(); ++i)
     {
-        if (!CNC_Get_Game_State(GAME_STATE_SHROUD, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
+        if (!CNC_Get_Game_State(GAME_STATE_SHROUD, players[i].GlyphxPlayerID, internal_buffer.data(), internal_buffer.size()))
             return false;
-        RenderPOV(view, game_state, (const CNCShroudStruct*)general_buffer.data(), (std::remove_extent<decltype(HouseColorMap)>::type)(players[i].ColorIndex));
+        RenderPOV(view, game_state, (const CNCShroudStruct*)internal_buffer.data(), (std::remove_extent<decltype(HouseColorMap)>::type)(players[i].ColorIndex));
         if (!view.Serialize(buffer, buffer_size))
             return false;
 
-        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, general_buffer.data(), general_buffer.size()))
+        if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, internal_buffer.data(), internal_buffer.size()))
             return false;
-        players_sidebar[i] = *(const CNCSidebarStruct*)(general_buffer.data());
+        players_sidebar[i] = *(const CNCSidebarStruct*)(internal_buffer.data());
         if (!players_sidebar[i].Serialize(buffer, buffer_size))
             return false;
     }
@@ -365,16 +365,41 @@ int main(int argc, const char* argv[])
 
     while(ReceiveOnSocket(buffer.data(), buffer.size(), &message_size) == NO_ERROR)
     {
-        switch (message_size)
+        if (message_size == sizeof(GameStartInfo))
         {
-            case sizeof(GameStartInfo) :
-                if (!StartGame((const GameStartInfo*)(buffer.data())))
-                    goto quit;
+            if (!StartGame((const GameStartInfo*)(buffer.data())))
                 break;
-            case sizeof(CNCPlayerInfoStruct):
-                AddPlayer((const CNCPlayerInfoStruct*)(buffer.data()));
+            continue;
+        }
+        else if (message_size == sizeof(CNCPlayerInfoStruct))
+        {
+            AddPlayer((const CNCPlayerInfoStruct*)(buffer.data()));
+            continue;
+        }
+
+        // TODO not good!
+        if (message_size == sizeof(input_request_args) * players.size())
+            for (size_t i = 0; i < players.size(); ++i)
+                HandleInputRequest((const input_request_args*)(buffer.data()) + i);
+        else if (message_size == sizeof(sidebar_request_args) * players.size())
+            for (size_t i = 0; i < players.size(); ++i)
+                HandleSidebarRequest((const sidebar_request_args*)(buffer.data()) + i);
+
+        if (!Advance())
+        {
+            buffer[0] = GetGameResult();
+            SendOnSocket(buffer.data(), 1);
+            break;
+        }
+        else
+        {
+            size_t buffer_size = buffer.size();
+            if (!GetPlayersVectorRepresentation(buffer.data(), buffer_size))
+                break;
+            if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - buffer_size))
                 break;
         }
+
     }
 quit:
     FreeDll();
