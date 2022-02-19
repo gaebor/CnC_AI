@@ -205,6 +205,17 @@ def decode_cell(tile_name_index):
 color_map = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan']
 
 
+def get_game_state_size(game_state_buffer):
+    offset = ctypes.sizeof(StaticMap)
+    dynamic_objects_count = ctypes.c_uint32.from_buffer_copy(game_state_buffer, offset).value
+    offset += ctypes.sizeof(ctypes.c_uint32)
+    offset += ctypes.sizeof(DynamicObject) * dynamic_objects_count + ctypes.sizeof(SideBarMembers)
+    sidebar_count = ctypes.c_uint32.from_buffer_copy(game_state_buffer, offset).value
+    offset += ctypes.sizeof(ctypes.c_uint32)
+    offset += ctypes.sizeof(SidebarEntry) * sidebar_count
+    return offset
+
+
 def print_game_state(game_state):
     offset = 0
     cells = StaticMap.from_buffer_copy(game_state, offset).StaticCells
