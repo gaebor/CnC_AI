@@ -50,7 +50,7 @@ extern "C" {
     bool(__cdecl * CNC_Get_Palette)(unsigned char(&palette_in)[256][3]) = NULL;
 }
 
-struct GameStartInfo
+struct StartGameArgs
 {
     const CNCMultiplayerOptionsStruct multiplayer_info;
     int scenario_index;
@@ -58,10 +58,20 @@ struct GameStartInfo
     int difficulty;
 };
 
+struct StartGameCustomArgs
+{
+    const CNCMultiplayerOptionsStruct multiplayer_info;
+    char directory_path[256];
+    char scenario_name[256];
+    int build_level;
+};
+
+
 bool ChDir(const char* dirname_utf8);
 bool Init(const char* dll_filename_utf8, const char* content_directory_ascii);
 void AddPlayer(const CNCPlayerInfoStruct*);
-bool StartGame(const GameStartInfo*);
+bool StartGame(const StartGameArgs*);
+bool StartGameCustom(const StartGameCustomArgs*);
 unsigned char GetGameResult();
 void FreeDll();
 
@@ -74,11 +84,22 @@ void FreeDll();
 //    return CNC_Get_Palette(palette_in);
 //}
 
+class ProcessGuard
+{
+public:
+    ProcessGuard() {}
+    ~ProcessGuard()
+    {
+        FreeDll();
+        DestroyWebSocket();
+    }
+};
+
 bool Advance();
 bool GetCommonVectorRepresentation();
 bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size);
    
-struct sidebar_request_args
+struct SidebarRequestArgs
 {
     size_t player_id;
     SidebarRequestEnum requestType;
@@ -86,7 +107,7 @@ struct sidebar_request_args
 };
 
 
-struct input_request_args
+struct InputRequestArgs
 {
     size_t player_id;
     InputRequestEnum requestType;
@@ -94,8 +115,8 @@ struct input_request_args
     float y1;
 };
 
-void HandleSidebarRequest(const sidebar_request_args*);
-void HandleInputRequest(const input_request_args*);
+void HandleSidebarRequest(const SidebarRequestArgs*);
+void HandleInputRequest(const InputRequestArgs*);
 
 HMODULE dll_handle;
 std::vector<CNCPlayerInfoStruct> players;
@@ -199,7 +220,7 @@ bool retrieve_players_info()
     return true;
 }
 
-bool StartGame(const GameStartInfo* info)
+bool StartGame(const StartGameArgs* info)
 {
     if (!CNC_Set_Multiplayer_Data(info->scenario_index, const_cast<CNCMultiplayerOptionsStruct&>(info->multiplayer_info), (int)players.size(), players.data(), 6))
     {
@@ -301,7 +322,7 @@ bool GetPlayersVectorRepresentation(unsigned char*& buffer, size_t& buffer_size)
     return true;
 }
 
-void HandleSidebarRequest(const sidebar_request_args* args)
+void HandleSidebarRequest(const SidebarRequestArgs* args)
 {
     if (args->player_id >= players.size())
         return;
@@ -318,7 +339,7 @@ void HandleSidebarRequest(const sidebar_request_args* args)
     }
 }
 
-void HandleInputRequest(const input_request_args* args)
+void HandleInputRequest(const InputRequestArgs* args)
 {
     if (args->player_id >= players.size())
         return;
@@ -342,13 +363,10 @@ enum WebsocketMessageType : std::uint32_t
     ADDPLAYER,
     STARTGAME,
     STARTGAMECUSTOM,
-    ADVANCE,
     INPUTREQUEST,
     SIDEBARREQUEST,
     FREEDLL
 };
-
-
 
 int main(int argc, const char* argv[])
 {
@@ -364,6 +382,7 @@ int main(int argc, const char* argv[])
         }
     }
     
+    ProcessGuard process_guard;
     if (NO_ERROR != InitializeWebSocket(port))
         return 1;
 
@@ -380,51 +399,86 @@ int main(int argc, const char* argv[])
     
     while(ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
     {
-        const unsigned char* buffer_ptr = buffer.data();
+        const unsigned char* message_ptr = buffer.data();
         while (message_size > sizeof(WebsocketMessageType))
         {
-            const auto message_type = *(const WebsocketMessageType*)buffer_ptr;
-            step_buffer(buffer_ptr, message_size, sizeof(WebsocketMessageType));
+            const auto message_type = *(const WebsocketMessageType*)message_ptr;
+            step_buffer(message_ptr, message_size, sizeof(WebsocketMessageType));
             switch (message_type)
             {
             case CHDIR:
             {
-                if (!ChDir((const char*)buffer_ptr))
-                {
-                    goto quit;
-                }
-                step_buffer(buffer_ptr, message_size, 256);
+                if (message_size < 256)
+                    return 1;
+                const std::string dir_path(message_ptr, message_ptr + 256);
+                if (!ChDir(dir_path.c_str()))
+                    return 1;
+                
+                step_buffer(message_ptr, message_size, 256);
             }break;
             case INIT:
             {
-                if (!Init((const char*)buffer_ptr, (const char*)buffer_ptr + 256))
-                {
-                    goto quit;
-                }
-                step_buffer(buffer_ptr, message_size, 256 * 2);
+                if (message_size < 2 * 256)
+                    return 1;
+                const std::string dll_path(message_ptr, message_ptr + 256);
+                const std::string content_dir(message_ptr + 256, message_ptr + 2 * 256);
+                if (!Init(dll_path.c_str(), content_dir.c_str()))
+                    return 1;
+            
+                step_buffer(message_ptr, message_size, 256 * 2);
             }break;
+            case ADDPLAYER:
+            {
+                if (message_size < sizeof(CNCPlayerInfoStruct))
+                    return 1;
+                
+                AddPlayer((const CNCPlayerInfoStruct*)message_ptr);
+                step_buffer(message_ptr, message_size, sizeof(CNCPlayerInfoStruct));
+            }break;
+            case STARTGAME:
+            {
+                if (message_size < sizeof(StartGameArgs))
+                    return 1;
+
+                if (!StartGame((const StartGameArgs*)message_ptr))
+                    return 1;
+                step_buffer(message_ptr, message_size, sizeof(StartGameArgs));
+            }break;
+            case INPUTREQUEST:
+            {
+                if (message_size < sizeof(InputRequestArgs))
+                    return 1;
+
+                HandleInputRequest((const InputRequestArgs*)message_ptr);
+                step_buffer(message_ptr, message_size, sizeof(InputRequestArgs));
+            }break;
+            case SIDEBARREQUEST:
+            {
+                if (message_size < sizeof(SidebarRequestArgs))
+                    return 1;
+
+                HandleSidebarRequest((const SidebarRequestArgs*)message_ptr);
+                step_buffer(message_ptr, message_size, sizeof(SidebarRequestArgs));
+            }break;
+            case FREEDLL: FreeDll(); break;
+            }
+
+            if (!Advance())
+            {
+                buffer[0] = GetGameResult();
+                if (NO_ERROR != SendOnSocket(buffer.data(), 1))
+                    return 1;
+            }
+            else
+            {
+                unsigned char* output_ptr = buffer.data();
+                size_t output_size = buffer.size();
+                if (!GetPlayersVectorRepresentation(output_ptr, output_size))
+                    return 1;
+                if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - output_size))
+                    return 1;
             }
         }
-        //if (message_size == sizeof(GameStartInfo))
-        //{
-        //    if (!StartGame((const GameStartInfo*)(buffer.data())))
-        //        break;
-        //    continue;
-        //}
-        //else if (message_size == sizeof(CNCPlayerInfoStruct))
-        //{
-        //    AddPlayer((const CNCPlayerInfoStruct*)(buffer.data()));
-        //    continue;
-        //}
-
-        //// TODO not good!
-        //if (message_size == sizeof(input_request_args) * players.size())
-        //    for (size_t i = 0; i < players.size(); ++i)
-        //        HandleInputRequest((const input_request_args*)(buffer.data()) + i);
-        //else if (message_size == sizeof(sidebar_request_args) * players.size())
-        //    for (size_t i = 0; i < players.size(); ++i)
-        //        HandleSidebarRequest((const sidebar_request_args*)(buffer.data()) + i);
-
         //if (!Advance())
         //{
         //    buffer[0] = GetGameResult();
@@ -442,8 +496,5 @@ int main(int argc, const char* argv[])
         ////}
 
     }
-quit:
-    FreeDll();
-    DestroyWebSocket();
     return 0;
 }
