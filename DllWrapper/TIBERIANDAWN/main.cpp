@@ -380,6 +380,7 @@ int main(int argc, const char* argv[])
         {
             return 1;
         }
+        port = parsed_int;
     }
     
     ProcessGuard process_guard;
