@@ -207,15 +207,15 @@ color_map = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan']
 
 def print_game_state(game_state):
     offset = 0
-    cells = StaticMap.from_buffer(game_state, offset).StaticCells
+    cells = StaticMap.from_buffer_copy(game_state, offset).StaticCells
     offset += ctypes.sizeof(StaticMap)
     map_list = [
-        [decode_cell(cells[i * MAP_MAX_WIDTH + j].AssetName) for j in range(MAP_MAX_WIDTH)]
+        [decode_cell(cells[i][j].AssetName) for j in range(MAP_MAX_WIDTH)]
         for i in range(MAP_MAX_HEIGHT)
     ]
-    dynamic_objects_count = ctypes.c_uint32.from_buffer(game_state, offset)
+    dynamic_objects_count = ctypes.c_uint32.from_buffer_copy(game_state, offset).value
     offset += ctypes.sizeof(ctypes.c_uint32)
-    dynamic_objects = ctypes.cast(ctypes.addressof(game_state), ctypes.POINTER(DynamicObject))
+    dynamic_objects = (DynamicObject * dynamic_objects_count).from_buffer_copy(game_state, offset)
     for i in range(dynamic_objects_count):
         thing = dynamic_objects[i]
         x, y = int(thing.PositionY) // 24, int(thing.PositionX) // 24
