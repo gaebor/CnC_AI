@@ -42,3 +42,5 @@ bool CopyToBuffer(const std::vector<T>& t, unsigned char*& buffer, size_t& buffe
 	step_buffer(buffer, buffer_size, array_size);
 	return true;
 }
+
+std::string safe_str_copy(const unsigned char*& buffer, size_t& buffer_size);

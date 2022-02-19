@@ -380,23 +380,12 @@ int main(int argc, const char* argv[])
         {
             return 1;
         }
-        port = parsed_int;
+        port = (decltype(port))parsed_int;
     }
     
     ProcessGuard process_guard;
     if (NO_ERROR != InitializeWebSocket(port))
         return 1;
-
-    //if (argc > 4)
-    //{
-    //    if (!ChDir(argv[4]))
-    //    {
-    //        goto quit;
-    //    }
-    //}
-    //if (!Init(argv[2], argv[3]))
-    //    goto quit;
-
     
     while(ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
     {
@@ -409,24 +398,20 @@ int main(int argc, const char* argv[])
             {
             case CHDIR:
             {
-                if (message_size < 256)
+                if (message_size < 1)
                     return 1;
-                const std::string dir_path(message_ptr, message_ptr + 256);
+                const std::string dir_path = safe_str_copy(message_ptr, message_size);
                 if (!ChDir(dir_path.c_str()))
                     return 1;
-                
-                step_buffer(message_ptr, message_size, 256);
             }break;
             case INIT:
             {
-                if (message_size < 2 * 256)
+                if (message_size < 2)
                     return 1;
-                const std::string dll_path(message_ptr, message_ptr + 256);
-                const std::string content_dir(message_ptr + 256, message_ptr + 2 * 256);
+                const std::string dll_path = safe_str_copy(message_ptr, message_size);
+                const std::string content_dir = safe_str_copy(message_ptr, message_size);
                 if (!Init(dll_path.c_str(), content_dir.c_str()))
                     return 1;
-            
-                step_buffer(message_ptr, message_size, 256 * 2);
             }break;
             case ADDPLAYER:
             {

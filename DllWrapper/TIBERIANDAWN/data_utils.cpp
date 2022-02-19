@@ -456,3 +456,10 @@ std::int32_t ConvertMask(const unsigned int per_house_mask)
     return per_color_mask;
 }
 
+std::string safe_str_copy(const unsigned char*& buffer, size_t& buffer_size)
+{
+    const std::string result(buffer, buffer + strnlen_s((const char*)buffer, buffer_size));
+    step_buffer(buffer, buffer_size, result.size() + 1);
+    return result;
+}
+
