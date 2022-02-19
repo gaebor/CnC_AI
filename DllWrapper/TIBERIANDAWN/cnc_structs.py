@@ -159,6 +159,27 @@ class StartGameCustomArgs(CncStruct):
     ]
 
 
+class NoughtRequestArgs(CncStruct):
+    _fields_ = [('player_id', ctypes.c_uint32)]
+
+
+class SidebarRequestArgs(CncStruct):
+    _fields_ = [
+        ('player_id', ctypes.c_uint32),
+        ('requestType', ctypes.c_int),
+        ('assetNameIndex', ctypes.c_uint32),
+    ]
+
+
+class InputRequestArgs(CncStruct):
+    _fields_ = [
+        ('player_id', ctypes.c_uint32),
+        ('requestType', ctypes.c_int),
+        ('x1', ctypes.c_float),
+        ('y1', ctypes.c_float),
+    ]
+
+
 with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
     static_tile_names = [''] + list(map(str.strip, f.readlines()))
 
