@@ -10,7 +10,7 @@ import cnc_structs
 
 
 class GameHandler(tornado.websocket.WebSocketHandler):
-    games = set()
+    games = []
     ended_games = set()
     players = []
 
@@ -65,7 +65,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.messages.append(message)
             loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
             print(
-                f"Game has ended in {len(self.messages)} steps.",
+                f"Game {self.games.index(self)} has ended in {len(self.messages)} steps.",
                 *(
                     f"Player {i} lost."
                     for i in range(len(self.players))
@@ -75,6 +75,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         else:
             # recieved the current game state
             self.messages.append(message)
+            # if len(message) > 20_000:
+            #     print(f"Game {self.games.index(self)} was stopped.")
+            #     self.close()
+            #     return
             buffer = b''
             # calculate reactions per player
             for i in range(2):
@@ -84,13 +88,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.write_message(buffer, binary=True)
 
     def open(self):
-        self.games.add(self)
+        self.games.append(self)
         self.messages = []
         self.set_nodelay(True)
 
     def on_close(self):
         self.ended_games.add(self)
-        if self.games == self.ended_games:
+        if set(self.games) == self.ended_games:
             tornado.ioloop.IOLoop.current().stop()
 
 
@@ -127,5 +131,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# python run.py C:\Users\gaebor\Documents\CnC_AI\DllWrapper\bin\Release\TIBERIANDAWN_wrapper.exe TiberianDawn.dll -CDDATA\CNCDATA\TIBERIAN_DAWN\CD1 Z:\Játék\BaeborSteam\steamapps\common\CnCRemastered
