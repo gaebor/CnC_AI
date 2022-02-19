@@ -463,22 +463,21 @@ int main(int argc, const char* argv[])
             }break;
             case FREEDLL: FreeDll(); break;
             }
-
-            if (!Advance())
-            {
-                buffer[0] = GetGameResult();
-                if (NO_ERROR != SendOnSocket(buffer.data(), 1))
-                    return 1;
-            }
-            else
-            {
-                unsigned char* output_ptr = buffer.data();
-                size_t output_size = buffer.size();
-                if (!GetPlayersVectorRepresentation(output_ptr, output_size))
-                    return 1;
-                if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - output_size))
-                    return 1;
-            }
+        }
+        if (!Advance())
+        {
+            buffer[0] = GetGameResult();
+            if (NO_ERROR != SendOnSocket(buffer.data(), 1))
+                return 1;
+        }
+        else
+        {
+            unsigned char* output_ptr = buffer.data();
+            size_t output_size = buffer.size();
+            if (!GetPlayersVectorRepresentation(output_ptr, output_size))
+                return 1;
+            if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - output_size))
+                return 1;
         }
         //if (!Advance())
         //{
