@@ -191,30 +191,6 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
     return *this;
 }
 
-template <typename T>
-void copy_to_buffer(void*& buffer, size_t& buffer_size, const T& data)
-{
-    memcpy_s(buffer, buffer_size, &data, sizeof(T));
-    (const T*&)buffer += 1;
-    buffer_size -= sizeof(T);
-}
-
-bool SideBar::Serialize(void*& buffer, size_t& buffer_size) const
-{
-    const auto array_size = Entries.size() * sizeof(decltype(Entries)::value_type);
-    if (buffer_size < sizeof(Members) + sizeof(std::uint32_t) + array_size)
-    {
-        return false;
-    }
-    copy_to_buffer(buffer, buffer_size, Members);
-    copy_to_buffer(buffer, buffer_size, std::uint32_t(Entries.size()));
-    memcpy_s(buffer, buffer_size, Entries.data(), array_size);
-    
-    (const decltype(Entries)::value_type*&)buffer += Entries.size();
-    buffer_size -= array_size;
-
-    return true;
-}
 
 void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, std::int32_t Owner)
 {
@@ -264,21 +240,4 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
             }
         }
     }
-}
-
-bool VectorRepresentation::Serialize(void*& buffer, size_t& buffer_size) const
-{
-    const auto array_size = dynamic_objects.size() * sizeof(decltype(dynamic_objects)::value_type);
-    if (buffer_size < sizeof(map) + sizeof(std::uint32_t) + array_size)
-    {
-        return false;
-    }
-    copy_to_buffer(buffer, buffer_size, map);
-    copy_to_buffer(buffer, buffer_size, std::uint32_t(dynamic_objects.size()));
-    memcpy_s(buffer, buffer_size, dynamic_objects.data(), array_size);
-    
-    (const decltype(dynamic_objects)::value_type*&)buffer += dynamic_objects.size();
-    buffer_size -= array_size;
-
-    return true;
 }

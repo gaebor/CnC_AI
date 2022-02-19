@@ -455,3 +455,4 @@ std::int32_t ConvertMask(const unsigned int per_house_mask)
     }
     return per_color_mask;
 }
+

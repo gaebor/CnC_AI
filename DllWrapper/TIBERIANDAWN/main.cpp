@@ -276,7 +276,7 @@ bool GetCommonVectorRepresentation()
     return true;
 }
 
-bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size)
+bool GetPlayersVectorRepresentation(unsigned char*& buffer, size_t& buffer_size)
 {
     if (!GetCommonVectorRepresentation())
         return false;
@@ -289,13 +289,13 @@ bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size)
         if (!CNC_Get_Game_State(GAME_STATE_SHROUD, players[i].GlyphxPlayerID, internal_buffer.data(), internal_buffer.size()))
             return false;
         RenderPOV(view, game_state, (const CNCShroudStruct*)internal_buffer.data(), (std::remove_extent<decltype(HouseColorMap)>::type)(players[i].ColorIndex));
-        if (!view.Serialize(buffer, buffer_size))
+        if (!CopyToBuffer(view.map, buffer, buffer_size) || !CopyToBuffer(view.dynamic_objects, buffer, buffer_size))
             return false;
 
         if (!CNC_Get_Game_State(GAME_STATE_SIDEBAR, players[i].GlyphxPlayerID, internal_buffer.data(), internal_buffer.size()))
             return false;
         players_sidebar[i] = *(const CNCSidebarStruct*)(internal_buffer.data());
-        if (!players_sidebar[i].Serialize(buffer, buffer_size))
+        if (!CopyToBuffer(players_sidebar[i].Members, buffer, buffer_size) || !CopyToBuffer(players_sidebar[i].Entries, buffer, buffer_size))
             return false;
     }
     return true;
@@ -334,14 +334,28 @@ void HandleInputRequest(const input_request_args* args)
     CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID, (int)(args->x1), (int)(args->y1), 0, 0);
 }
 
+enum WebsocketMessageType : std::uint32_t
+{
+    NONE,
+    CHDIR,
+    INIT,
+    ADDPLAYER,
+    STARTGAME,
+    STARTGAMECUSTOM,
+    ADVANCE,
+    INPUTREQUEST,
+    SIDEBARREQUEST,
+    FREEDLL
+};
+
+
+
 int main(int argc, const char* argv[])
 {
     std::vector<unsigned char> buffer(4 * 1024 * 1024);
-    DWORD message_size;
+    size_t message_size;
     unsigned short port = 8888;
-    if (argc < 3)
-        return 1;
-
+    if (argc > 1)
     {
         const auto parsed_int = atoi(argv[1]);
         if (parsed_int < std::numeric_limits<decltype(port)>::min() || parsed_int > std::numeric_limits<decltype(port)>::max())
@@ -353,53 +367,79 @@ int main(int argc, const char* argv[])
     if (NO_ERROR != InitializeWebSocket(port))
         return 1;
 
-    if (argc > 4)
+    //if (argc > 4)
+    //{
+    //    if (!ChDir(argv[4]))
+    //    {
+    //        goto quit;
+    //    }
+    //}
+    //if (!Init(argv[2], argv[3]))
+    //    goto quit;
+
+    
+    while(ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
     {
-        if (!ChDir(argv[4]))
+        const unsigned char* buffer_ptr = buffer.data();
+        while (message_size > sizeof(WebsocketMessageType))
         {
-            goto quit;
+            const auto message_type = *(const WebsocketMessageType*)buffer_ptr;
+            step_buffer(buffer_ptr, message_size, sizeof(WebsocketMessageType));
+            switch (message_type)
+            {
+            case CHDIR:
+            {
+                if (!ChDir((const char*)buffer_ptr))
+                {
+                    goto quit;
+                }
+                step_buffer(buffer_ptr, message_size, 256);
+            }break;
+            case INIT:
+            {
+                if (!Init((const char*)buffer_ptr, (const char*)buffer_ptr + 256))
+                {
+                    goto quit;
+                }
+                step_buffer(buffer_ptr, message_size, 256 * 2);
+            }break;
+            }
         }
-    }
-    if (!Init(argv[2], argv[3]))
-        goto quit;
+        //if (message_size == sizeof(GameStartInfo))
+        //{
+        //    if (!StartGame((const GameStartInfo*)(buffer.data())))
+        //        break;
+        //    continue;
+        //}
+        //else if (message_size == sizeof(CNCPlayerInfoStruct))
+        //{
+        //    AddPlayer((const CNCPlayerInfoStruct*)(buffer.data()));
+        //    continue;
+        //}
 
-    while(ReceiveOnSocket(buffer.data(), buffer.size(), &message_size) == NO_ERROR)
-    {
-        if (message_size == sizeof(GameStartInfo))
-        {
-            if (!StartGame((const GameStartInfo*)(buffer.data())))
-                break;
-            continue;
-        }
-        else if (message_size == sizeof(CNCPlayerInfoStruct))
-        {
-            AddPlayer((const CNCPlayerInfoStruct*)(buffer.data()));
-            continue;
-        }
+        //// TODO not good!
+        //if (message_size == sizeof(input_request_args) * players.size())
+        //    for (size_t i = 0; i < players.size(); ++i)
+        //        HandleInputRequest((const input_request_args*)(buffer.data()) + i);
+        //else if (message_size == sizeof(sidebar_request_args) * players.size())
+        //    for (size_t i = 0; i < players.size(); ++i)
+        //        HandleSidebarRequest((const sidebar_request_args*)(buffer.data()) + i);
 
-        // TODO not good!
-        if (message_size == sizeof(input_request_args) * players.size())
-            for (size_t i = 0; i < players.size(); ++i)
-                HandleInputRequest((const input_request_args*)(buffer.data()) + i);
-        else if (message_size == sizeof(sidebar_request_args) * players.size())
-            for (size_t i = 0; i < players.size(); ++i)
-                HandleSidebarRequest((const sidebar_request_args*)(buffer.data()) + i);
-
-        if (!Advance())
-        {
-            buffer[0] = GetGameResult();
-            SendOnSocket(buffer.data(), 1);
-            break;
-        }
-        else
-        {
-            size_t buffer_size = buffer.size();
-            void* buffer_ptr = buffer.data();
-            if (!GetPlayersVectorRepresentation(buffer_ptr, buffer_size))
-                break;
-            if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - buffer_size))
-                break;
-        }
+        //if (!Advance())
+        //{
+        //    buffer[0] = GetGameResult();
+        //    SendOnSocket(buffer.data(), 1);
+        //    break;
+        //}
+        ////else
+        ////{
+        ////    size_t buffer_size = buffer.size();
+        ////    void* buffer_ptr = buffer.data();
+        ////    if (!GetPlayersVectorRepresentation(buffer_ptr, buffer_size))
+        ////        break;
+        ////    if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - buffer_size))
+        ////        break;
+        ////}
 
     }
 quit:
