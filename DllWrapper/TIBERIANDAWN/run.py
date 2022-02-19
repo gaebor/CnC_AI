@@ -12,6 +12,9 @@ import cnc_structs
 def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--port', default=8889, type=int, help=' ')
+    parser.add_argument(
+        '-n', '--n', default=4, type=int, help='number of games to play simultaneously'
+    )
     parser.add_argument('--exe', default='TIBERIANDAWN_wrapper.exe', help='absolute path')
     parser.add_argument(
         '--dir',
@@ -141,7 +144,7 @@ def main():
     ]
     GameHandler.chdir = args.dir
     application.listen(args.port)
-    for _ in range(4):
+    for _ in range(args.n):
         spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
     tornado.ioloop.IOLoop.current().start()
 
