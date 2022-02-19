@@ -28,7 +28,7 @@ extern "C" {
     // bool(__cdecl* CNC_Read_INI)(int scenario_index, int scenario_variation, int scenario_direction, const char* content_directory, const char* override_map_name, char* ini_buffer, int _ini_buffer_size);
     // void(__cdecl* CNC_Set_Home_Cell)(int x, int y, uint64 player_id);
     void(__cdecl * CNC_Handle_Game_Request)(GameRequestEnum request_type) = NULL;
-    void(__cdecl * CNC_Handle_Game_Settings_Request)(int health_bar_display_mode, int resource_bar_display_mode) = NULL;
+    // void(__cdecl * CNC_Handle_Game_Settings_Request)(int health_bar_display_mode, int resource_bar_display_mode) = NULL;
     void(__cdecl * CNC_Handle_Input)(InputRequestEnum mouse_event, unsigned char special_key_flags, uint64 player_id, int x1, int y1, int x2, int y2) = NULL;
     void(__cdecl * CNC_Handle_Structure_Request)(StructureRequestEnum request_type, uint64 player_id, int object_id) = NULL;
     void(__cdecl * CNC_Handle_Unit_Request)(UnitRequestEnum request_type, uint64 player_id) = NULL;
@@ -46,8 +46,8 @@ extern "C" {
     // void(__cdecl* CNC_Handle_Human_Team_Wins)(uint64 player_id);
     // void(__cdecl* CNC_Start_Mission_Timer)(int time);
     bool(__cdecl * CNC_Get_Start_Game_Info)(uint64 player_id, int& start_location_waypoint_index) = NULL;
-    bool(__cdecl * CNC_Get_Visible_Page)(unsigned char* buffer_in, unsigned int& width, unsigned int& height) = NULL;
-    bool(__cdecl * CNC_Get_Palette)(unsigned char(&palette_in)[256][3]) = NULL;
+    // bool(__cdecl * CNC_Get_Visible_Page)(unsigned char* buffer_in, unsigned int& width, unsigned int& height) = NULL;
+    // bool(__cdecl * CNC_Get_Palette)(unsigned char(&palette_in)[256][3]) = NULL;
 }
 
 struct StartGameArgs
@@ -76,15 +76,6 @@ unsigned char GetGameResult();
 void FreeDll();
 
 bool StartGameCallback();
-
-//bool CNC_Get_Visible_Page_(unsigned char* buffer_in, unsigned int& width, unsigned int& height)
-//{
-//    return CNC_Get_Visible_Page(buffer_in, width, height);
-//}
-//bool CNC_Get_Palette_(unsigned char(&palette_in)[256][3])
-//{
-//    return CNC_Get_Palette(palette_in);
-//}
 
 class ProcessGuard
 {
@@ -180,7 +171,6 @@ bool Init(const char* dll_filename_utf8, const char* content_directory_ascii)
     LoadSymbolFromDll(CNC_Advance_Instance);
     LoadSymbolFromDll(CNC_Get_Game_State);
     LoadSymbolFromDll(CNC_Handle_Game_Request);
-    LoadSymbolFromDll(CNC_Handle_Game_Settings_Request);
     LoadSymbolFromDll(CNC_Handle_Input);
     LoadSymbolFromDll(CNC_Handle_Structure_Request);
     LoadSymbolFromDll(CNC_Handle_Unit_Request);
@@ -192,8 +182,6 @@ bool Init(const char* dll_filename_utf8, const char* content_directory_ascii)
     LoadSymbolFromDll(CNC_Save_Load);
     LoadSymbolFromDll(CNC_Set_Difficulty);
     LoadSymbolFromDll(CNC_Get_Start_Game_Info);
-    LoadSymbolFromDll(CNC_Get_Palette);
-    LoadSymbolFromDll(CNC_Get_Visible_Page);
     
     CNC_Init(content_directory_ascii, NULL);
     CNC_Config(rule_data_struct);
@@ -294,8 +282,6 @@ bool StartGameCallback()
             return false;
         }
     }
-
-    // TODO set health bar and pip view options to always on
 
     CNC_Handle_Game_Request(INPUT_GAME_LOADING_DONE);
 
