@@ -75,6 +75,8 @@ bool StartGameCustom(const StartGameCustomArgs*);
 unsigned char GetGameResult();
 void FreeDll();
 
+bool StartGameCallback();
+
 //bool CNC_Get_Visible_Page_(unsigned char* buffer_in, unsigned int& width, unsigned int& height)
 //{
 //    return CNC_Get_Visible_Page(buffer_in, width, height);
@@ -239,19 +241,26 @@ bool StartGame(const StartGameArgs* info)
 
     CNC_Set_Difficulty(info->difficulty);
 
-    for (auto& player : players)
+    return StartGameCallback();
+}
+
+bool StartGameCustom(const StartGameCustomArgs* info)
+{
+    if (!CNC_Set_Multiplayer_Data(-1, const_cast<CNCMultiplayerOptionsStruct&>(info->multiplayer_info), (int)players.size(), players.data(), 6))
     {
-        if (!CNC_Get_Start_Game_Info(player.GlyphxPlayerID, player.StartLocationIndex))
-        {
-            return false;
-        }
+        return false;
     }
-     
-    // TODO set health bar and pip view options to always on
+    if (!CNC_Start_Custom_Instance(
+            content_directory.data(),
+            info->directory_path, 
+            info->scenario_name,
+            info->build_level, true
+    ))
+    {
+        return false;
+    }
 
-    CNC_Handle_Game_Request(INPUT_GAME_LOADING_DONE);
-
-    return retrieve_players_info();
+    return StartGameCallback();
 }
 
 unsigned char GetGameResult()
@@ -269,6 +278,23 @@ unsigned char GetGameResult()
 void FreeDll()
 {
     FreeLibrary(dll_handle);
+}
+
+bool StartGameCallback()
+{
+    for (auto& player : players)
+    {
+        if (!CNC_Get_Start_Game_Info(player.GlyphxPlayerID, player.StartLocationIndex))
+        {
+            return false;
+        }
+    }
+
+    // TODO set health bar and pip view options to always on
+
+    CNC_Handle_Game_Request(INPUT_GAME_LOADING_DONE);
+
+    return retrieve_players_info();
 }
 
 bool Advance()
@@ -382,11 +408,16 @@ int main(int argc, const char* argv[])
         }
         port = (decltype(port))parsed_int;
     }
-    
+
     ProcessGuard process_guard;
     if (NO_ERROR != InitializeWebSocket(port))
         return 1;
-    
+
+    {
+        const std::string startup_message = "READY";
+        if (NO_ERROR != SendOnSocket((void*)startup_message.c_str(), startup_message.size() + 1))
+            return 1;
+    }
     while(ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
     {
         {
@@ -431,6 +462,16 @@ int main(int argc, const char* argv[])
                         return 1;
                     Frame = 0;
                     step_buffer(message_ptr, message_size, sizeof(StartGameArgs));
+                }break;
+                case STARTGAMECUSTOM:
+                {
+                    if (message_size < sizeof(StartGameCustomArgs))
+                        return 1;
+
+                    if (!StartGameCustom((const StartGameCustomArgs*)message_ptr))
+                        return 1;
+                    Frame = 0;
+                    step_buffer(message_ptr, message_size, sizeof(StartGameCustomArgs));
                 }break;
                 case INPUTREQUEST:
                 {

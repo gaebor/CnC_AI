@@ -150,6 +150,15 @@ class StartGameArgs(CncStruct):
     ]
 
 
+class StartGameCustomArgs(CncStruct):
+    _fields_ = [
+        ('multiplayer_info', CNCMultiplayerOptionsStruct),
+        ('directory_path', ctypes.c_char * 256),
+        ('scenario_name', ctypes.c_char * 256),
+        ('build_level', ctypes.c_int),
+    ]
+
+
 with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
     static_tile_names = [''] + list(map(str.strip, f.readlines()))
 
