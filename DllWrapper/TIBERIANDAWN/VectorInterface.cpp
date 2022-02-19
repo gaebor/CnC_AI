@@ -199,7 +199,7 @@ void copy_to_buffer(void*& buffer, size_t& buffer_size, const T& data)
     buffer_size -= sizeof(T);
 }
 
-bool SideBar::Serialize(void* buffer, size_t buffer_size) const
+bool SideBar::Serialize(void*& buffer, size_t& buffer_size) const
 {
     const auto array_size = Entries.size() * sizeof(decltype(Entries)::value_type);
     if (buffer_size < sizeof(Members) + sizeof(std::uint32_t) + array_size)
@@ -266,7 +266,7 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
     }
 }
 
-bool VectorRepresentation::Serialize(void* buffer, size_t buffer_size) const
+bool VectorRepresentation::Serialize(void*& buffer, size_t& buffer_size) const
 {
     const auto array_size = dynamic_objects.size() * sizeof(decltype(dynamic_objects)::value_type);
     if (buffer_size < sizeof(map) + sizeof(std::uint32_t) + array_size)

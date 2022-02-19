@@ -76,7 +76,7 @@ void FreeDll();
 
 bool Advance();
 bool GetCommonVectorRepresentation();
-bool GetPlayersVectorRepresentation(void* buffer, size_t buffer_size);
+bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size);
    
 struct sidebar_request_args
 {
@@ -245,12 +245,12 @@ unsigned char GetGameResult()
     return loser_mask;
 }
 
-void __cdecl FreeDll()
+void FreeDll()
 {
     FreeLibrary(dll_handle);
 }
 
-bool __cdecl Advance()
+bool Advance()
 {
     return CNC_Advance_Instance(0);
 }
@@ -276,7 +276,7 @@ bool GetCommonVectorRepresentation()
     return true;
 }
 
-bool GetPlayersVectorRepresentation(void* buffer, size_t buffer_size)
+bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size)
 {
     if (!GetCommonVectorRepresentation())
         return false;
@@ -394,7 +394,8 @@ int main(int argc, const char* argv[])
         else
         {
             size_t buffer_size = buffer.size();
-            if (!GetPlayersVectorRepresentation(buffer.data(), buffer_size))
+            void* buffer_ptr = buffer.data();
+            if (!GetPlayersVectorRepresentation(buffer_ptr, buffer_size))
                 break;
             if (NO_ERROR != SendOnSocket(buffer.data(), buffer.size() - buffer_size))
                 break;

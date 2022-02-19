@@ -81,7 +81,7 @@ struct SideBar {
 	std::vector<SidebarEntry> Entries;
 
 	SideBar& operator=(const CNCSidebarStruct&);
-	bool Serialize(void* buffer, size_t buffer_size) const;
+	bool Serialize(void*& buffer, size_t& buffer_size) const;
 };
 
 
@@ -90,7 +90,7 @@ struct VectorRepresentation
 	StaticMap map;
 	std::vector<DynamicObject> dynamic_objects;
 	void Render(const CNCMapDataStruct*, const CNCDynamicMapStruct*, const CNCObjectListStruct*);
-	bool Serialize(void* buffer, size_t buffer_size) const;
+	bool Serialize(void*& buffer, size_t& buffer_size) const;
 };
 
 void RenderPOV(VectorRepresentation&, const VectorRepresentation&, const CNCShroudStruct* shroud, std::int32_t Owner);
