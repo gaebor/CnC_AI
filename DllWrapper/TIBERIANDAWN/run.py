@@ -1,4 +1,3 @@
-import sys
 import argparse
 from os import spawnl, P_NOWAIT
 import ctypes
