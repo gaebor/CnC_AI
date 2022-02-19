@@ -1,9 +1,11 @@
 import sys
-import struct
+import ctypes
 
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
+
+import cnc_structs
 
 
 class MainHandler(tornado.websocket.WebSocketHandler):
@@ -15,10 +17,64 @@ class MainHandler(tornado.websocket.WebSocketHandler):
         buffer = b''
 
         if len(sys.argv) > 3:
-            buffer += struct.pack('L256s', 1, sys.argv[3].encode('utf8'))
+            buffer += bytes(ctypes.c_uint32(1))
+            buffer += sys.argv[3].encode('utf8') + b'\0'
 
-        buffer += struct.pack(
-            'L256s256s', 2, sys.argv[1].encode('utf8'), sys.argv[2].encode('ascii')
+        buffer += bytes(ctypes.c_uint32(2))
+        buffer += sys.argv[1].encode('utf8') + b'\0'
+        buffer += sys.argv[2].encode('ascii') + b'\0'
+
+        buffer += bytes(ctypes.c_uint32(3))
+        buffer += bytes(
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=314159265,
+                Name=b"gaebor",
+                House=0,
+                Team=0,
+                AllyFlags=0,
+                ColorIndex=0,
+                IsAI=False,
+                StartLocationIndex=127,
+            )
+        )
+        buffer += bytes(ctypes.c_uint32(3))
+        buffer += bytes(
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=271828182,
+                Name=b"ai1",
+                House=1,
+                Team=1,
+                AllyFlags=0,
+                ColorIndex=2,
+                IsAI=True,
+                StartLocationIndex=127,
+            )
+        )
+        buffer += bytes(ctypes.c_uint32(4))
+        buffer += bytes(
+            cnc_structs.StartGameArgs(
+                cnc_structs.CNCMultiplayerOptionsStruct(
+                    MPlayerCount=2,
+                    MPlayerBases=1,
+                    MPlayerCredits=5000,
+                    MPlayerTiberium=1,
+                    MPlayerGoodies=1,
+                    MPlayerGhosts=0,
+                    MPlayerSolo=1,
+                    MPlayerUnitCount=0,
+                    IsMCVDeploy=False,
+                    SpawnVisceroids=True,
+                    EnableSuperweapons=True,
+                    MPlayerShadowRegrow=False,
+                    MPlayerAftermathUnits=True,
+                    CaptureTheFlag=False,
+                    DestroyStructures=False,
+                    ModernBalance=True,
+                ),
+                50,
+                7,
+                2,
+            )
         )
         self.write_message(buffer, binary=True)
 

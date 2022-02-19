@@ -116,7 +116,7 @@ class SidebarEntry(CncStruct):
     ]
 
 
-class SideBarView(CncStruct):
+class SideBarMembers(CncStruct):
     _fields_ = [
         ('Credits', ctypes.c_float),
         ('PowerProduced', ctypes.c_float),
@@ -124,21 +124,30 @@ class SideBarView(CncStruct):
         ('RepairBtnEnabled', ctypes.c_float),
         ('SellBtnEnabled', ctypes.c_float),
         ('RadarMapActive', ctypes.c_float),
-        ('Count', ctypes.c_size_t),
-        ('Entries', ctypes.POINTER(SidebarEntry)),
     ]
 
 
-class VectorRepresentationView(CncStruct):
+class StaticMap(CncStruct):
     _fields_ = [
-        ('map', ctypes.POINTER(StaticTile)),
-        ('dynamic_objects_count', ctypes.c_size_t),
-        ('dynamic_objects', ctypes.POINTER(DynamicObject)),
+        ('MapCellX', ctypes.c_int),
+        ('MapCellY', ctypes.c_int),
+        ('MapCellWidth', ctypes.c_int),
+        ('MapCellHeight', ctypes.c_int),
+        ('OriginalMapCellX', ctypes.c_int),
+        ('OriginalMapCellY', ctypes.c_int),
+        ('OriginalMapCellWidth', ctypes.c_int),
+        ('OriginalMapCellHeight', ctypes.c_int),
+        ('StaticCells', (StaticTile * MAP_MAX_HEIGHT) * MAP_MAX_WIDTH),
     ]
 
 
-class PlayerVectorRepresentationView(VectorRepresentationView):
-    _fields_ = [('sidebar', SideBarView)]
+class StartGameArgs(CncStruct):
+    _fields_ = [
+        ('multiplayer_info', CNCMultiplayerOptionsStruct),
+        ('scenario_index', ctypes.c_int),
+        ('build_level', ctypes.c_int),
+        ('difficulty', ctypes.c_int),
+    ]
 
 
 with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
@@ -166,16 +175,19 @@ def decode_cell(tile_name_index):
 color_map = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan']
 
 
-def print_game_state(game_state: VectorRepresentationView):
+def print_game_state(game_state):
+    offset = 0
+    cells = StaticMap.from_buffer(game_state, offset).StaticCells
+    offset += ctypes.sizeof(StaticMap)
     map_list = [
-        [
-            decode_cell(game_state.map[i * MAP_MAX_WIDTH + j].AssetName)
-            for j in range(MAP_MAX_WIDTH)
-        ]
+        [decode_cell(cells[i * MAP_MAX_WIDTH + j].AssetName) for j in range(MAP_MAX_WIDTH)]
         for i in range(MAP_MAX_HEIGHT)
     ]
-    for i in range(game_state.dynamic_objects_count):
-        thing = game_state.dynamic_objects[i]
+    dynamic_objects_count = ctypes.c_uint32.from_buffer(game_state, offset)
+    offset += ctypes.sizeof(ctypes.c_uint32)
+    dynamic_objects = ctypes.cast(ctypes.addressof(game_state), ctypes.POINTER(DynamicObject))
+    for i in range(dynamic_objects_count):
+        thing = dynamic_objects[i]
         x, y = int(thing.PositionY) // 24, int(thing.PositionX) // 24
         color = 'white'
         if thing.Owner != 255:
