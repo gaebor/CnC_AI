@@ -1,5 +1,6 @@
 import sys
-import os
+import argparse
+from os import spawnl, P_NOWAIT
 import ctypes
 
 import tornado.web
@@ -9,22 +10,34 @@ import tornado.ioloop
 import cnc_structs
 
 
+def get_args():
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--port', default=8889, type=int, help=' ')
+    parser.add_argument('--exe', default='TIBERIANDAWN_wrapper.exe', help='absolute path')
+    parser.add_argument(
+        '--dir',
+        default=r'C:\Program Files (x86)\Steam\steamapps\common\CnCRemastered',
+        help='absolute path',
+    )
+    return parser.parse_args()
+
+
 class GameHandler(tornado.websocket.WebSocketHandler):
     games = []
     ended_games = set()
     players = []
+    chdir = '.'
 
     def on_message(self, message):
         if message == b'READY\0':
-            if len(sys.argv) > 4:
-                # change directory
-                buffer = bytes(ctypes.c_uint32(0)) + sys.argv[4].encode('utf8') + b'\0'
-                self.write_message(buffer, binary=True)
+            # change to the directory where CnC is installed
+            buffer = bytes(ctypes.c_uint32(0)) + GameHandler.chdir.encode('utf8') + b'\0'
+            self.write_message(buffer, binary=True)
 
             # init dll
             buffer = bytes(ctypes.c_uint32(1))
-            buffer += sys.argv[2].encode('utf8') + b'\0'  # dll name
-            buffer += sys.argv[3].encode('ascii') + b'\0'  # content directory argument
+            buffer += b'TiberianDawn.dll\0'
+            buffer += b'-CDDATA\CNCDATA\TIBERIAN_DAWN\CD1\0'
             self.write_message(buffer, binary=True)
 
             # add players
@@ -79,8 +92,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 self.close()
                 print(f"Game {GameHandler.games.index(self)} was stopped.")
                 return
-            buffer = b''
+
             # calculate reactions per player
+            buffer = b''
             for i in range(2):
                 buffer += bytes(ctypes.c_uint32(7))  # nought
                 buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
@@ -101,7 +115,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
 
 def main():
-    port = 8889
+    args = get_args()
     application = tornado.web.Application([(r"/", GameHandler)])
 
     GameHandler.players = [
@@ -126,9 +140,10 @@ def main():
             StartLocationIndex=127,
         ),
     ]
-    application.listen(port)
+    GameHandler.chdir = args.dir
+    application.listen(args.port)
     for _ in range(4):
-        os.spawnl(os.P_NOWAIT, sys.argv[1], sys.argv[1], str(port))
+        spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
     tornado.ioloop.IOLoop.current().start()
 
 
