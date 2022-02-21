@@ -381,7 +381,8 @@ enum WebsocketMessageType : std::uint32_t
     STARTGAMECUSTOM,
     INPUTREQUEST,
     SIDEBARREQUEST,
-    NOUGHTREQUEST
+    NOUGHTREQUEST,
+    LOAD,
 };
 
 bool init_loop()
@@ -434,6 +435,15 @@ bool init_loop()
                 return false;
 
             if (!StartGameCustom((const StartGameCustomArgs*)message_ptr))
+                return false;
+            return true;
+        }
+        else if (message_type == LOAD)
+        {
+            if (message_size < 1)
+                return false;
+            const std::string filename = safe_str_copy(message_ptr, message_size);
+            if (!CNC_Save_Load(false, filename.c_str(), "GAME_GLYPHX_MULTIPLAYER"))
                 return false;
             return true;
         }
