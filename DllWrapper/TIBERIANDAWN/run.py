@@ -7,6 +7,7 @@ import tornado.websocket
 import tornado.ioloop
 
 import cnc_structs
+from vectorization import convert_to_np
 
 
 def get_args():
@@ -43,7 +44,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.write_message(buffer, binary=True)
 
             # add players
-            for p in self.players:
+            for p in GameHandler.players:
                 buffer = bytes(ctypes.c_uint32(2))
                 buffer += bytes(p)
                 self.write_message(buffer, binary=True)
@@ -83,7 +84,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 f"Game {GameHandler.games.index(self)} has ended in {len(self.messages)} steps.",
                 *(
                     f"Player {i} lost."
-                    for i in range(len(self.players))
+                    for i in range(len(GameHandler.players))
                     if ((1 << i) & loser_mask)
                 ),
             )
@@ -94,6 +95,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 self.close()
                 print(f"Game {GameHandler.games.index(self)} was stopped.")
                 return
+
+            convert_to_np(message)
+            convert_to_np(message[cnc_structs.get_game_state_size(message) :])
 
             # calculate reactions per player
             buffer = b''
@@ -120,7 +124,7 @@ def main():
     args = get_args()
     application = tornado.web.Application([(r"/", GameHandler)])
 
-    GameHandler.players = [
+    GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=314159265,
             Name=b"gaebor",
@@ -130,7 +134,9 @@ def main():
             ColorIndex=0,
             IsAI=False,
             StartLocationIndex=127,
-        ),
+        )
+    )
+    GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=271828182,
             Name=b"ai1",
@@ -140,8 +146,8 @@ def main():
             ColorIndex=2,
             IsAI=True,
             StartLocationIndex=127,
-        ),
-    ]
+        )
+    )
     GameHandler.chdir = args.dir
     application.listen(args.port)
     for _ in range(args.n):
