@@ -16,3 +16,18 @@ def convert_to_np(game_state_buffer):
     offset = ctypes.sizeof(cnc_structs.StaticMap)
     dynamic_objects_count = ctypes.c_uint32.from_buffer_copy(game_state_buffer, offset).value
     offset += ctypes.sizeof(ctypes.c_uint32)
+    dynamic_objects_indices = numpy.frombuffer(
+        game_state_buffer,
+        dtype='uint32',
+        count=dynamic_objects_count * ctypes.sizeof(cnc_structs.DynamicObject) // 4,
+        offset=offset,
+    ).reshape(dynamic_objects_count, -1)[:, :-5]
+
+    dynamic_objects_continuous = numpy.frombuffer(
+        game_state_buffer,
+        dtype='float32',
+        count=dynamic_objects_count * ctypes.sizeof(cnc_structs.DynamicObject) // 4,
+        offset=offset,
+    ).reshape(dynamic_objects_count, -1)[:, -5:]
+
+    return dynamic_objects_continuous
