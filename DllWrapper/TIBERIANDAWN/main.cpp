@@ -384,6 +384,63 @@ enum WebsocketMessageType : std::uint32_t
     NOUGHTREQUEST
 };
 
+bool init_loop()
+{
+    std::vector<unsigned char> buffer(4 * 1024 * 1024);
+    size_t message_size;
+
+    while (ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
+    {
+        const unsigned char* message_ptr = buffer.data();
+        const auto message_type = *(const WebsocketMessageType*)message_ptr;
+        step_buffer(message_ptr, message_size, sizeof(WebsocketMessageType));
+
+        if (message_type == CHDIR)
+        {
+            if (message_size < 1)
+                return false;
+            const std::string dir_path = safe_str_copy(message_ptr, message_size);
+            if (!ChDir(dir_path.c_str()))
+                return false;
+        }
+        else if (message_type == INIT)
+        {
+            if (message_size < 2)
+                return false;
+            const std::string dll_path = safe_str_copy(message_ptr, message_size);
+            const std::string content_dir = safe_str_copy(message_ptr, message_size);
+            if (!Init(dll_path.c_str(), content_dir.c_str()))
+                return false;
+        }
+        else if (message_type == ADDPLAYER)
+        {
+            if (message_size < sizeof(CNCPlayerInfoStruct))
+                return false;
+
+            AddPlayer((const CNCPlayerInfoStruct*)message_ptr);
+        }
+        else if (message_type == STARTGAME)
+        {
+            if (message_size < sizeof(StartGameArgs))
+                return false;
+
+            if (!StartGame((const StartGameArgs*)message_ptr))
+                return false;
+            return true;
+        }
+        else if (message_type == STARTGAMECUSTOM)
+        {
+            if (message_size < sizeof(StartGameCustomArgs))
+                return false;
+
+            if (!StartGameCustom((const StartGameCustomArgs*)message_ptr))
+                return false;
+            return true;
+        }
+    }
+    return false;
+}
+
 int main(int argc, const char* argv[])
 {
     std::vector<unsigned char> buffer(4 * 1024 * 1024);
@@ -408,53 +465,10 @@ int main(int argc, const char* argv[])
         if (NO_ERROR != SendOnSocket((void*)startup_message.c_str(), startup_message.size() + 1))
             return 1;
     }
-    while (ReceiveOnSocket(buffer.data(), buffer.size(), (DWORD*)(&message_size)) == NO_ERROR)
+
+    if (!init_loop())
     {
-        const unsigned char* message_ptr = buffer.data();
-        const auto message_type = *(const WebsocketMessageType*)message_ptr;
-        step_buffer(message_ptr, message_size, sizeof(WebsocketMessageType));
-
-        if (message_type == CHDIR)
-        {
-            if (message_size < 1)
-                return 1;
-            const std::string dir_path = safe_str_copy(message_ptr, message_size);
-            if (!ChDir(dir_path.c_str()))
-                return 1;
-        }else if (message_type == INIT)
-        {
-            if (message_size < 2)
-                return 1;
-            const std::string dll_path = safe_str_copy(message_ptr, message_size);
-            const std::string content_dir = safe_str_copy(message_ptr, message_size);
-            if (!Init(dll_path.c_str(), content_dir.c_str()))
-                return 1;
-        }
-        else if (message_type == ADDPLAYER)
-        {
-            if (message_size < sizeof(CNCPlayerInfoStruct))
-                return 1;
-
-            AddPlayer((const CNCPlayerInfoStruct*)message_ptr);
-        }
-        else if (message_type == STARTGAME)
-        {
-            if (message_size < sizeof(StartGameArgs))
-                return 1;
-
-            if (!StartGame((const StartGameArgs*)message_ptr))
-                return 1;
-            break;
-        }
-        else if (message_type == STARTGAMECUSTOM)
-        {
-            if (message_size < sizeof(StartGameCustomArgs))
-                return 1;
-
-            if (!StartGameCustom((const StartGameCustomArgs*)message_ptr))
-                return 1;
-            break;
-        }
+        return 1;
     }
 
     while (Advance())
