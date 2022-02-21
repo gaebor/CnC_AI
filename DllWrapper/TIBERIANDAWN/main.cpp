@@ -445,6 +445,7 @@ bool init_loop()
             const std::string filename = safe_str_copy(message_ptr, message_size);
             if (!CNC_Save_Load(false, filename.c_str(), "GAME_GLYPHX_MULTIPLAYER"))
                 return false;
+            StartGameCallback();
             return true;
         }
     }
