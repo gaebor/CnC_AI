@@ -80,7 +80,7 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
     Owner = HouseColorMap[(unsigned char)object.Owner];
     IsSelected = (float)ConvertMask(object.IsSelectedMask);
     IsRepairing = (float)object.IsRepairing;
-    Cloak = (float)object.Cloak;
+    Cloak = object.Cloak;
     if (object.IsPrimaryFactory)
     {
         Pips[0] = 2U; // PIP_PRIMARY // "Primary" building marker
@@ -104,7 +104,7 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
     Owner = HouseColorMap[(unsigned char)entry.Owner];
     IsSelected = 0.f;
     IsRepairing = 0.f;
-    Cloak = 0.f;
+    Cloak = 0;
     std::fill_n(Pips, MAX_OBJECT_PIPS, -1);
     ControlGroup = decltype(ControlGroup)(-1);
 }

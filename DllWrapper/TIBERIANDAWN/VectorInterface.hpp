@@ -21,6 +21,8 @@ struct DynamicObject
 	std::int32_t ShapeIndex;
 	std::int32_t Owner;
 	std::int32_t Pips[MAX_OBJECT_PIPS];
+	std::int32_t ControlGroup;
+	std::int32_t Cloak;
 
 	float PositionX;
 	float PositionY;
@@ -28,9 +30,6 @@ struct DynamicObject
 
 	float IsSelected;
 	float IsRepairing;
-	float Cloak;
-	std::int32_t ControlGroup;
-
 
 	DynamicObject();
 	void Assign(const CNCObjectStruct&);

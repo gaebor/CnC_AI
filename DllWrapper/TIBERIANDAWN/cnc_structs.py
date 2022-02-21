@@ -92,13 +92,13 @@ class DynamicObject(CncStruct):
         ('ShapeIndex', ctypes.c_int32),
         ('Owner', ctypes.c_int32),
         ('Pips', ctypes.c_int32 * MAX_OBJECT_PIPS),
+        ('ControlGroup', ctypes.c_int32),
+        ('Cloak', ctypes.c_int32),
         ('PositionX', ctypes.c_float),
         ('PositionY', ctypes.c_float),
         ('Strength', ctypes.c_float),
         ('IsSelected', ctypes.c_float),
         ('IsRepairing', ctypes.c_float),
-        ('Cloak', ctypes.c_float),
-        ('ControlGroup', ctypes.c_int32),
     ]
 
 
@@ -216,7 +216,7 @@ def get_game_state_size(game_state_buffer):
     return offset
 
 
-def print_game_state(game_state):
+def render_game_state_terminal(game_state):
     offset = 0
     cells = StaticMap.from_buffer_copy(game_state, offset).StaticCells
     offset += ctypes.sizeof(StaticMap)
