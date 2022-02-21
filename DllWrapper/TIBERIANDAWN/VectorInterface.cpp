@@ -83,13 +83,14 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
     Cloak = object.Cloak;
     if (object.IsPrimaryFactory)
     {
-        Pips[0] = 2U; // PIP_PRIMARY // "Primary" building marker
-        std::fill_n(Pips + 1, MAX_OBJECT_PIPS - 1, -1);
+        Pips[0] = 3U; // PIP_PRIMARY + 1
+        std::fill_n(Pips + 1, MAX_OBJECT_PIPS - 1, 0);
     }
     else
     {
-        std::copy_n(object.Pips, object.MaxPips, Pips);
-        std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, -1);
+        for (size_t i = 0; i < object.MaxPips; ++i)
+            Pips[i] = object.Pips[i] + 1;
+        std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, 0);
     }
     ControlGroup = object.ControlGroup;
 }
@@ -105,7 +106,7 @@ void DynamicObject::Assign(const CNCDynamicMapEntryStruct& entry)
     IsSelected = 0.f;
     IsRepairing = 0.f;
     Cloak = 0;
-    std::fill_n(Pips, MAX_OBJECT_PIPS, -1);
+    std::fill_n(Pips, MAX_OBJECT_PIPS, 0);
     ControlGroup = decltype(ControlGroup)(-1);
 }
 
@@ -235,7 +236,7 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
 
             if (target_object.Owner != Owner)
             {
-                std::fill_n(target_object.Pips, MAX_OBJECT_PIPS, -1);
+                std::fill_n(target_object.Pips, MAX_OBJECT_PIPS, 0);
                 target_object.ControlGroup = 255U;
             }
         }
