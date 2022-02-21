@@ -22,8 +22,8 @@ def read_array_from_buffer(buffer, offset, Type):
 def convert_to_np(game_state_buffer):
     offset = 8 * ctypes.sizeof(ctypes.c_int)
     map_cells = numpy.frombuffer(
-        game_state_buffer, dtype='uint32', count=2 * 62 * 62, offset=offset
-    )
+        game_state_buffer, dtype='uint32', count=62 * 62 * 2, offset=offset
+    ).reshape((62, 62, 2))
     offset = ctypes.sizeof(cnc_structs.StaticMap)
 
     offset, dynamic_objects_indices, dynamic_objects_continuous = read_array_from_buffer(
@@ -43,8 +43,8 @@ def convert_to_np(game_state_buffer):
     )
 
     return {
-        'StaticAssetName': map_cells[0::2].reshape((62, 62)),
-        'StaticShapeIndex': map_cells[1::2].reshape((62, 62)),
+        'StaticAssetName': map_cells[:, :, 0],
+        'StaticShapeIndex': map_cells[:, :, 1],
         'AssetName': dynamic_objects_indices[:, 0],
         'ShapeIndex': dynamic_objects_indices[:, 1],
         'Owner': dynamic_objects_indices[:, 2],
