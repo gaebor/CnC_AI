@@ -19,10 +19,19 @@ unsigned long SendOnSocket(void* message, unsigned long size)
 	);
 }
 
-unsigned long ReceiveOnSocket(void* buffer, unsigned long buffer_size, unsigned long* size)
+unsigned long ReceiveOnSocket(unsigned char* buffer, unsigned long buffer_size, unsigned long* size)
 {
 	WINHTTP_WEB_SOCKET_BUFFER_TYPE message_type;
-	const DWORD error = WinHttpWebSocketReceive(hWebSocketHandle, buffer, buffer_size, size, &message_type);
+	DWORD error;
+	DWORD fragment_size;
+	*size = 0;
+	while (NO_ERROR == (error = WinHttpWebSocketReceive(hWebSocketHandle, buffer, buffer_size, &fragment_size, &message_type)) && message_type == WINHTTP_WEB_SOCKET_BINARY_FRAGMENT_BUFFER_TYPE)
+	{
+		buffer += fragment_size;
+		buffer_size -= fragment_size;
+		*size += fragment_size;
+	}
+	*size += fragment_size;
 	return error + message_type;
 }
 
@@ -31,8 +40,6 @@ unsigned long ReceiveOnSocket(void* buffer, unsigned long buffer_size, unsigned 
 */
 unsigned long InitializeWebSocket(unsigned short port)
 {
-	DWORD dwError = ERROR_SUCCESS;
-
 	//
 	// Create session, connection and request handles.
 	//
@@ -40,25 +47,19 @@ unsigned long InitializeWebSocket(unsigned short port)
 	hSessionHandle = WinHttpOpen(L"CnC WebSocket", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
 	if (hSessionHandle == NULL)
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	hConnectionHandle = WinHttpConnect(hSessionHandle, L"localhost", port, 0);
 	if (hConnectionHandle == NULL)
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	hRequestHandle = WinHttpOpenRequest(hConnectionHandle, L"GET", L"", NULL, NULL, NULL, 0);
 	if (hRequestHandle == NULL)
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	//
@@ -67,9 +68,7 @@ unsigned long InitializeWebSocket(unsigned short port)
 // #pragma prefast(suppress:6387, "WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET does not take any arguments.")
 	if (FALSE == WinHttpSetOption(hRequestHandle, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, NULL, 0))
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	//
@@ -79,16 +78,12 @@ unsigned long InitializeWebSocket(unsigned short port)
 
 	if (FALSE == WinHttpSendRequest(hRequestHandle, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0))
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	if (FALSE == WinHttpReceiveResponse(hRequestHandle, 0))
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	//
@@ -99,9 +94,7 @@ unsigned long InitializeWebSocket(unsigned short port)
 	hWebSocketHandle = WinHttpWebSocketCompleteUpgrade(hRequestHandle, 0UL);
 	if (hWebSocketHandle == NULL)
 	{
-		dwError = GetLastError();
-		DestroyWebSocket();
-		return dwError;
+		return GetLastError();
 	}
 
 	//
