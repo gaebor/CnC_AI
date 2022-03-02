@@ -88,7 +88,7 @@ void DynamicObject::Assign(const CNCObjectStruct& object)
     }
     else
     {
-        for (size_t i = 0; i < object.MaxPips; ++i)
+        for (int i = 0; i < object.MaxPips; ++i)
             Pips[i] = object.Pips[i] + 1;
         std::fill_n(Pips + object.MaxPips, MAX_OBJECT_PIPS - object.MaxPips, 0);
     }
