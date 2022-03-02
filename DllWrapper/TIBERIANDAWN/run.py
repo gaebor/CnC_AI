@@ -12,7 +12,7 @@ from vectorization import convert_to_np
 
 def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--port', default=8889, type=int, help=' ')
+    parser.add_argument('--port', default=8888, type=int, help=' ')
     parser.add_argument(
         '-n', '--n', default=4, type=int, help='number of games to play simultaneously'
     )
@@ -40,7 +40,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             # init dll
             buffer = bytes(ctypes.c_uint32(1))
             buffer += b'TiberianDawn.dll\0'
-            buffer += b'-CDDATA\CNCDATA\TIBERIAN_DAWN\CD1\0'
+            buffer += b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1\0'
             self.write_message(buffer, binary=True)
 
             # add players
@@ -101,7 +101,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
             # calculate reactions per player
             buffer = b''
-            for i in range(2):
+            for i in range(len(GameHandler.players)):
                 buffer += bytes(ctypes.c_uint32(7))  # nought
                 buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
             # send responses
