@@ -6,12 +6,17 @@ static std::unordered_map<std::string, int> read_vocab_from_file(const char* fil
 {
     std::unordered_map<std::string, int> result = { {"", 0} };
     std::ifstream ifs(filename);
-    std::string line;
-    while (std::getline(ifs, line))
+    if (ifs.is_open())
     {
-        result.emplace(line, result.size());
+        std::string line;
+        while (std::getline(ifs, line))
+        {
+            result.emplace(line, result.size());
+        }
+        return result;
     }
-    return result;
+    else
+        exit(1);
 }
 
 const std::unordered_map<std::string, int> static_tile_names = read_vocab_from_file("static_tile_names.txt");
