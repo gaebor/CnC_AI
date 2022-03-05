@@ -77,24 +77,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         elif len(message) == 1:
             self.messages.append(message)
             loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
-            print(
-                f"Game {GameHandler.games.index(self)} has ended in {len(self.messages)} steps.",
-                *(
-                    f"Player {i} lost."
-                    for i in range(len(GameHandler.players))
-                    if ((1 << i) & loser_mask)
-                ),
-            )
+            self.print_what_winner_see(loser_mask)
         else:
             # recieved the current game state
             self.messages.append(message)
             if len(self.messages) > 10_000:
                 self.close()
-                print(f"Game {GameHandler.games.index(self)} was stopped.")
+                self.print_what_winner_see(0)
                 return
-
-            convert_to_np(message)
-            convert_to_np(message[cnc_structs.get_game_state_size(message) :])
 
             # calculate reactions per player
             buffer = b''
@@ -129,6 +119,18 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             buffer = bytes(ctypes.c_uint32(2))
             buffer += bytes(player)
             self.write_message(buffer, binary=True)
+
+    def print_what_winner_see(self, loser_mask):
+        game_state = self.messages[-1]
+        winner_player = [
+            ((1 << i) & loser_mask) > 0 for i in range(len(GameHandler.players))
+        ].index(False)
+        print(winner_player)
+        message_offset = 0
+        for _ in range(winner_player):
+            message_offset += cnc_structs.get_game_state_size(game_state[message_offset:])
+        print(message_offset)
+        print(cnc_structs.render_game_state_terminal(game_state[message_offset:]))
 
 
 def main():
