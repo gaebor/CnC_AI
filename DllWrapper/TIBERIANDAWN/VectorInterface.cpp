@@ -195,8 +195,6 @@ SideBar& SideBar::operator=(const CNCSidebarStruct& sidebar)
 
 void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source, const CNCShroudStruct* shroud, std::int32_t Owner)
 {
-    new (&target.map) StaticMap();
-
     target.map.MapCellX = source.map.MapCellX;
     target.map.MapCellY = source.map.MapCellY;
     target.map.MapCellWidth = source.map.MapCellWidth;
@@ -217,6 +215,11 @@ void RenderPOV(VectorRepresentation& target, const VectorRepresentation& source,
             {
                 if (shroud_ptr->IsVisible && shroud_ptr->ShadowIndex == (char)(-1))
                     target.map.StaticCells[y][x] = source.map.StaticCells[y][x];
+                else
+                {
+                    target.map.StaticCells[y][x].AssetName = 0;
+                    target.map.StaticCells[y][x].ShapeIndex = 0;
+                }
             }
         }
     }
