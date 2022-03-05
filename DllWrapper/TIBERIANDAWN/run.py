@@ -8,6 +8,7 @@ import tornado.websocket
 import tornado.ioloop
 
 import cnc_structs
+from vectorization import convert_to_np
 
 
 def get_args():
@@ -75,18 +76,18 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.write_message(buffer, binary=True)
         elif len(message) == 1:
             loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
-            self.print_what_winner_see(loser_mask)
+            self.end_game(loser_mask)
         else:
             # recieved the current game state
             self.messages.append(message)
-            if len(self.messages) > 10_000:
+            if len(self.messages) > 20_000:
                 self.close()
-                self.print_what_winner_see(0)
+                self.end_game(0)
                 return
 
             # calculate reactions per player
             buffer = b''
-            for i in range(len(GameHandler.players)):
+            for i in range(len(self.players)):
                 buffer += bytes(ctypes.c_uint32(7))  # nought
                 buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
             # send responses
@@ -106,6 +107,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     def add_players(self):
         colors = set(range(6))
+        self.players = []
         for player in GameHandler.players:
             player = cnc_structs.CNCPlayerInfoStruct.from_buffer_copy(bytes(player))
             if player.ColorIndex < 0:
@@ -117,17 +119,32 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             buffer = bytes(ctypes.c_uint32(2))
             buffer += bytes(player)
             self.write_message(buffer, binary=True)
+            self.players.append(player)
 
-    def print_what_winner_see(self, loser_mask):
-        print(self)
+    def print_what_player_sees(self, winner_player):
         game_state = self.messages[-1]
-        winner_player = [
-            ((1 << i) & loser_mask) > 0 for i in range(len(GameHandler.players))
-        ].index(False)
         message_offset = 0
         for _ in range(winner_player):
             message_offset += cnc_structs.get_game_state_size(game_state[message_offset:])
         print(cnc_structs.render_game_state_terminal(game_state[message_offset:]))
+
+    def end_game(self, loser_mask):
+        print(self)
+        game_state = self.messages[-1]
+        if loser_mask == 0:
+            scores = []
+            offset = 0
+            for player in self.players:
+                scores.append(
+                    cnc_structs.score(convert_to_np(game_state[offset:]), player.ColorIndex)
+                )
+                offset += cnc_structs.get_game_state_size(game_state[offset:])
+            winner_player = scores.index(max(scores))
+        else:
+            winner_player = [((1 << i) & loser_mask) > 0 for i in range(len(self.players))].index(
+                False
+            )
+        self.print_what_player_sees(winner_player)
 
 
 def main():
@@ -141,7 +158,7 @@ def main():
             House=127,
             Team=0,
             AllyFlags=0,
-            ColorIndex=-1,
+            ColorIndex=127,
             IsAI=False,
             StartLocationIndex=127,
         )
@@ -153,7 +170,7 @@ def main():
             House=127,
             Team=1,
             AllyFlags=0,
-            ColorIndex=-1,
+            ColorIndex=127,
             IsAI=True,
             StartLocationIndex=127,
         )
