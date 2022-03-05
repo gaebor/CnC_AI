@@ -239,3 +239,91 @@ def render_game_state_terminal(game_state):
             map_list[x][y][2],
         )
     return '\n'.join(map(lambda row: ''.join(termcolor.colored(*cell) for cell in row), map_list))
+
+
+costs = {
+    'AFLD': 2000,
+    'AFLDMAKE': 2000,
+    'APC': 700,
+    'ARTY': 450,
+    'ATWR': 1000,
+    'ATWRMAKE': 1000,
+    'BGGY': 300,
+    'BIKE': 500,
+    'BOAT': 300,
+    'BRIK': 100,
+    'CYCL': 75,
+    'E1': 100,
+    'E2': 160,
+    'E3': 300,
+    'E4': 200,
+    'E5': 300,
+    'E6': 500,
+    'EYE': 2800,
+    'EYEMAKE': 2800,
+    'FACT': 5001,
+    'FACTMAKE': 5001,
+    'FIX': 1200,
+    'FIXMAKE': 1200,
+    'FTNK': 800,
+    'GTWR': 500,
+    'GTWRMAKE': 500,
+    'GUN': 600,
+    'GUNMAKE': 600,
+    'HAND': 300,
+    'HANDMAKE': 300,
+    'HARV': 1400,
+    'HELI': 1200,
+    'HPAD': 1500,
+    'HPADMAKE': 1500,
+    'HQ': 1000,
+    'HQMAKE': 1000,
+    'HTNK': 1500,
+    'JEEP': 400,
+    'LST': 300,
+    'LTNK': 600,
+    'MCV': 5000,
+    'MHQ': 600,
+    'MLRS': 750,
+    'MSAM': 800,
+    'MTNK': 800,
+    'NUK2': 700,
+    'NUK2MAKE': 700,
+    'NUKE': 300,
+    'NUKEMAKE': 300,
+    'OBLI': 1500,
+    'OBLIMAKE': 1500,
+    'ORCA': 1200,
+    'PROC': 2000,
+    'PROCMAKE': 2000,
+    'PYLE': 300,
+    'PYLEMAKE': 300,
+    'RMBO': 1000,
+    'SAM': 750,
+    'SAMMAKE': 750,
+    'SBAG': 50,
+    'SILO': 150,
+    'SILOMAKE': 150,
+    'STNK': 900,
+    'TMPL': 3000,
+    'TMPLMAKE': 3000,
+    'TRAN': 1500,
+    'WEAP': 2000,
+    'WEAPMAKE': 2000,
+}
+
+
+def score(game_state_arrays, owner):
+    result = 0
+    for dynamic_object_asset_index, dynamic_object_owner in zip(
+        game_state_arrays['AssetName'], game_state_arrays['Owner']
+    ):
+        if owner == dynamic_object_owner:
+            result += costs.get(dynamic_object_names[dynamic_object_asset_index], 0)
+
+    for sidebar_asset_index, sidebar_progress in zip(
+        game_state_arrays['SidebarAssetName'], game_state_arrays['SidebarContinuous'][:, 0]
+    ):
+        result += costs.get(dynamic_object_names[sidebar_asset_index], 0) * sidebar_progress
+
+    return result
