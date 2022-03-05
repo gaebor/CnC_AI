@@ -79,7 +79,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.end_game(loser_mask)
         else:
             # recieved the current game state
-            self.messages.append(message)
+            per_player_game_state = []
+            for _ in range(len(self.players)):
+                per_player_game_state.append(convert_to_np(message))
+                message = message[cnc_structs.get_game_state_size(message) :]
+            self.messages.append(per_player_game_state)
             if len(self.messages) > 10_000:
                 self.close()
                 self.end_game(self.assess_players_performance())
@@ -122,19 +126,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.players.append(player)
 
     def print_what_player_sees(self, winner_player):
-        game_state = self.messages[-1]
-        message_offset = 0
-        for _ in range(winner_player):
-            message_offset += cnc_structs.get_game_state_size(game_state[message_offset:])
-        print(cnc_structs.render_game_state_terminal(game_state[message_offset:]))
+        game_state = self.messages[-1][winner_player]
+        print(cnc_structs.render_game_state_terminal(game_state))
 
     def assess_players_performance(self):
-        offset = 0
         scores = []
-        game_state = self.messages[-1]
-        for player in self.players:
-            scores.append(cnc_structs.score(convert_to_np(game_state[offset:]), player.ColorIndex))
-            offset += cnc_structs.get_game_state_size(game_state[offset:])
+        for player, game_state in zip(self.players, self.messages[-1]):
+            scores.append(cnc_structs.score(game_state, player.ColorIndex))
         loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         return loser_mask
 

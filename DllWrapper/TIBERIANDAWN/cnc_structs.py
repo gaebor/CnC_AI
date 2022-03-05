@@ -202,9 +202,6 @@ def decode_cell(tile_name_index):
     return (text, 'white', background)
 
 
-color_map = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan']
-
-
 def get_game_state_size(game_state_buffer):
     offset = ctypes.sizeof(StaticMap)
     dynamic_objects_count = ctypes.c_uint32.from_buffer_copy(game_state_buffer, offset).value
@@ -217,24 +214,22 @@ def get_game_state_size(game_state_buffer):
 
 
 def render_game_state_terminal(game_state):
-    offset = 0
-    cells = StaticMap.from_buffer_copy(game_state, offset).StaticCells
-    offset += ctypes.sizeof(StaticMap)
     map_list = [
-        [decode_cell(cells[i][j].AssetName) for j in range(MAP_MAX_WIDTH)]
+        [decode_cell(game_state['StaticAssetName'][i][j]) for j in range(MAP_MAX_WIDTH)]
         for i in range(MAP_MAX_HEIGHT)
     ]
-    dynamic_objects_count = ctypes.c_uint32.from_buffer_copy(game_state, offset).value
-    offset += ctypes.sizeof(ctypes.c_uint32)
-    dynamic_objects = (DynamicObject * dynamic_objects_count).from_buffer_copy(game_state, offset)
-    for i in range(dynamic_objects_count):
-        thing = dynamic_objects[i]
-        x, y = int(thing.PositionY) // 24, int(thing.PositionX) // 24
+    for AssetName, Owner, PositionX, PositionY in zip(
+        game_state['AssetName'],
+        game_state['Owner'],
+        game_state['Continuous'][:, 0],
+        game_state['Continuous'][:, 1],
+    ):
+        x, y = int(PositionY) // 24, int(PositionX) // 24
         color = 'white'
-        if thing.Owner != 255:
-            color = color_map[thing.Owner]
+        if Owner != 255:
+            color = ['yellow', 'blue', 'red', 'white', 'magenta', 'cyan'][Owner]
         map_list[x][y] = (
-            '{:2s}'.format(dynamic_object_names[thing.AssetName][:2]),
+            '{:2s}'.format(dynamic_object_names[AssetName][:2]),
             color,
             map_list[x][y][2],
         )
