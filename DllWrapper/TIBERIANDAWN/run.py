@@ -8,7 +8,6 @@ import tornado.websocket
 import tornado.ioloop
 
 import cnc_structs
-from vectorization import convert_to_np
 
 
 def get_args():
@@ -75,7 +74,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             )
             self.write_message(buffer, binary=True)
         elif len(message) == 1:
-            self.messages.append(message)
             loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
             self.print_what_winner_see(loser_mask)
         else:
@@ -121,15 +119,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.write_message(buffer, binary=True)
 
     def print_what_winner_see(self, loser_mask):
+        print(self)
         game_state = self.messages[-1]
         winner_player = [
             ((1 << i) & loser_mask) > 0 for i in range(len(GameHandler.players))
         ].index(False)
-        print(winner_player)
         message_offset = 0
         for _ in range(winner_player):
             message_offset += cnc_structs.get_game_state_size(game_state[message_offset:])
-        print(message_offset)
         print(cnc_structs.render_game_state_terminal(game_state[message_offset:]))
 
 
