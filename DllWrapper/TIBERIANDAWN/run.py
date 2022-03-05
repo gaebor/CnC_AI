@@ -1,6 +1,7 @@
 import argparse
 from os import spawnl, P_NOWAIT
 import ctypes
+from random import choice
 
 import tornado.web
 import tornado.websocket
@@ -43,11 +44,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             buffer += b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1\0'
             self.write_message(buffer, binary=True)
 
-            # add players
-            for p in GameHandler.players:
-                buffer = bytes(ctypes.c_uint32(2))
-                buffer += bytes(p)
-                self.write_message(buffer, binary=True)
+            self.add_players()
 
             # start game
             buffer = bytes(ctypes.c_uint32(3))
@@ -119,6 +116,20 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             GameHandler.ended_games = set()
             tornado.ioloop.IOLoop.current().stop()
 
+    def add_players(self):
+        colors = set(range(6))
+        for player in GameHandler.players:
+            player = cnc_structs.CNCPlayerInfoStruct.from_buffer_copy(bytes(player))
+            if player.ColorIndex < 0:
+                player.ColorIndex = choice(list(colors))
+                colors -= {player.ColorIndex}
+            if player.House not in [0, 1]:
+                player.House = choice([0, 1])
+
+            buffer = bytes(ctypes.c_uint32(2))
+            buffer += bytes(player)
+            self.write_message(buffer, binary=True)
+
 
 def main():
     args = get_args()
@@ -128,10 +139,10 @@ def main():
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=314159265,
             Name=b"gaebor",
-            House=0,
+            House=127,
             Team=0,
             AllyFlags=0,
-            ColorIndex=0,
+            ColorIndex=-1,
             IsAI=False,
             StartLocationIndex=127,
         )
@@ -140,10 +151,10 @@ def main():
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=271828182,
             Name=b"ai1",
-            House=1,
+            House=127,
             Team=1,
             AllyFlags=0,
-            ColorIndex=2,
+            ColorIndex=-1,
             IsAI=True,
             StartLocationIndex=127,
         )
