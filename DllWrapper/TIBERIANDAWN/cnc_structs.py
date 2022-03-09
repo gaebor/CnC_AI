@@ -186,6 +186,19 @@ with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
 with open(Path(__file__).parent / 'dynamic_object_names.txt', 'r') as f:
     dynamic_object_names = [''] + list(map(str.strip, f.readlines()))
 
+with open(Path(__file__).parent / 'all_asset_names.txt', 'rt') as f:
+    all_asset_num_shapes = dict(
+        map(lambda x: (x[1].upper(), int(x[0])), (line.strip().split() for line in f))
+    )
+
+
+def calculate_asset_num_shapes(names_list):
+    names_dict = {v: i for i, v in enumerate(names_list)}
+    asset_num_shapes = {
+        names_dict[k]: v for k, v in all_asset_num_shapes.items() if k in static_tile_names
+    }
+    return asset_num_shapes
+
 
 def decode_cell(tile_name_index):
     text = static_tile_names[tile_name_index]
