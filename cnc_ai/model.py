@@ -3,6 +3,12 @@
 from torch import nn
 import torch
 
+from DllWrapper.TIBERIANDAWN.cnc_structs import (
+    calculate_asset_num_shapes,
+    static_tile_names,
+    dynamic_object_names,
+)
+
 
 def soft_inverse_norm(length):
     return (torch.exp(-length) - 1) / -length
@@ -116,6 +122,56 @@ class Generator(nn.Sequential):
             nn.Conv2d(4, 3, 5, padding=2),
             activation,
         )
+
+
+class DoubleEmbedding(torch.nn.Module):
+    def __init__(self, asset_indices, embedding_dim):
+        super().__init__()
+        self.sub_embedding_sizes = torch.tensor(
+            [asset_indices.get(k, 1) for k in range(max(asset_indices.keys()) + 1)]
+        )
+        self.embedding = torch.nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
+
+        self.offsets = torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
+
+    def forward(self, asset_index, shape_index):
+        assert (shape_index < self.sub_embedding_sizes[asset_index]).all()
+        indices = self.offsets[asset_index] + shape_index
+        embedding = self.embedding(indices)
+        return embedding
+
+
+class MapEmbedding_62_62(nn.Module):
+    def __init__(self, n_embedding=1024):
+        super().__init__()
+        self.asset_embedding = DoubleEmbedding(calculate_asset_num_shapes(static_tile_names), 10)
+        self.convolutions = nn.Sequential(
+            nn.Conv2d(10, 10, 3, padding=2),  # 10x64x64
+            nn.LeakyReLU(),
+            DownScaleLayer(10, 20, 2),  # 20x32x32
+            nn.LeakyReLU(),
+            nn.Conv2d(20, 20, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(20, 40, 2),  # 40x16x16
+            nn.LeakyReLU(),
+            nn.Conv2d(40, 40, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(40, 80, 2),  # 80x8x8
+            nn.LeakyReLU(),
+            nn.Conv2d(80, 80, 3, padding=1),
+            nn.LeakyReLU(),
+            DownScaleLayer(80, 160, 2),  # 160x4x4
+            ReshapeLayer((-1, 160 * 4 * 4)),
+            nn.Linear(160 * 4 * 4, n_embedding),
+            nn.LeakyReLU(),
+            nn.Linear(n_embedding, n_embedding),
+            nn.LeakyReLU(),
+        )
+
+    def forward(self, asset_indices, shape_indices):
+        map_embedding = self.asset_embedding(asset_indices, shape_indices).permute(0, 3, 1, 2)
+        output = self.convolutions(map_embedding)
+        return output
 
 
 class Predictor(nn.Module):
