@@ -152,6 +152,8 @@
      13 RV03
      13 RV02
      12 wake
+     12 LROTOR
+     12 RROTOR
      12 fpls
      12 TI9
      12 TI8
@@ -377,6 +379,9 @@
       3 bio
       3 barl
       3 atwr
+      3 V37
+      3 V36
+      3 V35
       3 V34
       3 V33
       3 V32
