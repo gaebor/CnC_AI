@@ -17,6 +17,16 @@ def get_args():
     parser.add_argument(
         '-n', '--n', default=4, type=int, help='number of games to play simultaneously'
     )
+    parser.add_argument(
+        '-l',
+        '--limit',
+        '--end-limit',
+        '--end_limit',
+        dest='end_limit',
+        default=10_000,
+        type=int,
+        help='stop game after this many iterations if still going',
+    )
     parser.add_argument('--exe', default='TIBERIANDAWN_wrapper.exe', help='absolute path')
     parser.add_argument(
         '--dir',
@@ -31,6 +41,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     ended_games = set()
     players = []
     chdir = '.'
+    end_limit = 10_000
 
     def on_message(self, message):
         if message == b'READY\0':
@@ -80,11 +91,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         else:
             # recieved the current game state
             per_player_game_state = []
+            offset = 0
             for _ in range(len(self.players)):
-                per_player_game_state.append(convert_to_np(message))
-                message = message[cnc_structs.get_game_state_size(message) :]
+                per_player_game_state.append(convert_to_np(message[offset:]))
+                offset += cnc_structs.get_game_state_size(message[offset:])
+
             self.messages.append(per_player_game_state)
-            if len(self.messages) > 10_000:
+            if len(self.messages) > GameHandler.end_limit:
                 self.close()
                 self.end_game(self.assess_players_performance())
                 return
@@ -173,6 +186,7 @@ def main():
         )
     )
     GameHandler.chdir = args.dir
+    GameHandler.end_limit = args.end_limit
     application.listen(args.port)
     for _ in range(args.n):
         spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
