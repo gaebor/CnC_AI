@@ -35,6 +35,7 @@ def get_args():
         default=r'C:\Program Files (x86)\Steam\steamapps\common\CnCRemastered',
         help='absolute path',
     )
+    parser.add_argument('-d', '--device', default='cpu', help='pytorch device')
     return parser.parse_args()
 
 
@@ -45,6 +46,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     chdir = '.'
     end_limit = 10_000
     nn = TD_GameEmbedding()
+    device = 'cpu'
 
     def on_message(self, message):
         if message == b'READY\0':
@@ -172,7 +174,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def calculate_reactions(self, per_player_game_state):
         # have to keep track of iternal game state
         dynamic_lengths, sidebar_lengths, game_state_tensor = pad_game_states(
-            per_player_game_state
+            per_player_game_state, GameHandler.device
         )
         m = GameHandler.nn(**game_state_tensor)
 
@@ -189,8 +191,11 @@ def encode_list(list_of_strings):
 
 def main():
     args = get_args()
-    application = tornado.web.Application([(r"/", GameHandler)])
 
+    GameHandler.device = args.device
+    GameHandler.nn = GameHandler.nn.to(GameHandler.device)
+    GameHandler.chdir = args.dir
+    GameHandler.end_limit = args.end_limit
     GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=314159265,
@@ -215,8 +220,8 @@ def main():
             StartLocationIndex=127,
         )
     )
-    GameHandler.chdir = args.dir
-    GameHandler.end_limit = args.end_limit
+
+    application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
     for _ in range(args.n):
         spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
