@@ -181,10 +181,10 @@ class TD_Action(nn.Module):
 def pad_game_states(list_of_game_states, device=None):
     dynamic_objects_mask = compute_key_padding_mask(
         [len(game_state['AssetName']) for game_state in list_of_game_states]
-    )
+    ).to(device)
     sidebar_entries_mask = compute_key_padding_mask(
         [len(game_state['SidebarAssetName']) for game_state in list_of_game_states]
-    )
+    ).to(device)
 
     tensors = {
         **{
