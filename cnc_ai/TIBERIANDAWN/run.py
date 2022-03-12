@@ -7,8 +7,7 @@ import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
-import cnc_structs
-from vectorization import convert_to_np
+import TIBERIANDAWN.cnc_structs
 
 
 def get_args():

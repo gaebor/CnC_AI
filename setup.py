@@ -5,7 +5,7 @@ from setuptools import setup
 setup(
     name='cnc_ai',
     version='0.1',
-    description="A neural network to play Command & Conquer Tiberian Dawn (Remastered)",
+    description="A neural network to play Command & Conquer (Remastered)",
     long_description=open('README.md').read(),
     author="Gábor Borbély",
     author_email='borbely@math.bme.hu',
@@ -13,4 +13,5 @@ setup(
     license='MIT',
     install_requires=['numpy', 'torch', 'torchvision', 'Pillow'],
     packages=['cnc_ai'],
+    include_package_data=True,
 )
