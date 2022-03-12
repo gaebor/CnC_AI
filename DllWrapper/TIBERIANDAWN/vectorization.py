@@ -10,7 +10,7 @@ def read_array_from_buffer(buffer, offset, Type):
     offset += ctypes.sizeof(ctypes.c_uint32)
     number_of_members = ctypes.sizeof(Type) // 4
     indices = numpy.frombuffer(
-        buffer, dtype='uint32', count=count * number_of_members, offset=offset
+        buffer, dtype='int32', count=count * number_of_members, offset=offset
     ).reshape(count, number_of_members)
     continuous = numpy.frombuffer(
         buffer, dtype='float32', count=count * number_of_members, offset=offset
@@ -22,7 +22,7 @@ def read_array_from_buffer(buffer, offset, Type):
 def convert_to_np(game_state_buffer):
     offset = 8 * ctypes.sizeof(ctypes.c_int)
     map_cells = numpy.frombuffer(
-        game_state_buffer, dtype='uint32', count=62 * 62 * 2, offset=offset
+        game_state_buffer, dtype='int32', count=62 * 62 * 2, offset=offset
     ).reshape((62, 62, 2))
     offset = ctypes.sizeof(cnc_structs.StaticMap)
 
