@@ -8,6 +8,7 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
+from cnc_ai.model import pad_game_states, TD_GamePlay
 
 
 def get_args():
@@ -41,6 +42,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
+    nn = TD_GamePlay()
 
     def on_message(self, message):
         if message == b'READY\0':
@@ -57,16 +59,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 offset += cnc_structs.get_game_state_size(message[offset:])
 
             self.messages.append(per_player_game_state)
+
             if len(self.messages) > GameHandler.end_limit:
                 self.close()
                 self.end_game(self.assess_players_performance())
                 return
 
-            # calculate reactions per player
-            buffer = b''
-            for i in range(len(self.players)):
-                buffer += bytes(ctypes.c_uint32(7))  # nought
-                buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
+            buffer = self.calculate_reactions(per_player_game_state)
             # send responses
             self.write_message(buffer, binary=True)
 
@@ -167,6 +166,19 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             )
         )
         self.write_message(buffer, binary=True)
+
+    def calculate_reactions(self, per_player_game_state):
+        # have to keep track of iternal game state
+        dynamic_lengths, sidebar_lengths, game_state_tensor = pad_game_states(
+            per_player_game_state
+        )
+        m = GameHandler.nn(**game_state_tensor)
+
+        buffer = b''
+        for i in range(len(per_player_game_state)):
+            buffer += bytes(ctypes.c_uint32(7))  # nought
+            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
+        return buffer
 
 
 def encode_list(list_of_strings):

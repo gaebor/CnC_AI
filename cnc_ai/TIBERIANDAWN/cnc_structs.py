@@ -195,14 +195,6 @@ with open(Path(__file__).parent / 'all_assets_with_shapes.txt', 'rt') as f:
     )
 
 
-def calculate_asset_num_shapes(names_list):
-    names_dict = {v: i for i, v in enumerate(names_list)}
-    asset_num_shapes = {
-        names_dict[k]: v for k, v in all_asset_num_shapes.items() if k in static_tile_names
-    }
-    return asset_num_shapes
-
-
 def decode_cell(tile_name_index):
     text = static_tile_names[tile_name_index]
     if text.startswith('TI'):  # tiberium
