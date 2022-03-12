@@ -7,7 +7,7 @@ import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
-import TIBERIANDAWN.cnc_structs
+from TIBERIANDAWN import cnc_structs
 
 
 def get_args():
@@ -53,7 +53,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             per_player_game_state = []
             offset = 0
             for _ in range(len(self.players)):
-                per_player_game_state.append(convert_to_np(message[offset:]))
+                per_player_game_state.append(cnc_structs.convert_to_np(message[offset:]))
                 offset += cnc_structs.get_game_state_size(message[offset:])
 
             self.messages.append(per_player_game_state)
