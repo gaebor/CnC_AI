@@ -12,6 +12,6 @@ setup(
     url='https://github.com/gaebor/CnC_AI',
     license='MIT',
     install_requires=['numpy', 'torch', 'torchvision', 'Pillow', 'tornado'],
-    packages=['cnc_ai'],
+    packages=['cnc_ai', 'cnc_ai.TIBERIANDAWN'],
     include_package_data=True,
 )
