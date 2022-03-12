@@ -7,7 +7,7 @@ import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
-from TIBERIANDAWN import cnc_structs
+from cnc_ai.TIBERIANDAWN import cnc_structs
 
 
 def get_args():
