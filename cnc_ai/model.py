@@ -3,7 +3,7 @@
 from torch import nn
 import torch
 
-from DllWrapper.TIBERIANDAWN.cnc_structs import (
+from cnc_ai.TIBERIANDAWN.cnc_structs import (
     calculate_asset_num_shapes,
     static_tile_names,
     dynamic_object_names,
@@ -124,13 +124,13 @@ class Generator(nn.Sequential):
         )
 
 
-class DoubleEmbedding(torch.nn.Module):
+class DoubleEmbedding(nn.Module):
     def __init__(self, asset_indices, embedding_dim):
         super().__init__()
         self.sub_embedding_sizes = torch.tensor(
             [asset_indices.get(k, 1) for k in range(max(asset_indices.keys()) + 1)]
         )
-        self.embedding = torch.nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
+        self.embedding = nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
 
         self.offsets = torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
 
