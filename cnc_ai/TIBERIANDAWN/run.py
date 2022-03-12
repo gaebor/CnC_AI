@@ -3,6 +3,8 @@ from os import spawnl, P_NOWAIT
 import ctypes
 from random import choice
 
+from torch import no_grad
+
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
@@ -42,7 +44,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
-    nn = TD_GamePlay().to('cuda')
+    nn = TD_GamePlay()
 
     def on_message(self, message):
         if message == b'READY\0':
@@ -170,7 +172,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def calculate_reactions(self, per_player_game_state):
         # have to keep track of iternal game state
         dynamic_lengths, sidebar_lengths, game_state_tensor = pad_game_states(
-            per_player_game_state, 'cuda'
+            per_player_game_state
         )
         m = GameHandler.nn(**game_state_tensor)
 
@@ -222,4 +224,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with no_grad():
+        main()
