@@ -45,46 +45,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     def on_message(self, message):
         if message == b'READY\0':
-            # change to the directory where CnC is installed
-            buffer = bytes(ctypes.c_uint32(0)) + GameHandler.chdir.encode('utf8') + b'\0'
-            self.write_message(buffer, binary=True)
-
-            # init dll
-            buffer = bytes(ctypes.c_uint32(1))
-            buffer += b'TiberianDawn.dll\0'
-            buffer += b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1\0'
-            self.write_message(buffer, binary=True)
-
-            self.add_players()
-
-            # start game
-            buffer = bytes(ctypes.c_uint32(3))
-            buffer += bytes(
-                cnc_structs.StartGameArgs(
-                    cnc_structs.CNCMultiplayerOptionsStruct(
-                        MPlayerCount=2,
-                        MPlayerBases=1,
-                        MPlayerCredits=5000,
-                        MPlayerTiberium=1,
-                        MPlayerGoodies=1,
-                        MPlayerGhosts=0,
-                        MPlayerSolo=1,
-                        MPlayerUnitCount=0,
-                        IsMCVDeploy=False,
-                        SpawnVisceroids=True,
-                        EnableSuperweapons=True,
-                        MPlayerShadowRegrow=False,
-                        MPlayerAftermathUnits=True,
-                        CaptureTheFlag=False,
-                        DestroyStructures=False,
-                        ModernBalance=True,
-                    ),
-                    50,
-                    7,
-                    2,
-                )
-            )
-            self.write_message(buffer, binary=True)
+            self.init_game()
         elif len(message) == 1:
             loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
             self.end_game(loser_mask)
@@ -155,6 +116,62 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             False
         )
         self.print_what_player_sees(winner_player)
+
+    def init_game(self):
+        # change to the directory where CnC is installed
+        buffer = bytes(ctypes.c_uint32(0)) + GameHandler.chdir.encode('utf8') + b'\0'
+        self.write_message(buffer, binary=True)
+
+        # init dll
+        buffer = bytes(ctypes.c_uint32(1))
+        buffer += b'TiberianDawn.dll\0'
+        buffer += b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1\0'
+        self.write_message(buffer, binary=True)
+
+        # communicate asset names
+        buffer = bytes(ctypes.c_uint32(9))
+        buffer += encode_list(cnc_structs.static_tile_names)
+        self.write_message(buffer, binary=True)
+
+        buffer = bytes(ctypes.c_uint32(10))
+        buffer += encode_list(cnc_structs.dynamic_object_names)
+        self.write_message(buffer, binary=True)
+
+        # add players
+        self.add_players()
+
+        # start game
+        buffer = bytes(ctypes.c_uint32(3))
+        buffer += bytes(
+            cnc_structs.StartGameArgs(
+                cnc_structs.CNCMultiplayerOptionsStruct(
+                    MPlayerCount=2,
+                    MPlayerBases=1,
+                    MPlayerCredits=5000,
+                    MPlayerTiberium=1,
+                    MPlayerGoodies=1,
+                    MPlayerGhosts=0,
+                    MPlayerSolo=1,
+                    MPlayerUnitCount=0,
+                    IsMCVDeploy=False,
+                    SpawnVisceroids=True,
+                    EnableSuperweapons=True,
+                    MPlayerShadowRegrow=False,
+                    MPlayerAftermathUnits=True,
+                    CaptureTheFlag=False,
+                    DestroyStructures=False,
+                    ModernBalance=True,
+                ),
+                50,
+                7,
+                2,
+            )
+        )
+        self.write_message(buffer, binary=True)
+
+
+def encode_list(list_of_strings):
+    return b''.join(map(lambda s: str.encode(s, encoding='ascii') + b'\0', list_of_strings))
 
 
 def main():

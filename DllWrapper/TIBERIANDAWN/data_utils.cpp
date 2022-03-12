@@ -2,25 +2,21 @@
 
 #include <fstream>
 
-static std::unordered_map<std::string, int> read_vocab_from_file(const char* filename)
+std::unordered_map<std::string, std::int32_t> read_vocab_from_string(const char* message, size_t message_size)
 {
-    std::unordered_map<std::string, int> result = { {"", 0} };
-    std::ifstream ifs(filename);
-    if (ifs.is_open())
+    std::unordered_map<std::string, std::int32_t> result;
+    while (message_size > 0)
     {
-        std::string line;
-        while (std::getline(ifs, line))
-        {
-            result.emplace(line, result.size());
-        }
-        return result;
+        const size_t string_size = strnlen(message, message_size) + 1; // including trailing zero
+        result.emplace(message, result.size());
+        message_size -= string_size;
+        message += string_size;
     }
-    else
-        exit(1);
+    return result;
 }
 
-const std::unordered_map<std::string, int> static_tile_names = read_vocab_from_file("static_tile_names.txt");
-const std::unordered_map<std::string, int> dynamic_object_names = read_vocab_from_file("dynamic_object_names.txt");
+std::unordered_map<std::string, std::int32_t> static_tile_names;
+std::unordered_map<std::string, std::int32_t> dynamic_object_names;
 
 std::int32_t HouseColorMap[] = {
     0, 2, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,

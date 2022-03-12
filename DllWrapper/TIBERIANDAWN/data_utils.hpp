@@ -2,8 +2,10 @@
 #include <unordered_map>
 #include <string>
 
-extern const std::unordered_map<std::string, std::int32_t> static_tile_names;
-extern const std::unordered_map<std::string, std::int32_t> dynamic_object_names;
+extern std::unordered_map<std::string, std::int32_t> static_tile_names;
+extern std::unordered_map<std::string, std::int32_t> dynamic_object_names;
+
+std::unordered_map<std::string, std::int32_t> read_vocab_from_string(const char* message, size_t message_size);
 
 extern std::int32_t HouseColorMap[256];
 

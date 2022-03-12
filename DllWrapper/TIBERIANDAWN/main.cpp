@@ -375,14 +375,16 @@ void HandleInputRequest(const InputRequestArgs* args)
 enum WebsocketMessageType : std::uint32_t
 {
     CHDIR,
-    INIT,
+    INIT_DLL,
     ADDPLAYER,
     STARTGAME,
     STARTGAMECUSTOM,
     INPUTREQUEST,
     SIDEBARREQUEST,
     NOUGHTREQUEST,
-    LOAD,
+    LOAD_GAME,
+    LOAD_STATIC_ASSET_NAMES,
+    LOAD_DYNAMIC_ASSET_NAMES,
 };
 
 bool init_loop()
@@ -404,7 +406,7 @@ bool init_loop()
             if (!ChDir(dir_path.c_str()))
                 return false;
         }
-        else if (message_type == INIT)
+        else if (message_type == INIT_DLL)
         {
             if (message_size < 2)
                 return false;
@@ -438,7 +440,7 @@ bool init_loop()
                 return false;
             return true;
         }
-        else if (message_type == LOAD)
+        else if (message_type == LOAD_GAME)
         {
             if (message_size < 1)
                 return false;
@@ -446,6 +448,22 @@ bool init_loop()
             if (!CNC_Save_Load(false, filename.c_str(), "GAME_GLYPHX_MULTIPLAYER"))
                 return false;
             return StartGameCallback();
+        }
+        else if (message_type == LOAD_STATIC_ASSET_NAMES)
+        {
+            if (message_size < 1)
+                return false;
+            static_tile_names = read_vocab_from_string((const char*)message_ptr, message_size);
+            if (static_tile_names.size() <= 1)
+                return false;
+        }
+        else if (message_type == LOAD_DYNAMIC_ASSET_NAMES)
+        {
+            if (message_size < 1)
+                return false;
+            dynamic_object_names = read_vocab_from_string((const char*)message_ptr, message_size);
+            if (dynamic_object_names.size() <= 1)
+                return false;
         }
     }
     return false;

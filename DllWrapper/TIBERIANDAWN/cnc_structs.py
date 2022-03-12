@@ -186,7 +186,7 @@ with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
 with open(Path(__file__).parent / 'dynamic_object_names.txt', 'r') as f:
     dynamic_object_names = [''] + list(map(str.strip, f.readlines()))
 
-with open(Path(__file__).parent / 'all_asset_names.txt', 'rt') as f:
+with open(Path(__file__).parent / 'all_assets_with_shapes.txt', 'rt') as f:
     all_asset_num_shapes = dict(
         map(lambda x: (x[1].upper(), int(x[0])), (line.strip().split() for line in f))
     )
