@@ -17,7 +17,7 @@ def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--port', default=8888, type=int, help=' ')
     parser.add_argument(
-        '-n', '--n', default=4, type=int, help='number of games to play simultaneously'
+        '-n', '--n', default=1, type=int, help='number of games to play simultaneously'
     )
     parser.add_argument(
         '-l',
@@ -173,10 +173,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     def calculate_reactions(self, per_player_game_state):
         # have to keep track of iternal game state
-        dynamic_lengths, sidebar_lengths, game_state_tensor = pad_game_states(
+        dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
             per_player_game_state, GameHandler.device
         )
-        m = GameHandler.nn(**game_state_tensor)
+        m = GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
 
         buffer = b''
         for i in range(len(per_player_game_state)):

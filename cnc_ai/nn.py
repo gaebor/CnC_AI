@@ -134,7 +134,7 @@ class DoubleEmbedding(nn.Module):
             torch.tensor([asset_indices.get(k, 1) for k in range(max(asset_indices.keys()) + 1)]),
         )
         self.embedding = nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
-
+        self.embedding_dim = self.embedding.embedding_dim
         self.register_buffer(
             'offsets', torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
         )
