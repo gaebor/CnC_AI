@@ -1,7 +1,8 @@
 import ctypes
-import termcolor
 from pathlib import Path
+import json
 
+import termcolor
 import numpy
 
 
@@ -182,10 +183,10 @@ class InputRequestArgs(CncStruct):
     ]
 
 
-with open(Path(__file__).parent / 'static_tile_names.txt', 'r') as f:
+with open(Path(__file__).parent / 'static_tile_names.txt', 'rt') as f:
     static_tile_names = [''] + list(map(str.strip, f.readlines()))
 
-with open(Path(__file__).parent / 'dynamic_object_names.txt', 'r') as f:
+with open(Path(__file__).parent / 'dynamic_object_names.txt', 'rt') as f:
     dynamic_object_names = [''] + list(map(str.strip, f.readlines()))
 
 with open(Path(__file__).parent / 'all_assets_with_shapes.txt', 'rt') as f:
@@ -251,76 +252,8 @@ def render_game_state_terminal(game_state):
     return '\n'.join(map(lambda row: ''.join(termcolor.colored(*cell) for cell in row), map_list))
 
 
-costs = {
-    'AFLD': 2000,
-    'AFLDMAKE': 2000,
-    'APC': 700,
-    'ARTY': 450,
-    'ATWR': 1000,
-    'ATWRMAKE': 1000,
-    'BGGY': 300,
-    'BIKE': 500,
-    'BOAT': 300,
-    'BRIK': 100,
-    'CYCL': 75,
-    'E1': 100,
-    'E2': 160,
-    'E3': 300,
-    'E4': 200,
-    'E5': 300,
-    'E6': 500,
-    'EYE': 2800,
-    'EYEMAKE': 2800,
-    'FACT': 5001,
-    'FACTMAKE': 5001,
-    'FIX': 1200,
-    'FIXMAKE': 1200,
-    'FTNK': 800,
-    'GTWR': 500,
-    'GTWRMAKE': 500,
-    'GUN': 600,
-    'GUNMAKE': 600,
-    'HAND': 300,
-    'HANDMAKE': 300,
-    'HARV': 1400,
-    'HELI': 1200,
-    'HPAD': 1500,
-    'HPADMAKE': 1500,
-    'HQ': 1000,
-    'HQMAKE': 1000,
-    'HTNK': 1500,
-    'JEEP': 400,
-    'LST': 300,
-    'LTNK': 600,
-    'MCV': 5000,
-    'MHQ': 600,
-    'MLRS': 750,
-    'MSAM': 800,
-    'MTNK': 800,
-    'NUK2': 700,
-    'NUK2MAKE': 700,
-    'NUKE': 300,
-    'NUKEMAKE': 300,
-    'OBLI': 1500,
-    'OBLIMAKE': 1500,
-    'ORCA': 1200,
-    'PROC': 2000,
-    'PROCMAKE': 2000,
-    'PYLE': 300,
-    'PYLEMAKE': 300,
-    'RMBO': 1000,
-    'SAM': 750,
-    'SAMMAKE': 750,
-    'SBAG': 50,
-    'SILO': 150,
-    'SILOMAKE': 150,
-    'STNK': 900,
-    'TMPL': 3000,
-    'TMPLMAKE': 3000,
-    'TRAN': 1500,
-    'WEAP': 2000,
-    'WEAPMAKE': 2000,
-}
+with open(Path(__file__).parent / 'costs.json', 'rt') as f:
+    costs = json.load(f)
 
 
 def score(game_state_arrays, owner):

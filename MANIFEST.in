@@ -1,1 +1,2 @@
 include cnc_ai/*/*.txt
+include cnc_ai/*/*.json
