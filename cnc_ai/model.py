@@ -135,6 +135,7 @@ class DoubleEmbedding(nn.Module):
         self.offsets = torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
 
     def forward(self, asset_index, shape_index):
+        asset_index = asset_index.long()
         assert (shape_index < self.sub_embedding_sizes[asset_index]).all()
         indices = self.offsets[asset_index] + shape_index
         embedding = self.embedding(indices)
@@ -142,7 +143,7 @@ class DoubleEmbedding(nn.Module):
 
 
 class MapEmbedding_62_62(nn.Module):
-    def __init__(self, n_embedding=1024):
+    def __init__(self, embedding_dim=1024):
         super().__init__()
         self.asset_embedding = DoubleEmbedding(calculate_asset_num_shapes(static_tile_names), 10)
         self.convolutions = nn.Sequential(
@@ -162,9 +163,9 @@ class MapEmbedding_62_62(nn.Module):
             nn.LeakyReLU(),
             DownScaleLayer(80, 160, 2),  # 160x4x4
             ReshapeLayer((-1, 160 * 4 * 4)),
-            nn.Linear(160 * 4 * 4, n_embedding),
+            nn.Linear(160 * 4 * 4, embedding_dim),
             nn.LeakyReLU(),
-            nn.Linear(n_embedding, n_embedding),
+            nn.Linear(embedding_dim, embedding_dim),
             nn.LeakyReLU(),
         )
 
@@ -245,7 +246,7 @@ class TD_GamePlay(nn.Module):
         super().__init__()
         self.map_embedding = MapEmbedding_62_62(1024)
         self.unit_embedding = DoubleEmbedding(calculate_asset_num_shapes(dynamic_object_names), 16)
-        self.owner_embedding = nn.Embedding(10, 3)
+        self.owner_embedding = nn.Embedding(256, 3)  # 0-8 and 255 for default value
         self.pip_embedding = nn.Sequential(nn.Embedding(10, 3), nn.Flatten(start_dim=2))
         self.control_embedding = nn.Embedding(256, 3)  # 0-9 and 255 for default value
         self.cloak_embedding = nn.Embedding(5, 2)
@@ -304,7 +305,7 @@ class TD_GamePlay(nn.Module):
                 map_embedding,
                 torch.mean(self.dynamic_object_encoder(dynamic_objects), 1),
                 SidebarInfos,
-                torch.mean(self.siderbar_entries_encoder(siderbar_entries), 1),
+                torch.sum(self.siderbar_entries_encoder(siderbar_entries), 1),
             ],
             1,
         )
