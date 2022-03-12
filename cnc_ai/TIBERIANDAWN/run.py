@@ -42,7 +42,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
-    nn = TD_GamePlay()
+    nn = TD_GamePlay().to('cuda')
 
     def on_message(self, message):
         if message == b'READY\0':
@@ -170,7 +170,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def calculate_reactions(self, per_player_game_state):
         # have to keep track of iternal game state
         dynamic_lengths, sidebar_lengths, game_state_tensor = pad_game_states(
-            per_player_game_state
+            per_player_game_state, 'cuda'
         )
         m = GameHandler.nn(**game_state_tensor)
 

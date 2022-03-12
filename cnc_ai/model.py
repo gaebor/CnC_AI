@@ -127,12 +127,15 @@ class Generator(nn.Sequential):
 class DoubleEmbedding(nn.Module):
     def __init__(self, asset_indices, embedding_dim):
         super().__init__()
-        self.sub_embedding_sizes = torch.tensor(
-            [asset_indices.get(k, 1) for k in range(max(asset_indices.keys()) + 1)]
+        self.register_buffer(
+            'sub_embedding_sizes',
+            torch.tensor([asset_indices.get(k, 1) for k in range(max(asset_indices.keys()) + 1)]),
         )
         self.embedding = nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
 
-        self.offsets = torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
+        self.register_buffer(
+            'offsets', torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
+        )
 
     def forward(self, asset_index, shape_index):
         asset_index = asset_index.long()
@@ -317,7 +320,7 @@ class TD_GamePlay(nn.Module):
         internal_state = torch.cat(
             [
                 map_embedding,
-                torch.mean(self.dynamic_object_encoder(dynamic_objects), 1),
+                torch.sum(self.dynamic_object_encoder(dynamic_objects), 1),
                 SidebarInfos,
                 torch.sum(self.siderbar_entries_encoder(siderbar_entries), 1),
             ],
@@ -327,25 +330,25 @@ class TD_GamePlay(nn.Module):
         return game_state_embedding
 
 
-def pad_game_states(list_of_game_states):
+def pad_game_states(list_of_game_states, device=None):
     dynamic_lengths = torch.tensor(
         [len(game_state['AssetName']) for game_state in list_of_game_states]
-    )
+    ).to(device)
     sidebar_lengths = torch.tensor(
         [len(game_state['SidebarAssetName']) for game_state in list_of_game_states]
-    )
+    ).to(device)
     tensors = {
         **{
             key: torch.stack(
                 [torch.tensor(game_state[key]) for game_state in list_of_game_states], 0
-            )
+            ).to(device)
             for key in ['StaticAssetName', 'StaticShapeIndex', 'SidebarInfos']
         },
         **{
             key: torch.nn.utils.rnn.pad_sequence(
                 [torch.tensor(game_state[key]) for game_state in list_of_game_states],
                 batch_first=True,
-            )
+            ).to(device)
             for key in [
                 'AssetName',
                 'ShapeIndex',
