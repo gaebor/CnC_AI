@@ -242,19 +242,24 @@ def calculate_asset_num_shapes(names_list):
 
 
 class TD_GamePlay(nn.Module):
-    def __init__(self):
+    def __init__(self, embedding_dim=1024):
         super().__init__()
-        self.map_embedding = MapEmbedding_62_62(1024)
+        map_dim = 1024
+        self.map_embedding = MapEmbedding_62_62(map_dim)
+
         self.unit_embedding = DoubleEmbedding(calculate_asset_num_shapes(dynamic_object_names), 16)
         self.owner_embedding = nn.Embedding(256, 3)  # 0-8 and 255 for default value
         self.pip_embedding = nn.Sequential(nn.Embedding(10, 3), nn.Flatten(start_dim=2))
         self.control_embedding = nn.Embedding(256, 3)  # 0-9 and 255 for default value
         self.cloak_embedding = nn.Embedding(5, 2)
+        dynamic_object_dim = 16 + 3 + 3 * 18 + 3 + 2 + 5
+
         self.buildable_embedding = nn.Embedding(len(dynamic_object_names), 7)
+        siderbar_entries_dim = 7 + 6
 
         self.dynamic_object_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
-                d_model=16 + 3 + 3 * 18 + 3 + 2 + 5,
+                d_model=dynamic_object_dim,
                 nhead=1,
                 batch_first=True,
                 layer_norm_eps=0,
@@ -262,11 +267,20 @@ class TD_GamePlay(nn.Module):
             ),
             num_layers=2,
         )
+
         self.siderbar_entries_encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
-                d_model=7 + 6, nhead=1, batch_first=True, layer_norm_eps=0, dim_feedforward=16
+                d_model=siderbar_entries_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=16,
             ),
             num_layers=2,
+        )
+        self.dense = nn.Sequential(
+            nn.Linear(map_dim + dynamic_object_dim + siderbar_entries_dim + 6, embedding_dim),
+            *(nn.Linear(embedding_dim, embedding_dim) for _ in range(1)),
         )
 
     def forward(
@@ -309,7 +323,8 @@ class TD_GamePlay(nn.Module):
             ],
             1,
         )
-        return internal_state
+        game_state_embedding = self.dense(internal_state)
+        return game_state_embedding
 
 
 def pad_game_states(list_of_game_states):
