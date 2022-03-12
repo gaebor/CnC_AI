@@ -14,7 +14,7 @@ jobs:
       run: |
         cd \
         python -m cnc_ai.TIBERIANDAWN.run -h
-  build_cli:
+  build_wrapper:
     runs-on: windows-2019
     steps:
     - uses: actions/checkout@v2
