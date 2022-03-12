@@ -67,6 +67,15 @@ class UpscaleLayer(nn.Conv2d):
         return upscaled
 
 
+class HiddenLayer(nn.Sequential):
+    def __init__(self, in_features, out_features=None, dropout=0.1):
+        if out_features is None:
+            out_features = in_features
+        super().__init__(
+            nn.Linear(in_features, out_features), nn.LeakyReLU(), nn.Dropout(p=dropout)
+        )
+
+
 class ImageEmbedding(nn.Sequential):
     def __init__(self, n_embedding=1024):
         super().__init__(
@@ -166,10 +175,8 @@ class MapEmbedding_62_62(nn.Module):
             nn.LeakyReLU(),
             DownScaleLayer(80, 160, 2),  # 160x4x4
             ReshapeLayer((-1, 160 * 4 * 4)),
-            nn.Linear(160 * 4 * 4, embedding_dim),
-            nn.LeakyReLU(),
-            nn.Linear(embedding_dim, embedding_dim),
-            nn.LeakyReLU(),
+            HiddenLayer(160 * 4 * 4, embedding_dim),
+            HiddenLayer(embedding_dim, embedding_dim),
         )
 
     def forward(self, asset_indices, shape_indices):
@@ -244,7 +251,7 @@ def calculate_asset_num_shapes(names_list):
     return asset_num_shapes
 
 
-class TD_GamePlay(nn.Module):
+class TD_GameEmbedding(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
         map_dim = 1024
@@ -282,8 +289,8 @@ class TD_GamePlay(nn.Module):
             num_layers=2,
         )
         self.dense = nn.Sequential(
-            nn.Linear(map_dim + dynamic_object_dim + siderbar_entries_dim + 6, embedding_dim),
-            *(nn.Linear(embedding_dim, embedding_dim) for _ in range(1)),
+            HiddenLayer(map_dim + dynamic_object_dim + siderbar_entries_dim + 6, embedding_dim),
+            HiddenLayer(embedding_dim, embedding_dim),
         )
 
     def forward(

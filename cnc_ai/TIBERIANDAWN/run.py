@@ -10,7 +10,7 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.model import pad_game_states, TD_GamePlay
+from cnc_ai.model import pad_game_states, TD_GameEmbedding
 
 
 def get_args():
@@ -44,7 +44,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
-    nn = TD_GamePlay()
+    nn = TD_GameEmbedding()
 
     def on_message(self, message):
         if message == b'READY\0':
