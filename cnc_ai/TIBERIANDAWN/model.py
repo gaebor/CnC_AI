@@ -54,16 +54,6 @@ class MapEmbedding_62_62(nn.Module):
 
 
 class TD_GameEmbedding(nn.Module):
-    # map_dim = 1024
-    # dynamic_object_dims = {
-    #     'assets': 16,
-    #     'owner': 3,
-    #     'pip': 3,
-    #     'control': 3,
-    #     'cloak': 2,
-    # }  # 16 + 3 + 3 * 18 + 3 + 2 + 5
-    # siderbar_dims = {'assets': 7, 'continuous': 6, 'fix': 6}
-
     def __init__(self, embedding_dim=1024):
         super().__init__()
         self.map_embedding = MapEmbedding_62_62(1024)
@@ -86,7 +76,8 @@ class TD_GameEmbedding(nn.Module):
                     self.cloak_embedding,
                 ]
             )
-            + self.pip_embedding.embedding_dim * MAX_OBJECT_PIPS
+            + self.pip_embedding[0].embedding_dim * MAX_OBJECT_PIPS
+            + 5  # dynamic object continuous
         )
 
         self.dynamic_object_encoder = nn.TransformerEncoder(
