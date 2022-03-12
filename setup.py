@@ -11,7 +11,7 @@ setup(
     author_email='borbely@math.bme.hu',
     url='https://github.com/gaebor/CnC_AI',
     license='MIT',
-    install_requires=['numpy', 'torch', 'torchvision', 'Pillow'],
+    install_requires=['numpy', 'torch', 'torchvision', 'Pillow', 'tornado'],
     packages=['cnc_ai'],
     include_package_data=True,
 )
