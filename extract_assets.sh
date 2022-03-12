@@ -12,16 +12,18 @@ then
 fi
 
 (
-for file in `find "$dirname" -iname '*.tga' -type f` `find "$dirname" -iname '*.dds' -type f`
+find "$dirname" \( -iname '*\.tga' -o -iname '*\.dds' \) -type f -exec basename {} \; | \
+while read file
 do
-    parse_name `basename $file`
+    parse_name $file
 done
 
-for zip_file in `find "$dirname" -iname '*.zip' -type f`
+find "$dirname" -iname '*\.zip' -type f | while read zip_file
 do
-    for file in `unzip -l $zip_file | tail +4 | head -n -2 | sed 's/  \+/\t/g' | cut -f4 | grep -i tga`
+    unzip -l $zip_file | tail +4 | head -n -2 | sed 's/  \+/\t/g' | cut -f4 | grep -i tga | \
+    while read file
     do
         parse_name $file
     done
 done
-) | sort | uniq | cut -f1 | uniq -c | sort -rn
+) | sort -r | awk '{ print $2+1 " " $1 }' | uniq -f 1 | sort -nr
