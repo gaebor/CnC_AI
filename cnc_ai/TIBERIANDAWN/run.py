@@ -10,7 +10,7 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.model import pad_game_states, TD_GameEmbedding
+from cnc_ai.TIBERIANDAWN.model import pad_game_states, TD_GameEmbedding
 
 
 def get_args():
