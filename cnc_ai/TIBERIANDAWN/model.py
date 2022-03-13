@@ -4,7 +4,7 @@ import numpy
 from torch import nn
 import torch
 
-from cnc_ai.nn import DoubleEmbedding, DownScaleLayer, HiddenLayer
+from cnc_ai.nn import DoubleEmbedding, DownScaleLayer, HiddenLayer, SoftmaxReadout
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
     all_asset_num_shapes,
@@ -186,6 +186,8 @@ class TD_GameEmbedding(nn.Module):
 class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
+        self.main_action = SoftmaxReadout(3, embedding_dim)
+        self.sidebar_action = SoftmaxReadout(10, embedding_dim)
 
 
 def pad_game_states(list_of_game_states, device=None):

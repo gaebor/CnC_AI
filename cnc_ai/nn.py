@@ -202,3 +202,12 @@ def button_loss(target_button, predicted_button_probabilities):
 class Optimizer(torch.optim.RMSprop):
     def __init__(self, params, lr, weight_decay):
         super().__init__(params, lr=lr, alpha=0.5, weight_decay=weight_decay)
+
+
+class SoftmaxReadout(nn.Module):
+    def __init__(self, n_readout, in_features):
+        super().__init__()
+        self.readout = nn.Embedding(n_readout, in_features)
+
+    def forward(self, state):
+        return torch.nn.functional.softmax(torch.matmul(state, self.readout.weight.t()), 1)
