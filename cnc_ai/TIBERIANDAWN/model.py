@@ -88,7 +88,7 @@ class TD_GameEmbedding(nn.Module):
 
         self.unit_embedding = DoubleEmbedding(calculate_asset_num_shapes(dynamic_object_names), 16)
         self.owner_embedding = nn.Embedding(256, 3)  # 0-8 and 255 for default value
-        self.pip_embedding = nn.Sequential(nn.Embedding(10, 3), nn.Flatten(start_dim=2))
+        self.pip_embedding = nn.Sequential(nn.Embedding(10, 3), nn.Flatten(-2))
         self.control_embedding = nn.Embedding(256, 3)  # 0-9 and 255 for default value
         self.cloak_embedding = nn.Embedding(5, 2)
 
@@ -234,7 +234,8 @@ class TD_Action(nn.Module):
         n_input_request_type = 12
         self.input_request_type = SoftmaxReadout(n_input_request_type, embedding_dim)
         self.mouse_position = nn.Sequential(
-            HiddenLayer(embedding_dim, n_input_request_type * 2),
+            nn.Linear(embedding_dim, n_input_request_type * 2),
+            nn.Sigmoid(),
             nn.Unflatten(-1, (n_input_request_type, 2)),
         )
 
@@ -244,7 +245,7 @@ class TD_Action(nn.Module):
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
         input_request_type = self.input_request_type(game_state)
-        mouse_position = self.mouse_position(game_state)
+        mouse_position = self.mouse_position(game_state) * (62 * 24)
         return main_action, sidebar_action, input_request_type, mouse_position
 
 
