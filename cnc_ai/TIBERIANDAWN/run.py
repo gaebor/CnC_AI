@@ -2,9 +2,10 @@ import argparse
 from os import spawnl, P_NOWAIT
 import ctypes
 from random import choice
+from itertools import chain
 
 from torch import no_grad
-from numpy import unravel_index
+import numpy
 
 import tornado.web
 import tornado.websocket
@@ -16,9 +17,9 @@ from cnc_ai.TIBERIANDAWN.model import pad_game_states, TD_GamePlay
 
 def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--port', default=8888, type=int, help=' ')
+    parser.add_argument('-p', '--port', default=8888, type=int, help=' ')
     parser.add_argument(
-        '-n', '--n', default=1, type=int, help='number of games to play simultaneously'
+        '-n', '--n', default=2, type=int, help='number of games to play simultaneously'
     )
     parser.add_argument(
         '-l',
@@ -42,19 +43,20 @@ def get_args():
 
 class GameHandler(tornado.websocket.WebSocketHandler):
     games = []
-    ended_games = set()
     players = []
     chdir = '.'
     end_limit = 10_000
     nn = TD_GamePlay()
     device = 'cpu'
+    n_games = 0
+    ended_games = []
 
     def on_message(self, message):
         if message == b'READY\0':
             self.init_game()
         elif len(message) == 1:
-            loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
-            self.end_game(loser_mask)
+            self.loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
+            self.close()
         else:
             # recieved the current game state
             per_player_game_state = []
@@ -67,24 +69,41 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
             if len(self.messages) > GameHandler.end_limit:
                 self.close()
-                self.end_game(self.assess_players_performance())
                 return
 
-            buffer = self.calculate_reactions(per_player_game_state)
-            # send responses
-            self.write_message(buffer, binary=True)
+            # sync games
+            if (GameHandler.n_games == len(GameHandler.games)) and all(
+                len(game.messages) == len(self.messages) for game in GameHandler.games
+            ):
+                # have to keep track of internal game state
+                dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
+                    list(chain(*(game.messages[-1] for game in GameHandler.games))),
+                    GameHandler.device,
+                )
+                actions = [
+                    action.cpu().numpy()
+                    for action in GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
+                ]
+                i = 0
+                for game in GameHandler.games:
+                    message = render_actions(i, len(game.players), *actions)
+                    game.write_message(message, binary=True)
+                    i += len(game.players)
 
     def open(self):
         GameHandler.games.append(self)
+        self.loser_mask = 0
         self.messages = []
         self.set_nodelay(True)
 
     def on_close(self):
-        GameHandler.ended_games.add(self)
-        if set(GameHandler.games) == GameHandler.ended_games:
-            GameHandler.games = []
-            GameHandler.ended_games = set()
-            tornado.ioloop.IOLoop.current().stop()
+        GameHandler.ended_games.append(self)
+        self.end_game()
+        for game in GameHandler.games:
+            if game not in GameHandler.ended_games:
+                game.close()
+
+        GameHandler.destroy_if_all_stopped()
 
     def add_players(self):
         colors = set(range(6))
@@ -102,23 +121,25 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.write_message(buffer, binary=True)
             self.players.append(player)
 
-    def print_what_player_sees(self, winner_player):
-        game_state = self.messages[-1][winner_player]
+    def print_what_player_sees(self, player):
+        game_state = self.messages[-1][player]
         print(cnc_structs.render_game_state_terminal(game_state))
 
     def assess_players_performance(self):
         scores = []
         for player, game_state in zip(self.players, self.messages[-1]):
             scores.append(cnc_structs.score(game_state, player.ColorIndex))
-        print(scores)
         loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         return loser_mask
 
-    def end_game(self, loser_mask):
-        if loser_mask > 0:
-            winner_player = [((1 << i) & loser_mask) > 0 for i in range(len(self.players))].index(
-                False
-            )
+    def end_game(self):
+        if self.loser_mask == 0:
+            self.loser_mask = self.assess_players_performance()
+        print(self.loser_mask, self)
+        if self.loser_mask > 0:
+            winner_player = [
+                ((1 << i) & self.loser_mask) > 0 for i in range(len(self.players))
+            ].index(False)
             self.print_what_player_sees(winner_player)
 
     def init_game(self):
@@ -173,34 +194,33 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         )
         self.write_message(buffer, binary=True)
 
-    def calculate_reactions(self, per_player_game_state):
-        # have to keep track of internal game state
-        dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
-            per_player_game_state, GameHandler.device
-        )
-        actions = GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
-        buffer = render_actions(*(action.cpu().numpy() for action in (sidebar_mask,) + actions))
-        return buffer
+    @classmethod
+    def destroy_if_all_stopped(cls):
+        if set(cls.games) == set(cls.ended_games):
+            cls.games = []
+            cls.ended_games = []
+            tornado.ioloop.IOLoop.current().stop()
 
 
-def render_actions(sidebar_mask, main_action, sidebar_action, input_request_type, mouse_position):
-    """TODO this could be implemented on the C++ side"""
+def render_actions(
+    offset, n_players, main_action, sidebar_action, input_request_type, mouse_position
+):
     buffer = b''
-    for i in range(main_action.shape[0]):
+    for i, player_id in zip(range(offset, offset + n_players), range(n_players)):
         action_type = main_action[i].argmax()
         if action_type == 0:
             buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
-            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
+            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=player_id))
         if action_type == 1:
-            if sidebar_mask.shape[1] > 0 and not sidebar_mask[i, 0]:
+            if sidebar_action.shape[1] > 0 and numpy.isnfinite(sidebar_action[i, 0]):
                 possible_actions = sidebar_action[i]
-                best_sidebar_element, best_action_type = unravel_index(
+                best_sidebar_element, best_action_type = numpy.unravel_index(
                     possible_actions.argmax(), possible_actions.shape
                 )
                 buffer += bytes(ctypes.c_uint32(6))  # SIDEBARREQUEST
                 buffer += bytes(
                     cnc_structs.SidebarRequestArgs(
-                        player_id=i,
+                        player_id=player_id,
                         requestType=best_action_type,
                         assetNameIndex=best_sidebar_element,
                     )
@@ -210,7 +230,7 @@ def render_actions(sidebar_mask, main_action, sidebar_action, input_request_type
             request_type = input_request_type[i].argmax()
             buffer += bytes(
                 cnc_structs.InputRequestArgs(
-                    player_id=i,
+                    player_id=player_id,
                     requestType=request_type,
                     x1=mouse_position[i, request_type, 0],
                     y1=mouse_position[i, request_type, 1],
@@ -227,6 +247,7 @@ def main():
     args = get_args()
 
     GameHandler.device = args.device
+    GameHandler.n_games = args.n
     GameHandler.nn = GameHandler.nn.to(GameHandler.device)
     GameHandler.chdir = args.dir
     GameHandler.end_limit = args.end_limit
