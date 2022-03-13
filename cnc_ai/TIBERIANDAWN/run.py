@@ -183,6 +183,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
 
 def render_actions(sidebar_mask, main_action, sidebar_action, input_request_type, mouse_position):
+    """TODO this could be implemented on the C++ side"""
     buffer = b''
     for i in range(main_action.shape[0]):
         action_type = main_action[i].argmax()
