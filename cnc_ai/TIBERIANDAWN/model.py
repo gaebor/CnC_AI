@@ -231,12 +231,21 @@ class TD_Action(nn.Module):
         self.main_action = SoftmaxReadout(3, embedding_dim)
         self.sidebar_action = SidebarReadout(embedding_dim)
 
+        n_input_request_type = 12
+        self.input_request_type = SoftmaxReadout(n_input_request_type, embedding_dim)
+        self.mouse_position = nn.Sequential(
+            HiddenLayer(embedding_dim, n_input_request_type * 2),
+            nn.Unflatten(-1, (n_input_request_type, 2)),
+        )
+
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         main_action = self.main_action(game_state)
         sidebar_action = self.sidebar_action(
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
-        return main_action, sidebar_action
+        input_request_type = self.input_request_type(game_state)
+        mouse_position = self.mouse_position(game_state)
+        return main_action, sidebar_action, input_request_type, mouse_position
 
 
 class TD_GamePlay(nn.Module):
