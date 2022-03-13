@@ -1,5 +1,6 @@
 # https://github.com/eriklindernoren/PyTorch-GAN
 
+import numpy
 from torch import nn
 import torch
 
@@ -180,11 +181,11 @@ class TD_Action(nn.Module):
 
 def pad_game_states(list_of_game_states, device=None):
     dynamic_objects_mask = compute_key_padding_mask(
-        [len(game_state['AssetName']) for game_state in list_of_game_states]
-    ).to(device)
+        [len(game_state['AssetName']) for game_state in list_of_game_states], device
+    )
     sidebar_entries_mask = compute_key_padding_mask(
-        [len(game_state['SidebarAssetName']) for game_state in list_of_game_states]
-    ).to(device)
+        [len(game_state['SidebarAssetName']) for game_state in list_of_game_states], device
+    )
 
     tensors = {
         **{
@@ -215,8 +216,13 @@ def pad_game_states(list_of_game_states, device=None):
     return dynamic_objects_mask, sidebar_entries_mask, tensors
 
 
-def compute_key_padding_mask(lengths):
+_static_masks = numpy.zeros((0, 0), dtype=bool)
+
+
+def compute_key_padding_mask(lengths, device):
+    global _static_masks
     """https://discuss.pytorch.org/t/create-a-mask-tensor-using-index/97303/6"""
     max_length = max(lengths)
-    masks = torch.triu(torch.ones(max_length + 1, max_length, dtype=torch.bool), diagonal=0)
-    return masks[lengths]
+    if max_length > _static_masks.shape[1]:
+        _static_masks = numpy.triu(numpy.ones((max_length + 1, max_length), dtype=bool))
+    return torch.tensor(_static_masks[lengths, :max_length], device=device, requires_grad=False)
