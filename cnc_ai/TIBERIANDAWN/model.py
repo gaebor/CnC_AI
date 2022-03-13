@@ -58,7 +58,9 @@ class SidebarEntriesEncoder(nn.Module):
     def __init__(self, num_layers=2):
         super().__init__()
         self.buildable_embedding = nn.Embedding(len(dynamic_object_names), 7)
-        self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
+        SidebarEntriesEncoder.embedding_dim = (
+            self.buildable_embedding.embedding_dim + 6
+        )  # sidebar continuous
         self.encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=self.embedding_dim,
@@ -183,20 +185,57 @@ class TD_GameEmbedding(nn.Module):
         return game_state_embedding
 
 
+class SidebarReadout(nn.Module):
+    def __init__(self, embedding_dim=1024, n_readout=10):
+        super().__init__()
+        self.n_readout = n_readout
+        self.attention = nn.MultiheadAttention(
+            SidebarEntriesEncoder.embedding_dim, 1, batch_first=True
+        )
+
+        self.entries_embedding = SidebarEntriesEncoder(num_layers=0)
+
+        self.memory = nn.Sequential(
+            HiddenLayer(embedding_dim, self.entries_embedding.embedding_dim),
+            nn.Unflatten(-1, (1, -1)),  # insert a one-long dimension before the last dimension
+        )
+        self.entries_blowup = nn.Sequential(
+            HiddenLayer(
+                self.entries_embedding.embedding_dim,
+                self.entries_embedding.embedding_dim * n_readout,
+            ),
+            nn.Unflatten(-1, (n_readout, self.entries_embedding.embedding_dim)),
+            nn.Flatten(-3, -2),  # adds n_readout extra time dimension (batch_first=True)
+        )
+        self.register_buffer('mask_blowup', torch.ones((1, 1, n_readout)))
+
+    def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
+        memory = self.memory(game_state)
+        sidebar_entries = self.entries_blowup(
+            self.entries_embedding(sidebar_mask, SidebarAssetName, SidebarContinuous)
+        )
+        sidebar_mask = (
+            torch.matmul(sidebar_mask.to(torch.float32)[:, :, None], self.mask_blowup)
+            .flatten(-2)
+            .to(torch.bool)
+        )
+        result = self.attention(
+            memory, sidebar_entries, sidebar_entries, key_padding_mask=sidebar_mask
+        )[1].unflatten(-1, (-1, self.n_readout))[:, 0]
+        return result
+
+
 class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
         self.main_action = SoftmaxReadout(3, embedding_dim)
-
-        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=2)
-        self.sidebar_action = SoftmaxReadout(10, self.siderbar_entries_encoder.embedding_dim, -2)
+        self.sidebar_action = SidebarReadout(embedding_dim)
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         main_action = self.main_action(game_state)
-        sidebar_embeddings = self.siderbar_entries_encoder(
-            sidebar_mask, SidebarAssetName, SidebarContinuous
+        sidebar_action = self.sidebar_action(
+            game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
-        sidebar_action = self.sidebar_action(sidebar_embeddings)
         return main_action, sidebar_action
 
 
