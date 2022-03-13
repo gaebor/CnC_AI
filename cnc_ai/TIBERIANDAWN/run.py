@@ -110,15 +110,16 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         scores = []
         for player, game_state in zip(self.players, self.messages[-1]):
             scores.append(cnc_structs.score(game_state, player.ColorIndex))
+        print(scores)
         loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         return loser_mask
 
     def end_game(self, loser_mask):
-        print(self)
-        winner_player = [((1 << i) & loser_mask) > 0 for i in range(len(self.players))].index(
-            False
-        )
-        self.print_what_player_sees(winner_player)
+        if loser_mask > 0:
+            winner_player = [((1 << i) & loser_mask) > 0 for i in range(len(self.players))].index(
+                False
+            )
+            self.print_what_player_sees(winner_player)
 
     def init_game(self):
         # change to the directory where CnC is installed
@@ -173,7 +174,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         self.write_message(buffer, binary=True)
 
     def calculate_reactions(self, per_player_game_state):
-        # have to keep track of iternal game state
+        # have to keep track of internal game state
         dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
             per_player_game_state, GameHandler.device
         )
@@ -232,7 +233,7 @@ def main():
     GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=314159265,
-            Name=b"gaebor",
+            Name=b"ai1",
             House=127,
             Team=0,
             AllyFlags=0,
@@ -244,12 +245,12 @@ def main():
     GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
             GlyphxPlayerID=271828182,
-            Name=b"ai1",
+            Name=b"ai2",
             House=127,
             Team=1,
             AllyFlags=0,
             ColorIndex=127,
-            IsAI=True,
+            IsAI=False,
             StartLocationIndex=127,
         )
     )
