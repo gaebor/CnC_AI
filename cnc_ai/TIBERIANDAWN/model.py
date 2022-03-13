@@ -54,6 +54,31 @@ class MapEmbedding_62_62(nn.Module):
         return output
 
 
+class SidebarEntriesEncoder(nn.Module):
+    def __init__(self, num_layers=2):
+        super().__init__()
+        self.buildable_embedding = nn.Embedding(len(dynamic_object_names), 7)
+        self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
+        self.encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=self.embedding_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=16,
+            ),
+            num_layers=num_layers,
+        )
+
+    def forward(self, sidebar_mask, SidebarAssetName, SidebarContinuous):
+        siderbar_entries = torch.cat(
+            [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
+            axis=2,
+        )
+        sidebar_embeddings = self.encoder(siderbar_entries, src_key_padding_mask=sidebar_mask)
+        return sidebar_embeddings
+
+
 class TD_GameEmbedding(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
@@ -92,24 +117,12 @@ class TD_GameEmbedding(nn.Module):
             num_layers=2,
         )
 
-        self.siderbar_entries_dim = (
-            self.buildable_embedding.embedding_dim + 6  # sidebar continuous
-        )
-        self.siderbar_entries_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.siderbar_entries_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=16,
-            ),
-            num_layers=2,
-        )
+        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=2)
         self.dense = nn.Sequential(
             HiddenLayer(
                 self.map_embedding.embedding_dim
                 + dynamic_object_dim
-                + self.siderbar_entries_dim
+                + self.siderbar_entries_encoder.embedding_dim
                 + 6,  # sidebar members
                 embedding_dim,
             ),
@@ -145,26 +158,22 @@ class TD_GameEmbedding(nn.Module):
             ],
             axis=2,
         )
-        siderbar_entries = torch.cat(
-            [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
-            axis=2,
-        )
         internal_vectors = [
             map_embedding,
             self.dynamic_object_encoder(dynamic_objects, src_key_padding_mask=dynamic_mask)[:, 0],
             SidebarInfos,
         ]
         sidebar_embeddings = self.siderbar_entries_encoder(
-            siderbar_entries, src_key_padding_mask=sidebar_mask
+            sidebar_mask, SidebarAssetName, SidebarContinuous
         )
-        if siderbar_entries.shape[1] > 0:
+        if SidebarAssetName.shape[1] > 0:
             sidebar_embedding = sidebar_embeddings[:, 0, :]
             sidebar_embedding[sidebar_mask[:, 0], :] = 0
             internal_vectors.append(sidebar_embedding)
         else:
             internal_vectors.append(
                 torch.zeros(
-                    (dynamic_objects.shape[0], self.siderbar_entries_dim),
+                    (dynamic_objects.shape[0], self.siderbar_entries_encoder.embedding_dim),
                     dtype=dynamic_objects.dtype,
                     device=dynamic_objects.device,
                 )
