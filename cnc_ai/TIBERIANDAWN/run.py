@@ -67,7 +67,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
             self.messages.append(per_player_game_state)
 
-            if len(self.messages) > GameHandler.end_limit:
+            if len(self.messages) >= GameHandler.end_limit:
                 self.close()
                 return
 
@@ -127,20 +127,23 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     def assess_players_performance(self):
         scores = []
-        for player, game_state in zip(self.players, self.messages[-1]):
-            scores.append(cnc_structs.score(game_state, player.ColorIndex))
-        loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
+        if len(self.messages) > 0:
+            for player, game_state in zip(self.players, self.messages[-1]):
+                scores.append(cnc_structs.score(game_state, player.ColorIndex))
+            loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
+        else:
+            print(self.messages, self)
+            loser_mask = 0
         return loser_mask
 
     def end_game(self):
         if self.loser_mask == 0:
             self.loser_mask = self.assess_players_performance()
-        print(self.loser_mask, self)
+        print(f'game: {id(self)}, length: {len(self.messages)}, loser_mask: {self.loser_mask}')
         if self.loser_mask > 0:
-            winner_player = [
-                ((1 << i) & self.loser_mask) > 0 for i in range(len(self.players))
-            ].index(False)
-            self.print_what_player_sees(winner_player)
+            for i in range(len(self.players)):
+                print(f"player {i}:")
+                self.print_what_player_sees(i)
 
     def init_game(self):
         # change to the directory where CnC is installed
@@ -177,9 +180,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     MPlayerGoodies=1,
                     MPlayerGhosts=0,
                     MPlayerSolo=1,
-                    MPlayerUnitCount=0,
+                    MPlayerUnitCount=1,
                     IsMCVDeploy=False,
-                    SpawnVisceroids=True,
+                    SpawnVisceroids=False,
                     EnableSuperweapons=True,
                     MPlayerShadowRegrow=False,
                     MPlayerAftermathUnits=True,
