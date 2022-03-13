@@ -121,6 +121,7 @@ std::vector<CNCPlayerInfoStruct> players;
 std::vector<unsigned char> orginal_houses;
 VectorRepresentation game_state;
 std::vector<SideBar> players_sidebar;
+std::unordered_map < std::uint32_t, std::pair<float, float> > players_area_corner;
 
 std::string content_directory;
 
@@ -363,13 +364,28 @@ void HandleInputRequest(const InputRequestArgs* args)
 
     switch (args->requestType)
     {
-        // these should be handled differently
-        case INPUT_REQUEST_SPECIAL_KEYS:
-        case INPUT_REQUEST_MOUSE_AREA:
-        case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
-        return;
+    case INPUT_REQUEST_SPECIAL_KEYS: // these should be handled differently
+        break;
+    case INPUT_REQUEST_MOD_GAME_COMMAND_1_AT_POSITION: // used for starting the area selection
+        players_area_corner[args->player_id] = std::make_pair(args->x1, args->y1);
+        break;
+    case INPUT_REQUEST_MOUSE_AREA:
+    case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
+    {
+        auto previous_position = players_area_corner.find(args->player_id);
+        if (previous_position != players_area_corner.end()) {
+            CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID,
+                static_cast<int>(previous_position->second.first), static_cast<int>(previous_position->second.second),
+                static_cast<int>(args->x1), static_cast<int>(args->y1)
+            );
+            players_area_corner.erase(previous_position);
+        }
+    } break;
+    default:
+        players_area_corner.erase(args->player_id);
+        CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID, static_cast<int>(args->x1), static_cast<int>(args->y1), 0, 0);
+        break;
     }
-    CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID, (int)(args->x1), (int)(args->y1), 0, 0);
 }
 
 enum WebsocketMessageType : std::uint32_t
