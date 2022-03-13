@@ -205,9 +205,13 @@ class Optimizer(torch.optim.RMSprop):
 
 
 class SoftmaxReadout(nn.Module):
-    def __init__(self, n_readout, in_features):
+    def __init__(self, n_readout, in_features, dim=-1):
         super().__init__()
         self.readout = nn.Embedding(n_readout, in_features)
+        self.dim = dim
 
     def forward(self, state):
-        return torch.nn.functional.softmax(torch.matmul(state, self.readout.weight.t()), 1)
+        logits = torch.matmul(state, self.readout.weight.t())
+        weights = torch.nn.functional.softmax(logits.flatten(self.dim), -1)
+        result = weights.unflatten(-1, logits.shape[self.dim :])
+        return result
