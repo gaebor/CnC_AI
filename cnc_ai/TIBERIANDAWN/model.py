@@ -187,7 +187,60 @@ class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
         self.main_action = SoftmaxReadout(3, embedding_dim)
-        self.sidebar_action = SoftmaxReadout(10, embedding_dim)
+
+        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=2)
+        self.sidebar_action = SoftmaxReadout(10, self.siderbar_entries_encoder.embedding_dim, -2)
+
+    def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
+        main_action = self.main_action(game_state)
+        sidebar_embeddings = self.siderbar_entries_encoder(
+            sidebar_mask, SidebarAssetName, SidebarContinuous
+        )
+        sidebar_action = self.sidebar_action(sidebar_embeddings)
+        return main_action, sidebar_action
+
+
+class TD_GamePlay(nn.Module):
+    def __init__(self, embedding_dim=1024):
+        super().__init__()
+        self.game_state = TD_GameEmbedding(embedding_dim)
+        self.actions = TD_Action(embedding_dim)
+
+    def forward(
+        self,
+        dynamic_mask,
+        sidebar_mask,
+        StaticAssetName,
+        StaticShapeIndex,
+        AssetName,
+        ShapeIndex,
+        Owner,
+        Pips,
+        ControlGroup,
+        Cloak,
+        Continuous,
+        SidebarInfos,
+        SidebarAssetName,
+        SidebarContinuous,
+    ):
+        latent_embedding = self.game_state(
+            dynamic_mask,
+            sidebar_mask,
+            StaticAssetName,
+            StaticShapeIndex,
+            AssetName,
+            ShapeIndex,
+            Owner,
+            Pips,
+            ControlGroup,
+            Cloak,
+            Continuous,
+            SidebarInfos,
+            SidebarAssetName,
+            SidebarContinuous,
+        )
+        actions = self.actions(latent_embedding, sidebar_mask, SidebarAssetName, SidebarContinuous)
+        return actions
 
 
 def pad_game_states(list_of_game_states, device=None):
