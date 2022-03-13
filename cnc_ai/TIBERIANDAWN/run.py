@@ -10,7 +10,7 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.model import pad_game_states, TD_GameEmbedding
+from cnc_ai.TIBERIANDAWN.model import pad_game_states, TD_GamePlay
 
 
 def get_args():
@@ -45,7 +45,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
-    nn = TD_GameEmbedding()
+    nn = TD_GamePlay()
     device = 'cpu'
 
     def on_message(self, message):
@@ -176,7 +176,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
             per_player_game_state, GameHandler.device
         )
-        m = GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
+        actions = GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
 
         buffer = b''
         for i in range(len(per_player_game_state)):
