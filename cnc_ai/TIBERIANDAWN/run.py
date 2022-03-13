@@ -4,6 +4,7 @@ import ctypes
 from random import choice
 
 from torch import no_grad
+from numpy import unravel_index
 
 import tornado.web
 import tornado.websocket
@@ -177,12 +178,43 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             per_player_game_state, GameHandler.device
         )
         actions = GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
-
-        buffer = b''
-        for i in range(len(per_player_game_state)):
-            buffer += bytes(ctypes.c_uint32(7))  # nought
-            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
+        buffer = render_actions(*(action.cpu().numpy() for action in (sidebar_mask,) + actions))
         return buffer
+
+
+def render_actions(sidebar_mask, main_action, sidebar_action, input_request_type, mouse_position):
+    buffer = b''
+    for i in range(main_action.shape[0]):
+        action_type = main_action[i].argmax()
+        if action_type == 0:
+            buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
+            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=i))
+        if action_type == 1:
+            if sidebar_mask.shape[1] > 0 and not sidebar_mask[i, 0]:
+                possible_actions = sidebar_action[i]
+                best_sidebar_element, best_action_type = unravel_index(
+                    possible_actions.argmax(), possible_actions.shape
+                )
+                buffer += bytes(ctypes.c_uint32(6))  # SIDEBARREQUEST
+                buffer += bytes(
+                    cnc_structs.SidebarRequestArgs(
+                        player_id=i,
+                        requestType=best_action_type,
+                        assetNameIndex=best_sidebar_element,
+                    )
+                )
+        elif action_type == 2:
+            buffer += bytes(ctypes.c_uint32(5))  # INPUTREQUEST
+            request_type = input_request_type[i].argmax()
+            buffer += bytes(
+                cnc_structs.InputRequestArgs(
+                    player_id=i,
+                    requestType=request_type,
+                    x1=mouse_position[i, request_type, 0],
+                    y1=mouse_position[i, request_type, 1],
+                )
+            )
+    return buffer
 
 
 def encode_list(list_of_strings):
