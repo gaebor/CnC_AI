@@ -140,9 +140,8 @@ class DoubleEmbedding(nn.Module):
         )
 
     def forward(self, asset_index, shape_index):
-        asset_index = asset_index.long()
-        assert (shape_index < self.sub_embedding_sizes[asset_index]).all()
-        indices = self.offsets[asset_index] + shape_index
+        assert (shape_index < nn.functional.embedding(asset_index, self.sub_embedding_sizes)).all()
+        indices = nn.functional.embedding(asset_index, self.offsets) + shape_index
         embedding = self.embedding(indices)
         return embedding
 
