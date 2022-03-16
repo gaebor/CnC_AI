@@ -504,12 +504,6 @@ int main(int argc, const char* argv[])
     if (NO_ERROR != InitializeWebSocket(port))
         return 1;
 
-    {
-        const std::string startup_message = "READY";
-        if (NO_ERROR != SendOnSocket((void*)startup_message.c_str(), startup_message.size() + 1))
-            return 1;
-    }
-
     if (!init_loop())
     {
         return 1;

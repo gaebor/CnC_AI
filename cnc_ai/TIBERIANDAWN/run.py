@@ -52,9 +52,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     ended_games = []
 
     def on_message(self, message):
-        if message == b'READY\0':
-            self.init_game()
-        elif len(message) == 1:
+        if len(message) == 1:
             self.loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
             self.close()
         else:
@@ -95,6 +93,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         self.loser_mask = 0
         self.messages = []
         self.set_nodelay(True)
+        self.init_game()
 
     def on_close(self):
         GameHandler.ended_games.append(self)
