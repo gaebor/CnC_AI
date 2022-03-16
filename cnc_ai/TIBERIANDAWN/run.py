@@ -14,7 +14,13 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.model import pad_game_states, TD_GamePlay
+from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
+from cnc_ai.TIBERIANDAWN.bridge import (
+    pad_game_states,
+    render_actions,
+    encode_list,
+    render_add_player_command,
+)
 
 
 def get_args():
@@ -77,14 +83,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 game.n_messages == self.n_messages for game in GameHandler.games
             ):
                 # have to keep track of internal game state
-                dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
+                game_state_tensor = pad_game_states(
                     list(chain(*(game.per_player_game_state for game in GameHandler.games))),
                     GameHandler.device,
                 )
-                actions = [
-                    action.cpu().numpy()
-                    for action in GameHandler.nn(dynamic_mask, sidebar_mask, **game_state_tensor)
-                ]
+                actions = [action.cpu().numpy() for action in GameHandler.nn(**game_state_tensor)]
                 i = 0
                 for game in GameHandler.games:
                     message = render_actions(i, len(game.players), *actions)
@@ -120,9 +123,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             if player.House not in [0, 1]:
                 player.House = choice([0, 1])
 
-            buffer = bytes(ctypes.c_uint32(2))
-            buffer += bytes(player)
-            self.write_message(buffer, binary=True)
+            self.write_message(render_add_player_command(player), binary=True)
             self.players.append(player)
 
     def print_what_player_sees(self, player):
@@ -216,47 +217,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         with open(self.folder + '/players.pkl', 'wb') as f:
             pickle.dump(self.players, f)
         self.messages = open(self.folder + '/messages.npy', 'wb')
-
-
-def render_actions(
-    offset, n_players, main_action, sidebar_action, input_request_type, mouse_position
-):
-    buffer = b''
-    for i, player_id in zip(range(offset, offset + n_players), range(n_players)):
-        action_type = main_action[i].argmax()
-        if action_type == 0:
-            buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
-            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=player_id))
-        if action_type == 1:
-            if sidebar_action.shape[1] > 0 and numpy.isnfinite(sidebar_action[i, 0]):
-                possible_actions = sidebar_action[i]
-                best_sidebar_element, best_action_type = numpy.unravel_index(
-                    possible_actions.argmax(), possible_actions.shape
-                )
-                buffer += bytes(ctypes.c_uint32(6))  # SIDEBARREQUEST
-                buffer += bytes(
-                    cnc_structs.SidebarRequestArgs(
-                        player_id=player_id,
-                        requestType=best_action_type,
-                        assetNameIndex=best_sidebar_element,
-                    )
-                )
-        elif action_type == 2:
-            buffer += bytes(ctypes.c_uint32(5))  # INPUTREQUEST
-            request_type = input_request_type[i].argmax()
-            buffer += bytes(
-                cnc_structs.InputRequestArgs(
-                    player_id=player_id,
-                    requestType=request_type,
-                    x1=mouse_position[i, request_type, 0],
-                    y1=mouse_position[i, request_type, 1],
-                )
-            )
-    return buffer
-
-
-def encode_list(list_of_strings):
-    return b''.join(map(lambda s: str.encode(s, encoding='ascii') + b'\0', list_of_strings))
 
 
 def main():
