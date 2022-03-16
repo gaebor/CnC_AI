@@ -1,6 +1,5 @@
 # https://github.com/eriklindernoren/PyTorch-GAN
 
-import numpy
 from torch import nn
 import torch
 
