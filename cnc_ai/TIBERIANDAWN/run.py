@@ -1,8 +1,10 @@
 import argparse
-from os import spawnl, P_NOWAIT
+from os import spawnl, P_NOWAIT, mkdir
 import ctypes
 from random import choice
 from itertools import chain
+from datetime import datetime
+import pickle
 
 from torch import no_grad
 import numpy
@@ -57,25 +59,26 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.close()
         else:
             # recieved the current game state
-            per_player_game_state = []
+            self.per_player_game_state = []
             offset = 0
             for _ in range(len(self.players)):
-                per_player_game_state.append(cnc_structs.convert_to_np(message[offset:]))
+                self.per_player_game_state.append(cnc_structs.convert_to_np(message[offset:]))
                 offset += cnc_structs.get_game_state_size(message[offset:])
 
-            self.messages.append(per_player_game_state)
+            numpy.save(self.messages, self.per_player_game_state)
+            self.n_messages += 1
 
-            if len(self.messages) >= GameHandler.end_limit:
+            if self.n_messages >= GameHandler.end_limit:
                 self.close()
                 return
 
             # sync games
             if (GameHandler.n_games == len(GameHandler.games)) and all(
-                len(game.messages) == len(self.messages) for game in GameHandler.games
+                game.n_messages == self.n_messages for game in GameHandler.games
             ):
                 # have to keep track of internal game state
                 dynamic_mask, sidebar_mask, game_state_tensor = pad_game_states(
-                    list(chain(*(game.messages[-1] for game in GameHandler.games))),
+                    list(chain(*(game.per_player_game_state for game in GameHandler.games))),
                     GameHandler.device,
                 )
                 actions = [
@@ -91,12 +94,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         GameHandler.games.append(self)
         self.loser_mask = 0
-        self.messages = []
+        self.n_messages = 0
         self.set_nodelay(True)
         self.init_game()
+        self.start_recording()
 
     def on_close(self):
         GameHandler.ended_games.append(self)
+        self.messages.close()
         self.end_game()
         for game in GameHandler.games:
             if game not in GameHandler.ended_games:
@@ -121,13 +126,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.players.append(player)
 
     def print_what_player_sees(self, player):
-        game_state = self.messages[-1][player]
+        game_state = self.per_player_game_state[player]
         print(cnc_structs.render_game_state_terminal(game_state))
 
     def assess_players_performance(self):
         scores = []
-        if len(self.messages) > 0:
-            for player, game_state in zip(self.players, self.messages[-1]):
+        if len(self.per_player_game_state) > 0:
+            for player, game_state in zip(self.players, self.per_player_game_state):
                 scores.append(cnc_structs.score(game_state, player.ColorIndex))
             loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         else:
@@ -138,7 +143,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def end_game(self):
         if self.loser_mask == 0:
             self.loser_mask = self.assess_players_performance()
-        print(f'game: {id(self)}, length: {len(self.messages)}, loser_mask: {self.loser_mask}')
+        with open(self.folder + '/loser_mask.txt', 'wt') as f:
+            print(self.loser_mask, file=f)
+        print(f'game: {id(self)}, length: {self.n_messages}, loser_mask: {self.loser_mask}')
         if self.loser_mask > 0:
             for i in range(len(self.players)):
                 print(f"player {i}:")
@@ -202,6 +209,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             cls.games = []
             cls.ended_games = []
             tornado.ioloop.IOLoop.current().stop()
+
+    def start_recording(self):
+        self.folder = datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S.%fs") + '_' + str(id(self))
+        mkdir(self.folder)
+        with open(self.folder + '/players.pkl', 'wb') as f:
+            pickle.dump(self.players, f)
+        self.messages = open(self.folder + '/messages.npy', 'wb')
 
 
 def render_actions(
