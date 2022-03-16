@@ -179,7 +179,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     MPlayerGoodies=1,
                     MPlayerGhosts=0,
                     MPlayerSolo=1,
-                    MPlayerUnitCount=1,
+                    MPlayerUnitCount=0,
                     IsMCVDeploy=False,
                     SpawnVisceroids=False,
                     EnableSuperweapons=True,
