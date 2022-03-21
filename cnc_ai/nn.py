@@ -30,34 +30,18 @@ class DownScaleLayer(nn.Conv2d):
         )
 
 
-# TODO nn.PixelShuffle
-class UpscaleLayer(nn.Conv2d):
+class UpscaleLayer(nn.Sequential):
     def __init__(self, in_channels, out_channels, kernel_size, upscale):
         super().__init__(
-            in_channels,
-            out_channels * upscale ** 2,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=(kernel_size - 1) // 2,
+            nn.Conv2d(
+                in_channels,
+                out_channels * upscale ** 2,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=(kernel_size - 1) // 2,
+            ),
+            nn.PixelShuffle(upscale),
         )
-        self.out_channels = out_channels
-        self.upscale = upscale
-
-    def forward(self, x):
-        conved = super().forward(x)
-        batch_size, _, height, width = conved.shape
-        conved = conved.view(
-            (batch_size, self.out_channels, self.upscale, self.upscale, height, width)
-        )
-        upscaled = torch.zeros(
-            (conved.shape[0], self.out_channels, height * self.upscale, width * self.upscale),
-            dtype=conved.dtype,
-            device=conved.device,
-        )
-        for i in range(self.upscale):
-            for j in range(self.upscale):
-                upscaled[:, :, i :: self.upscale, j :: self.upscale] = conved[:, :, i, j, :, :]
-        return upscaled
 
 
 class HiddenLayer(nn.Sequential):
@@ -66,6 +50,15 @@ class HiddenLayer(nn.Sequential):
             out_features = in_features
         super().__init__(
             nn.Linear(in_features, out_features), nn.LeakyReLU(), nn.Dropout(p=dropout)
+        )
+
+
+class ConvolutionLayer(nn.Sequential):
+    def __init__(self, n_features, dropout=0):
+        super().__init__(
+            nn.Dropout(p=dropout),
+            nn.Conv2d(n_features, n_features, 3, padding=1),
+            nn.LeakyReLU(),
         )
 
 

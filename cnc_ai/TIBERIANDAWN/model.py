@@ -3,7 +3,14 @@
 from torch import nn
 import torch
 
-from cnc_ai.nn import DoubleEmbedding, DownScaleLayer, HiddenLayer, SoftmaxReadout
+from cnc_ai.nn import (
+    DoubleEmbedding,
+    DownScaleLayer,
+    UpscaleLayer,
+    HiddenLayer,
+    SoftmaxReadout,
+    ConvolutionLayer,
+)
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
     all_asset_num_shapes,
@@ -51,6 +58,27 @@ class MapEmbedding_62_62(nn.Module):
         map_embedding = self.asset_embedding(asset_indices, shape_indices).permute(0, 3, 1, 2)
         output = self.convolutions(map_embedding)
         return output
+
+
+class MapGenerator_62_62(nn.Sequential):
+    def __init__(self, embedding_dim=1024, out_channels=3):
+        super().__init__(
+            HiddenLayer(embedding_dim, embedding_dim),
+            HiddenLayer(embedding_dim, 16 * 4 * 4 * out_channels),
+            nn.Unflatten(-1, (16 * out_channels, 4, 4)),  # 16x4x4
+            UpscaleLayer(16 * out_channels, 8 * out_channels, 3, 2),  # 8x8x8
+            nn.LeakyReLU(),
+            ConvolutionLayer(8 * out_channels),
+            UpscaleLayer(8 * out_channels, 4 * out_channels, 3, 2),  # 4x16x16
+            nn.LeakyReLU(),
+            ConvolutionLayer(4 * out_channels),
+            UpscaleLayer(4 * out_channels, 2 * out_channels, 3, 2),  # 2x32x32
+            nn.LeakyReLU(),
+            ConvolutionLayer(2 * out_channels),
+            UpscaleLayer(2 * out_channels, out_channels, 3, 2),  # 1x64x64
+            nn.LeakyReLU(),
+            nn.Conv2d(out_channels, out_channels, 3, padding=0),  # 1x62x62
+        )
 
 
 class SidebarEntriesEncoder(nn.Module):
