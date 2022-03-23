@@ -65,40 +65,48 @@ def render_add_player_command(player):
     return buffer
 
 
-def render_actions(
-    offset, n_players, main_action, sidebar_action, input_request_type, mouse_position
-):
+def render_actions(offset, n_players, mouse_action, sidebar_action):
     buffer = b''
     for i, player_id in zip(range(offset, offset + n_players), range(n_players)):
-        action_type = main_action[i].argmax()
-        if action_type == 0:
-            buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
-            buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=player_id))
-        if action_type == 1:
-            if sidebar_action.shape[1] > 0 and numpy.isnfinite(sidebar_action[i, 0]):
-                possible_actions = sidebar_action[i]
-                best_sidebar_element, best_action_type = numpy.unravel_index(
-                    possible_actions.argmax(), possible_actions.shape
-                )
-                buffer += bytes(ctypes.c_uint32(6))  # SIDEBARREQUEST
-                buffer += bytes(
-                    cnc_structs.SidebarRequestArgs(
-                        player_id=player_id,
-                        requestType=best_action_type,
-                        assetNameIndex=best_sidebar_element,
-                    )
-                )
-        elif action_type == 2:
-            buffer += bytes(ctypes.c_uint32(5))  # INPUTREQUEST
-            request_type = input_request_type[i].argmax()
-            buffer += bytes(
-                cnc_structs.InputRequestArgs(
-                    player_id=player_id,
-                    requestType=request_type,
-                    x1=mouse_position[i, request_type, 0],
-                    y1=mouse_position[i, request_type, 1],
-                )
+        if sidebar_action.shape[1] > 0 and mouse_action[i].max() < sidebar_action[i].max():
+            sidebar_element, action_type = numpy.unravel_index(
+                sidebar_action[i].argmax(), sidebar_action[i].shape
             )
+        else:
+            x, y, sub5, input_type = numpy.unravel_index(
+                mouse_action[i].argmax(), mouse_action[i].shape
+            )
+
+        buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
+        buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=player_id))
+        # if action_type == 0:
+        #     buffer += bytes(ctypes.c_uint32(7))  # NOUGHTREQUEST
+        #     buffer += bytes(cnc_structs.NoughtRequestArgs(player_id=player_id))
+        # if action_type == 1:
+        #     if sidebar_action.shape[1] > 0 and numpy.isnfinite(sidebar_action[i, 0]):
+        #         possible_actions = sidebar_action[i]
+        #         best_sidebar_element, best_action_type = numpy.unravel_index(
+        #             possible_actions.argmax(), possible_actions.shape
+        #         )
+        #         buffer += bytes(ctypes.c_uint32(6))  # SIDEBARREQUEST
+        #         buffer += bytes(
+        #             cnc_structs.SidebarRequestArgs(
+        #                 player_id=player_id,
+        #                 requestType=best_action_type,
+        #                 assetNameIndex=best_sidebar_element,
+        #             )
+        #         )
+        # elif action_type == 2:
+        #     buffer += bytes(ctypes.c_uint32(5))  # INPUTREQUEST
+        #     request_type = input_request_type[i].argmax()
+        #     buffer += bytes(
+        #         cnc_structs.InputRequestArgs(
+        #             player_id=player_id,
+        #             requestType=request_type,
+        #             x1=mouse_position[i, request_type, 0],
+        #             y1=mouse_position[i, request_type, 1],
+        #         )
+        #     )
     return buffer
 
 
