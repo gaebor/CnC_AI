@@ -54,7 +54,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     players = []
     chdir = '.'
     end_limit = 10_000
-    nn = TD_GamePlay()
+    nn = None
     device = 'cpu'
     n_games = 0
     ended_games = []
@@ -224,7 +224,7 @@ def main():
 
     GameHandler.device = args.device
     GameHandler.n_games = args.n
-    GameHandler.nn = GameHandler.nn.to(GameHandler.device)
+    GameHandler.nn = TD_GamePlay().to(GameHandler.device)
     GameHandler.chdir = args.dir
     GameHandler.end_limit = args.end_limit
     GameHandler.players.append(

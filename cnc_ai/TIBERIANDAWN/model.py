@@ -29,26 +29,25 @@ def calculate_asset_num_shapes(names_list):
 
 
 class MapEmbedding_62_62(nn.Module):
-    def __init__(self, embedding_dim=1024):
+    def __init__(self, embedding_dim=1024, static_embedding_dim=10):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.asset_embedding = DoubleEmbedding(calculate_asset_num_shapes(static_tile_names), 10)
+        self.asset_embedding = DoubleEmbedding(
+            calculate_asset_num_shapes(static_tile_names), static_embedding_dim
+        )
         self.convolutions = nn.Sequential(
-            nn.Conv2d(10, 10, 3, padding=2),  # 10x64x64
+            nn.Conv2d(static_embedding_dim, static_embedding_dim, 3, padding=2),  # 1x64x64
             nn.LeakyReLU(),
-            DownScaleLayer(10, 20, 2),  # 20x32x32
+            DownScaleLayer(static_embedding_dim, 2 * static_embedding_dim, 2),  # 2x32x32
             nn.LeakyReLU(),
-            nn.Conv2d(20, 20, 3, padding=1),
+            ConvolutionLayer(2 * static_embedding_dim),
+            DownScaleLayer(2 * static_embedding_dim, 4 * static_embedding_dim, 2),  # 4x16x16
             nn.LeakyReLU(),
-            DownScaleLayer(20, 40, 2),  # 40x16x16
+            ConvolutionLayer(4 * static_embedding_dim),
+            DownScaleLayer(4 * static_embedding_dim, 8 * static_embedding_dim, 2),  # 8x8x8
             nn.LeakyReLU(),
-            nn.Conv2d(40, 40, 3, padding=1),
-            nn.LeakyReLU(),
-            DownScaleLayer(40, 80, 2),  # 80x8x8
-            nn.LeakyReLU(),
-            nn.Conv2d(80, 80, 3, padding=1),
-            nn.LeakyReLU(),
-            DownScaleLayer(80, 160, 2),  # 160x4x4
+            ConvolutionLayer(8 * static_embedding_dim),
+            DownScaleLayer(8 * static_embedding_dim, 16 * static_embedding_dim, 2),  # 16x4x4
             nn.Flatten(),
             HiddenLayer(160 * 4 * 4, embedding_dim),
             HiddenLayer(embedding_dim, embedding_dim),
@@ -61,7 +60,7 @@ class MapEmbedding_62_62(nn.Module):
 
 
 class MapGenerator_62_62(nn.Sequential):
-    def __init__(self, embedding_dim=1024, out_channels=3):
+    def __init__(self, embedding_dim=1024, out_channels=5 * 12):
         super().__init__(
             HiddenLayer(embedding_dim, embedding_dim),
             HiddenLayer(embedding_dim, 16 * 4 * 4 * out_channels),
@@ -82,12 +81,10 @@ class MapGenerator_62_62(nn.Sequential):
 
 
 class SidebarEntriesEncoder(nn.Module):
-    def __init__(self, num_layers=2):
+    def __init__(self, num_layers=2, embedding_dim=7):
         super().__init__()
-        self.buildable_embedding = nn.Embedding(len(dynamic_object_names), 7)
-        SidebarEntriesEncoder.embedding_dim = (
-            self.buildable_embedding.embedding_dim + 6
-        )  # sidebar continuous
+        self.buildable_embedding = nn.Embedding(len(dynamic_object_names), embedding_dim)
+        self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
         self.encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=self.embedding_dim,
@@ -111,7 +108,7 @@ class SidebarEntriesEncoder(nn.Module):
 class TD_GameEmbedding(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
-        self.map_embedding = MapEmbedding_62_62(1024)
+        self.map_embedding = MapEmbedding_62_62(embedding_dim)
 
         self.unit_embedding = DoubleEmbedding(calculate_asset_num_shapes(dynamic_object_names), 16)
         self.owner_embedding = nn.Embedding(256, 3)  # 0-8 and 255 for default value
@@ -212,68 +209,53 @@ class TD_GameEmbedding(nn.Module):
         return game_state_embedding
 
 
-class SidebarReadout(nn.Module):
-    def __init__(self, embedding_dim=1024, n_readout=10):
+class SidebarDecoder(nn.Module):
+    def __init__(self, embedding_dim=1024, num_layers=2):
         super().__init__()
-        self.n_readout = n_readout
-        self.attention = nn.MultiheadAttention(
-            SidebarEntriesEncoder.embedding_dim, 1, batch_first=True
-        )
-
-        self.entries_embedding = SidebarEntriesEncoder(num_layers=0)
-
-        self.memory = nn.Sequential(
-            HiddenLayer(embedding_dim, self.entries_embedding.embedding_dim),
-            nn.Unflatten(-1, (1, -1)),  # insert a one-long dimension before the last dimension
-        )
-        self.entries_blowup = nn.Sequential(
-            HiddenLayer(
-                self.entries_embedding.embedding_dim,
-                self.entries_embedding.embedding_dim * n_readout,
+        self.decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                d_model=embedding_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=embedding_dim,
             ),
-            nn.Unflatten(-1, (n_readout, self.entries_embedding.embedding_dim)),
-            nn.Flatten(-3, -2),  # adds n_readout extra time dimension (batch_first=True)
+            num_layers=num_layers,
         )
-        self.register_buffer('mask_blowup', torch.ones((1, 1, n_readout)))
+        self.sidebar_embedding = SidebarEntriesEncoder(num_layers=0)
+        self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
+        self.embedding_dim = 12
+        self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        memory = self.memory(game_state)
-        sidebar_entries = self.entries_blowup(
-            self.entries_embedding(sidebar_mask, SidebarAssetName, SidebarContinuous)
+        sidebar_in = self.linear_in(
+            self.sidebar_embedding(sidebar_mask, SidebarAssetName, SidebarContinuous)
         )
-        sidebar_mask = (
-            torch.matmul(sidebar_mask.to(torch.float32)[:, :, None], self.mask_blowup)
-            .flatten(-2)
-            .to(torch.bool)
+        decoded = self.linear_out(
+            self.decoder(sidebar_in, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask)
         )
-        result = self.attention(
-            memory, sidebar_entries, sidebar_entries, key_padding_mask=sidebar_mask
-        )[1].unflatten(-1, (-1, self.n_readout))[:, 0]
-        return result
+        return decoded
 
 
 class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
-        self.main_action = SoftmaxReadout(3, embedding_dim)
-        self.sidebar_action = SidebarReadout(embedding_dim)
-
-        n_input_request_type = 12
-        self.input_request_type = SoftmaxReadout(n_input_request_type, embedding_dim)
-        self.mouse_position = nn.Sequential(
-            nn.Linear(embedding_dim, n_input_request_type * 2),
-            nn.Sigmoid(),
-            nn.Unflatten(-1, (n_input_request_type, 2)),
-        )
+        self.mouse_position = MapGenerator_62_62(embedding_dim)
+        self.sidebar_decoder = SidebarDecoder(embedding_dim=embedding_dim, num_layers=2)
+        self.flatten = nn.Flatten()
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        main_action = self.main_action(game_state)
-        sidebar_action = self.sidebar_action(
+        mouse = self.mouse_position(game_state).permute(0, 2, 3, 1)
+        sidebar = self.sidebar_decoder(
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
-        input_request_type = self.input_request_type(game_state)
-        mouse_position = self.mouse_position(game_state) * (62 * 24)
-        return main_action, sidebar_action, input_request_type, mouse_position
+        sidebar[sidebar_mask] = torch.tensor(
+            float('-inf'), dtype=game_state.dtype, device=game_state.device
+        )
+        actions = nn.functional.softmax(
+            torch.cat([self.flatten(mouse), self.flatten(sidebar)], 1), -1
+        )
+        return actions
 
 
 class TD_GamePlay(nn.Module):
