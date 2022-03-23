@@ -1,4 +1,6 @@
 # https://github.com/eriklindernoren/PyTorch-GAN
+from operator import mul
+from functools import reduce
 
 from torch import nn
 import torch
@@ -210,7 +212,7 @@ class TD_GameEmbedding(nn.Module):
 
 
 class SidebarDecoder(nn.Module):
-    def __init__(self, embedding_dim=1024, num_layers=2):
+    def __init__(self, embedding_dim=1024, num_layers=2, out_dim=12):
         super().__init__()
         self.decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(
@@ -224,7 +226,7 @@ class SidebarDecoder(nn.Module):
         )
         self.sidebar_embedding = SidebarEntriesEncoder(num_layers=0)
         self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
-        self.embedding_dim = 12
+        self.embedding_dim = out_dim
         self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
@@ -240,9 +242,16 @@ class SidebarDecoder(nn.Module):
 class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
+        self.per_tile_actions = (5, 12)
+        self.mouse_action_size = (62, 62) + self.per_tile_actions
+        self.mouse_action_dim = reduce(mul, self.mouse_action_size, 1)
         self.mouse_position = MapGenerator_62_62(embedding_dim)
-        self.sidebar_decoder = SidebarDecoder(embedding_dim=embedding_dim, num_layers=2)
+        self.sidebar_decoder = SidebarDecoder(
+            embedding_dim=embedding_dim, num_layers=2, out_dim=12
+        )
         self.flatten = nn.Flatten()
+        self.mouse_unflatten = nn.Unflatten(-1, self.mouse_action_size)
+        self.sidebar_unflatten = nn.Unflatten(-1, (-1, self.sidebar_decoder.embedding_dim))
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse = self.mouse_position(game_state).permute(0, 2, 3, 1)
@@ -255,7 +264,9 @@ class TD_Action(nn.Module):
         actions = nn.functional.softmax(
             torch.cat([self.flatten(mouse), self.flatten(sidebar)], 1), -1
         )
-        return actions
+        mouse_actions = self.mouse_unflatten(actions[:, : self.mouse_action_dim])
+        sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action_dim :])
+        return mouse_actions, sidebar_actions
 
 
 class TD_GamePlay(nn.Module):
