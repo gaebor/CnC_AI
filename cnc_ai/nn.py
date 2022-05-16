@@ -208,3 +208,13 @@ class SoftmaxReadout(nn.Module):
         weights = torch.nn.functional.softmax(logits.flatten(self.dim), -1)
         result = weights.unflatten(-1, logits.shape[self.dim :])
         return result
+
+
+def log_beta(alpha, beta, x):
+    return (
+        torch.log(x) * (alpha - 1)
+        + torch.log(1 - x) * (beta - 1)
+        + torch.lgamma(alpha + beta)
+        - torch.lgamma(alpha)
+        - torch.lgamma(beta)
+    )
