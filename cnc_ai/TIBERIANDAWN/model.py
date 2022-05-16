@@ -10,7 +10,6 @@ from cnc_ai.nn import (
     DownScaleLayer,
     UpscaleLayer,
     HiddenLayer,
-    SoftmaxReadout,
     ConvolutionLayer,
 )
 
@@ -51,7 +50,7 @@ class MapEmbedding_62_62(nn.Module):
             ConvolutionLayer(8 * static_embedding_dim),
             DownScaleLayer(8 * static_embedding_dim, 16 * static_embedding_dim, 2),  # 16x4x4
             nn.Flatten(),
-            HiddenLayer(160 * 4 * 4, embedding_dim),
+            HiddenLayer(16 * static_embedding_dim * 4 * 4, embedding_dim),
             HiddenLayer(embedding_dim, embedding_dim),
         )
 
