@@ -30,4 +30,6 @@ def torch_safe_load(filename, constructor):
 
 
 def multi_sample(p):
-    return searchsorted(p.cumsum(axis=1), rand(p.shape[0], 1))[:, 0]
+    return searchsorted(p.cumsum(axis=1), rand(p.shape[0], 1, dtype=p.dtype, device=p.device))[
+        :, 0
+    ]
