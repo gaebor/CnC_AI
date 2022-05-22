@@ -89,11 +89,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 )
                 action_parameters = GameHandler.nn(**game_state_tensor)
                 actions = GameHandler.nn.actions.sample(*action_parameters)
-                i = 0
+                messages = iter(render_actions(*actions))
                 for game in GameHandler.games:
-                    message = render_actions(i, len(game.players), *actions)
+                    message = b''
+                    for player in game.players:
+                        this_message = next(messages)
+                        this_message[1].player_id = player.GlyphxPlayerID
+                        message += bytes(this_message[0]) + bytes(this_message[1])
                     game.write_message(message, binary=True)
-                    i += len(game.players)
 
     def open(self):
         GameHandler.games.append(self)
