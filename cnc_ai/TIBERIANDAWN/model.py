@@ -269,8 +269,10 @@ class TD_Action(nn.Module):
 
 
 class TD_GamePlay(nn.Module):
-    def __init__(self, embedding_dim=1024):
+    def __init__(self, embedding_dim=1024, n_lstm=2):
         super().__init__()
+        self.cell_states = None
+        self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
         self.game_state = TD_GameEmbedding(embedding_dim)
         self.actions = TD_Action(embedding_dim)
 
@@ -307,5 +309,7 @@ class TD_GamePlay(nn.Module):
             SidebarAssetName,
             SidebarContinuous,
         )
-        actions = self.actions(latent_embedding, sidebar_mask, SidebarAssetName, SidebarContinuous)
+        time_progress, cell_states = self.lstm(latent_embedding[None, ...], self.cell_states)
+        self.cell_states = cell_states
+        actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
         return actions
