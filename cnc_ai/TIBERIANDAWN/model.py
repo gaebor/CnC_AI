@@ -266,7 +266,7 @@ class TD_Action(nn.Module):
         return mouse_positional_params, action_distribution
 
     def sample(self, mouse_positional_params, action_distribution):
-        chosen_actions = multi_sample(action_distribution).cpu().numpy()
+        chosen_actions = multi_sample(action_distribution)
         chosen_mouse_positional_params = (
             mouse_positional_params[
                 torch.arange(len(chosen_actions)),
@@ -281,7 +281,7 @@ class TD_Action(nn.Module):
             beta(chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3]),
         )
 
-        return chosen_actions, mouse_x, mouse_y
+        return chosen_actions.cpu().numpy(), mouse_x, mouse_y
         # mouse_actions = actions[:, : self.mouse_action.n_buttons]
         # sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action.n_buttons :])
 
