@@ -14,7 +14,7 @@ import tornado.websocket
 import tornado.ioloop
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
+from cnc_ai.TIBERIANDAWN.model import TD_GamePlay, evaluate
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
     render_actions,
@@ -89,7 +89,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 )
                 action_parameters = GameHandler.nn(**game_state_tensor)
                 actions = GameHandler.nn.actions.sample(*action_parameters)
-                messages = iter(render_actions(*actions))
+                log_prob = evaluate(
+                    action_parameters[1], actions[0], actions[3], actions[1], actions[2]
+                )
+                messages = iter(render_actions(*actions[:-1]))
                 for game in GameHandler.games:
                     message = b''
                     for player in game.players:

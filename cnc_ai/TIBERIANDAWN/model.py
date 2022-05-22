@@ -10,6 +10,7 @@ from cnc_ai.nn import (
     UpscaleLayer,
     HiddenLayer,
     ConvolutionLayer,
+    log_beta,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -258,32 +259,43 @@ class TD_Action(nn.Module):
         sidebar[sidebar_mask] = torch.tensor(
             float('-inf'), dtype=game_state.dtype, device=game_state.device
         )
-        action_distribution = nn.functional.softmax(
+        action_distribution = nn.functional.log_softmax(
             torch.cat([mouse_button_logits, self.flatten(sidebar)], 1), -1
         )
-        # mouse_actions = actions[:, : self.mouse_action.n_buttons]
-        # sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action.n_buttons :])
         return mouse_positional_params, action_distribution
 
     def sample(self, mouse_positional_params, action_distribution):
-        chosen_actions = multi_sample(action_distribution)
-        chosen_mouse_positional_params = (
-            mouse_positional_params[
-                torch.arange(len(chosen_actions)),
-                torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
-                :,
-            ]
-            .cpu()
-            .numpy()
+        chosen_actions = multi_sample(torch.exp(action_distribution))
+        chosen_mouse_positional_params = mouse_positional_params[
+            torch.arange(chosen_actions.shape[0]),
+            torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
+            :,
+        ]
+        alpha_x, beta_x, alpha_y, beta_y = (
+            chosen_mouse_positional_params[:, 0],
+            chosen_mouse_positional_params[:, 1],
+            chosen_mouse_positional_params[:, 2],
+            chosen_mouse_positional_params[:, 3],
         )
-        mouse_x, mouse_y = (
-            beta(chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1]),
-            beta(chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3]),
-        )
+        mouse_x, mouse_y = beta(alpha_x, beta_x), beta(alpha_y, beta_y)
 
-        return chosen_actions.cpu().numpy(), mouse_x, mouse_y
-        # mouse_actions = actions[:, : self.mouse_action.n_buttons]
-        # sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action.n_buttons :])
+        return chosen_actions.cpu().numpy(), mouse_x, mouse_y, chosen_mouse_positional_params
+
+
+def evaluate(
+    action_distribution, chosen_actions, chosen_mouse_positional_params, mouse_x, mouse_y
+):
+    prob = torch.take_along_dim(action_distribution, torch.tensor(chosen_actions)[:, None], dim=1)[
+        :, 0
+    ]
+
+    prob += log_beta(
+        chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1], mouse_x
+    )
+    prob += log_beta(
+        chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3], mouse_y
+    )
+    return prob
 
 
 class TD_GamePlay(nn.Module):
@@ -339,13 +351,19 @@ class MouseAction(nn.Module):
         self.n_buttons = 12  # types of mouse action, including None
         self.ff = nn.Sequential(
             *[HiddenLayer(embedding_dim) for _ in range(n_layers)],
-            HiddenLayer(embedding_dim, 4 * self.n_buttons + self.n_buttons)
+            HiddenLayer(embedding_dim, 4 * (self.n_buttons - 1) + self.n_buttons)
         )
 
     def forward(self, latent_embedding):
         logits = self.ff(latent_embedding)
-        mouse_parameters = torch.exp(
-            logits[:, : 4 * self.n_buttons].reshape(-1, self.n_buttons, 4)
+        mouse_parameters = torch.cat(
+            [
+                torch.ones(logits.shape[0], 1, 4, dtype=logits.dtype, device=logits.device),
+                torch.exp(
+                    logits[:, : 4 * (self.n_buttons - 1)].reshape(-1, self.n_buttons - 1, 4)
+                ),
+            ],
+            axis=1,
         )
-        mouse_buttons = logits[:, 4 * self.n_buttons :]
+        mouse_buttons = logits[:, -self.n_buttons :]
         return mouse_parameters, mouse_buttons
