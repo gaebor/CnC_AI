@@ -1,9 +1,8 @@
 # https://github.com/eriklindernoren/PyTorch-GAN
-from operator import mul
-from functools import reduce
 
 from torch import nn
 import torch
+from numpy.random import beta
 
 from cnc_ai.nn import (
     DoubleEmbedding,
@@ -19,6 +18,8 @@ from cnc_ai.TIBERIANDAWN.cnc_structs import (
     dynamic_object_names,
     MAX_OBJECT_PIPS,
 )
+
+from cnc_ai.common import multi_sample
 
 
 def calculate_asset_num_shapes(names_list):
@@ -242,30 +243,47 @@ class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
         self.per_tile_actions = (5, 12)
-        self.mouse_action_size = (62, 62) + self.per_tile_actions
-        self.mouse_action_dim = reduce(mul, self.mouse_action_size, 1)
-        self.mouse_position = MapGenerator_62_62(embedding_dim)
+        self.mouse_action = MouseAction(embedding_dim)
         self.sidebar_decoder = SidebarDecoder(
             embedding_dim=embedding_dim, num_layers=2, out_dim=12
         )
         self.flatten = nn.Flatten()
-        self.mouse_unflatten = nn.Unflatten(-1, self.mouse_action_size)
         self.sidebar_unflatten = nn.Unflatten(-1, (-1, self.sidebar_decoder.embedding_dim))
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        mouse = self.mouse_position(game_state).permute(0, 2, 3, 1)
+        mouse_positional_params, mouse_button_logits = self.mouse_action(game_state)
         sidebar = self.sidebar_decoder(
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
         sidebar[sidebar_mask] = torch.tensor(
             float('-inf'), dtype=game_state.dtype, device=game_state.device
         )
-        actions = nn.functional.softmax(
-            torch.cat([self.flatten(mouse), self.flatten(sidebar)], 1), -1
+        action_distribution = nn.functional.softmax(
+            torch.cat([mouse_button_logits, self.flatten(sidebar)], 1), -1
         )
-        mouse_actions = self.mouse_unflatten(actions[:, : self.mouse_action_dim])
-        sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action_dim :])
-        return mouse_actions, sidebar_actions
+        # mouse_actions = actions[:, : self.mouse_action.n_buttons]
+        # sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action.n_buttons :])
+        return mouse_positional_params, action_distribution
+
+    def sample(self, mouse_positional_params, action_distribution):
+        chosen_actions = multi_sample(action_distribution).cpu().numpy()
+        chosen_mouse_positional_params = (
+            mouse_positional_params[
+                torch.arange(len(chosen_actions)),
+                torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
+                :,
+            ]
+            .cpu()
+            .numpy()
+        )
+        mouse_x, mouse_y = (
+            beta(chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1]),
+            beta(chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3]),
+        )
+
+        return chosen_actions, mouse_x, mouse_y
+        # mouse_actions = actions[:, : self.mouse_action.n_buttons]
+        # sidebar_actions = self.sidebar_unflatten(actions[:, self.mouse_action.n_buttons :])
 
 
 class TD_GamePlay(nn.Module):
@@ -313,3 +331,21 @@ class TD_GamePlay(nn.Module):
         self.cell_states = cell_states
         actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
         return actions
+
+
+class MouseAction(nn.Module):
+    def __init__(self, embedding_dim=1024, n_layers=2):
+        super().__init__()
+        self.n_buttons = 12  # types of mouse action, including None
+        self.ff = nn.Sequential(
+            *[HiddenLayer(embedding_dim) for _ in range(n_layers)],
+            HiddenLayer(embedding_dim, 4 * self.n_buttons + self.n_buttons)
+        )
+
+    def forward(self, latent_embedding):
+        logits = self.ff(latent_embedding)
+        mouse_parameters = torch.exp(
+            logits[:, : 4 * self.n_buttons].reshape(-1, self.n_buttons, 4)
+        )
+        mouse_buttons = logits[:, 4 * self.n_buttons :]
+        return mouse_parameters, mouse_buttons

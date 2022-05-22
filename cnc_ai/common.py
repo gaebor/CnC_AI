@@ -1,4 +1,4 @@
-from torch import load
+from torch import load, searchsorted, rand
 
 
 def number_of_digits(n):
@@ -27,3 +27,7 @@ def torch_safe_load(filename, constructor):
         return load(filename)
     except FileNotFoundError:
         return constructor()
+
+
+def multi_sample(p):
+    return searchsorted(p.cumsum(axis=1), rand(p.shape[0], 1))[:, 0]

@@ -87,7 +87,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     list(chain(*(game.per_player_game_state for game in GameHandler.games))),
                     GameHandler.device,
                 )
-                actions = [action.cpu().numpy() for action in GameHandler.nn(**game_state_tensor)]
+                action_parameters = GameHandler.nn(**game_state_tensor)
+                actions = GameHandler.nn.actions.sample(*action_parameters)
                 i = 0
                 for game in GameHandler.games:
                     message = render_actions(i, len(game.players), *actions)
