@@ -267,11 +267,16 @@ class TD_Action(nn.Module):
 
     def sample(self, mouse_positional_params, action_distribution):
         chosen_actions = multi_sample(torch.exp(action_distribution))
-        chosen_mouse_positional_params = mouse_positional_params[
-            torch.arange(chosen_actions.shape[0]),
-            torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
-            :,
-        ]
+        chosen_mouse_positional_params = (
+            mouse_positional_params[
+                torch.arange(chosen_actions.shape[0]),
+                torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
+                :,
+            ]
+            .cpu()
+            .numpy()
+        )
+        chosen_actions = chosen_actions.cpu().numpy()
         alpha_x, beta_x, alpha_y, beta_y = (
             chosen_mouse_positional_params[:, 0],
             chosen_mouse_positional_params[:, 1],
@@ -280,25 +285,29 @@ class TD_Action(nn.Module):
         )
         mouse_x, mouse_y = beta(alpha_x, beta_x), beta(alpha_y, beta_y)
 
-        return chosen_actions.cpu().numpy(), mouse_x, mouse_y
+        return chosen_actions, mouse_x, mouse_y
 
     def evaluate(
         self, mouse_positional_params, action_distribution, chosen_actions, mouse_x, mouse_y
     ):
+        device = mouse_positional_params.device
+        chosen_actions = torch.tensor(chosen_actions, device=device)
         chosen_mouse_positional_params = mouse_positional_params[
-            numpy.arange(chosen_actions.shape[0]),
-            numpy.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
+            torch.arange(chosen_actions.shape[0]),
+            torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
             :,
         ]
-        prob = torch.take_along_dim(
-            action_distribution, torch.tensor(chosen_actions)[:, None], dim=1
-        )[:, 0]
+        prob = torch.take_along_dim(action_distribution, chosen_actions[:, None], dim=1)[:, 0]
 
         prob += log_beta(
-            chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1], mouse_x
+            chosen_mouse_positional_params[:, 0],
+            chosen_mouse_positional_params[:, 1],
+            torch.tensor(mouse_x, device=device),
         )
         prob += log_beta(
-            chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3], mouse_y
+            chosen_mouse_positional_params[:, 2],
+            chosen_mouse_positional_params[:, 3],
+            torch.tensor(mouse_y, device=device),
         )
         return prob
 

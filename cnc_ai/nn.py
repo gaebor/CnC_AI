@@ -212,8 +212,8 @@ class SoftmaxReadout(nn.Module):
 
 def log_beta(alpha, beta, x):
     return (
-        torch.log(torch.tensor(x)) * (alpha - 1)
-        + torch.log(torch.tensor(1 - x)) * (beta - 1)
+        torch.log(x) * (alpha - 1)
+        + torch.log(1 - x) * (beta - 1)
         + torch.lgamma(alpha + beta)
         - torch.lgamma(alpha)
         - torch.lgamma(beta)
