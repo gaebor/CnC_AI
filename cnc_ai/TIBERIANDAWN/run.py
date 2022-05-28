@@ -6,7 +6,7 @@ from itertools import chain
 from datetime import datetime
 import pickle
 
-from torch import no_grad
+import torch
 import numpy
 
 import tornado.web
@@ -46,6 +46,15 @@ def get_args():
         help='absolute path',
     )
     parser.add_argument('-d', '--device', default='cpu', help='pytorch device')
+    parser.add_argument(
+        '--load',
+        default='',
+        help='loads model from pytorch model file '
+        'rather than initializing a new one on the beginning',
+    )
+    parser.add_argument(
+        '--save', default='', help='save model to pytorch model file after the game(s)'
+    )
     return parser.parse_args()
 
 
@@ -191,7 +200,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     MPlayerGoodies=1,
                     MPlayerGhosts=0,
                     MPlayerSolo=1,
-                    MPlayerUnitCount=0,
+                    MPlayerUnitCount=1,
                     IsMCVDeploy=False,
                     SpawnVisceroids=False,
                     EnableSuperweapons=True,
@@ -240,7 +249,10 @@ def main():
 
     GameHandler.device = args.device
     GameHandler.n_games = args.n
-    GameHandler.nn = TD_GamePlay().to(GameHandler.device)
+    GameHandler.nn = (TD_GamePlay() if args.load == '' else torch.load(args.load)).to(
+        GameHandler.device
+    )
+
     GameHandler.chdir = args.dir
     GameHandler.end_limit = args.end_limit
     GameHandler.players.append(
@@ -273,8 +285,11 @@ def main():
     for _ in range(args.n):
         spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
     tornado.ioloop.IOLoop.current().start()
+    if args.save != '':
+        GameHandler.nn.reset()
+        torch.save(GameHandler.nn, args.save)
 
 
 if __name__ == '__main__':
-    with no_grad():
+    with torch.no_grad():
         main()

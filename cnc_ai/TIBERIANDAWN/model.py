@@ -315,7 +315,7 @@ class TD_Action(nn.Module):
 class TD_GamePlay(nn.Module):
     def __init__(self, embedding_dim=1024, n_lstm=2):
         super().__init__()
-        self.cell_states = None
+        self.reset()
         self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
         self.game_state = TD_GameEmbedding(embedding_dim)
         self.actions = TD_Action(embedding_dim)
@@ -357,6 +357,9 @@ class TD_GamePlay(nn.Module):
         self.cell_states = cell_states
         actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
         return actions
+
+    def reset(self):
+        self.cell_states = None
 
 
 class MouseAction(nn.Module):
