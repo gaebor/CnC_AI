@@ -71,7 +71,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 self.per_player_game_state.append(cnc_structs.convert_to_np(message[offset:]))
                 offset += cnc_structs.get_game_state_size(message[offset:])
 
-            numpy.save(self.messages, self.per_player_game_state)
             self.n_messages += 1
 
             if self.n_messages >= GameHandler.end_limit:
@@ -92,6 +91,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 for game, per_game_actions in zip(
                     GameHandler.games, GameHandler.split_per_games(zip(*actions))
                 ):
+                    numpy.save(game.messages, game.per_player_game_state)
+                    numpy.save(game.messages, per_game_actions)
                     message = b''
                     for player, action in zip(game.players, per_game_actions):
                         message += render_action(player.GlyphxPlayerID, *action)
