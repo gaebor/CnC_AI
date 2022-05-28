@@ -17,7 +17,7 @@ from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
-    render_actions,
+    render_action,
     encode_list,
     render_add_player_command,
 )
@@ -84,19 +84,17 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 # have to keep track of internal game state
                 game_state_tensor = pad_game_states(
-                    list(chain(*(game.per_player_game_state for game in GameHandler.games))),
-                    GameHandler.device,
+                    GameHandler.chain_game_states(), GameHandler.device
                 )
                 action_parameters = GameHandler.nn(**game_state_tensor)
                 actions = GameHandler.nn.actions.sample(*action_parameters)
                 log_prob = GameHandler.nn.actions.evaluate(*action_parameters, *actions)
-                messages = iter(render_actions(*actions))
-                for game in GameHandler.games:
+                for game, per_game_actions in zip(
+                    GameHandler.games, GameHandler.split_per_games(zip(*actions))
+                ):
                     message = b''
-                    for player in game.players:
-                        this_message = next(messages)
-                        this_message[1].player_id = player.GlyphxPlayerID
-                        message += bytes(this_message[0]) + bytes(this_message[1])
+                    for player, action in zip(game.players, per_game_actions):
+                        message += render_action(player.GlyphxPlayerID, *action)
                     game.write_message(message, binary=True)
 
     def open(self):
@@ -222,6 +220,18 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         with open(self.folder + '/players.pkl', 'wb') as f:
             pickle.dump(self.players, f)
         self.messages = open(self.folder + '/messages.npy', 'wb')
+
+    @classmethod
+    def chain_game_states(cls):
+        return list(chain(*(game.per_player_game_state for game in cls.games)))
+
+    @classmethod
+    def split_per_games(cls, l):
+        result = []
+        l = iter(l)
+        for game in cls.games:
+            result.append([next(l) for _ in range(len(game.players))])
+        return result
 
 
 def main():

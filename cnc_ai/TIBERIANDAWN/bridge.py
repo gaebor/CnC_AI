@@ -65,29 +65,21 @@ def render_add_player_command(player):
     return buffer
 
 
-def render_actions(action_index, mouse_x, mouse_y):
-    for i in range(action_index.shape[0]):
-        if action_index[i] < 12:
-            yield (
-                ctypes.c_uint32(5),  # INPUTREQUEST
-                cnc_structs.InputRequestArgs(
-                    requestType=action_index[i],
-                    x1=1488 * mouse_x[i],
-                    y1=1488 * mouse_y[i],
-                ),
+def render_action(player_id, action_index, mouse_x, mouse_y):
+    if action_index < 12:  # INPUTREQUEST
+        return bytes(ctypes.c_uint32(5)) + bytes(
+            cnc_structs.InputRequestArgs(
+                player_id=player_id, requestType=action_index, x1=1488 * mouse_x, y1=1488 * mouse_y
             )
-        else:
-            sidebar_absolute_index = action_index[i] - 12
-            action_type, sidebar_element = (
-                sidebar_absolute_index % 12,
-                sidebar_absolute_index // 12,
-            )
-            yield (
-                ctypes.c_uint32(6),  # SIDEBARREQUEST
-                cnc_structs.SidebarRequestArgs(
-                    player_id=i, requestType=action_type, assetNameIndex=sidebar_element
-                ),
-            )
+        )
+    else:  # SIDEBARREQUEST
+        sidebar_index = action_index - 12
+        action_type, sidebar_element = sidebar_index % 12, sidebar_index // 12
+        return bytes(ctypes.c_uint32(6)) + bytes(
+            cnc_structs.SidebarRequestArgs(
+                player_id=player_id, requestType=action_type, assetNameIndex=sidebar_element
+            ),
+        )
 
 
 def encode_list(list_of_strings):
