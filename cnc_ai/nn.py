@@ -1,6 +1,5 @@
 from torch import nn
 import torch
-import numpy
 
 
 def soft_inverse_norm(length):
