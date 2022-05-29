@@ -312,7 +312,7 @@ class MouseAction(nn.Module):
         self.n_buttons = 12  # types of mouse action, including None
         self.ff = nn.Sequential(
             *[HiddenLayer(embedding_dim) for _ in range(n_layers)],
-            HiddenLayer(embedding_dim, 4 * (self.n_buttons - 1) + self.n_buttons)
+            HiddenLayer(embedding_dim, 4 * (self.n_buttons - 1) + self.n_buttons),
         )
 
     def forward(self, latent_embedding):

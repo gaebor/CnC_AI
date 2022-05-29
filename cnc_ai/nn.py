@@ -218,3 +218,20 @@ def log_beta(alpha, beta, x):
         - torch.lgamma(alpha)
         - torch.lgamma(beta)
     )
+
+
+def save(module, path):
+    parameters = {'class': type(module).__name__, 'init': {}, 'state_dict': module.state_dict()}
+    torch.save(parameters, path)
+
+
+def load(Class, path):
+    parameters = torch.load(path)
+    module = Class(**parameters['init'])
+    if Class.__name__ != parameters['class']:
+        raise ValueError(
+            f"Class to load ('{Class.__name__}') is not compatible with "
+            f"saved class ('{parameters['class']}')"
+        )
+    module.load_state_dict(parameters['state_dict'])
+    return module

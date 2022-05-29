@@ -7,12 +7,12 @@ from datetime import datetime
 import pickle
 
 import numpy
-from torch import load as torch_load, save as torch_save
 
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
+from cnc_ai.nn import load, save
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.TIBERIANDAWN.bridge import (
@@ -250,7 +250,7 @@ def main():
     GameHandler.device = args.device
     GameHandler.n_games = args.n
     GameHandler.nn = (
-        (TD_GamePlay() if args.load == '' else torch_load(args.load))
+        (TD_GamePlay() if args.load == '' else load(TD_GamePlay, args.load))
         .to(GameHandler.device)
         .train(False)
     )
@@ -289,7 +289,7 @@ def main():
     tornado.ioloop.IOLoop.current().start()
     if args.save != '':
         GameHandler.nn.reset()
-        torch_save(GameHandler.nn, args.save)
+        save(GameHandler.nn, args.save)
 
 
 if __name__ == '__main__':
