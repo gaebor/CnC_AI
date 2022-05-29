@@ -46,6 +46,12 @@
 
 ## game logic
  * `CNC_Advance_Instance`
+   * the time delay between the calls of this function determines the game speed
+   * according to my measurements:
+     * slowest: 180ms
+     * slow: 60ms
+     * normal: 30ms
+     * fastest: 17ms (could be 60fps)
 ### user input
  * `CNC_Handle_Input`: mouse clicks, area
    * for example deploying MCV is registered as COMMAND_AT_POSITION
