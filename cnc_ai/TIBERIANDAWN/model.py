@@ -64,7 +64,7 @@ class TD_GamePlay(nn.Module):
             SidebarContinuous,
         )
         time_progress, cell_states = self.lstm(latent_embedding[None, ...], self.cell_states)
-        self.cell_states = cell_states
+        self.cell_states = cell_states[0].detach(), cell_states[1].detach()
         actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
         return actions
 
@@ -268,6 +268,7 @@ class TD_Action(nn.Module):
         chosen_actions = multi_sample(torch.exp(action_distribution))
         chosen_mouse_positional_params = (
             self.mouse_action.choose_beta_parameters(mouse_positional_params, chosen_actions)
+            .detach()
             .cpu()
             .numpy()
         )
