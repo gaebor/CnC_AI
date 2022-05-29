@@ -7,30 +7,27 @@ from torch import tensor
 from cnc_ai.TIBERIANDAWN import cnc_structs
 
 
-def pad_game_states(list_of_game_states, device):
+def pad_game_states(list_of_game_states):
     result = {
         **{
             new_key: tensor(
                 compute_key_padding_mask(
                     [len(game_state[key]) for game_state in list_of_game_states]
                 )
-            ).to(device)
+            )
             for new_key, key in [
                 ('dynamic_mask', 'AssetName'),
                 ('sidebar_mask', 'SidebarAssetName'),
             ]
         },
         **{
-            key: tensor(
-                numpy.stack([game_state[key] for game_state in list_of_game_states], 0)
-            ).to(device)
+            key: tensor(numpy.stack([game_state[key] for game_state in list_of_game_states], 0))
             for key in ['StaticAssetName', 'StaticShapeIndex', 'SidebarInfos']
         },
         **{
             key: pad_sequence(
-                [tensor(game_state[key]) for game_state in list_of_game_states],
-                batch_first=True,
-            ).to(device)
+                [tensor(game_state[key]) for game_state in list_of_game_states], batch_first=True
+            )
             for key in [
                 'AssetName',
                 'ShapeIndex',
