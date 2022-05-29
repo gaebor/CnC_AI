@@ -2,13 +2,11 @@
 
 from torch import nn
 import torch
-import numpy
 from numpy.random import beta
 
 from cnc_ai.nn import (
     DoubleEmbedding,
     DownScaleLayer,
-    UpscaleLayer,
     HiddenLayer,
     ConvolutionLayer,
     log_beta,
@@ -24,89 +22,54 @@ from cnc_ai.TIBERIANDAWN.cnc_structs import (
 from cnc_ai.common import multi_sample
 
 
-def calculate_asset_num_shapes(names_list):
-    names_dict = {v: i for i, v in enumerate(names_list)}
-    asset_num_shapes = {
-        names_dict[k]: v for k, v in all_asset_num_shapes.items() if k in names_dict
-    }
-    return asset_num_shapes
-
-
-class MapEmbedding_62_62(nn.Module):
-    def __init__(self, embedding_dim=1024, static_embedding_dim=10):
+class TD_GamePlay(nn.Module):
+    def __init__(self, embedding_dim=1024, n_lstm=2):
         super().__init__()
-        self.embedding_dim = embedding_dim
-        self.asset_embedding = DoubleEmbedding(
-            calculate_asset_num_shapes(static_tile_names), static_embedding_dim
+        self.reset()
+        self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
+        self.game_state = TD_GameEmbedding(embedding_dim)
+        self.actions = TD_Action(embedding_dim)
+
+    def forward(
+        self,
+        dynamic_mask,
+        sidebar_mask,
+        StaticAssetName,
+        StaticShapeIndex,
+        AssetName,
+        ShapeIndex,
+        Owner,
+        Pips,
+        ControlGroup,
+        Cloak,
+        Continuous,
+        SidebarInfos,
+        SidebarAssetName,
+        SidebarContinuous,
+    ):
+        latent_embedding = self.game_state(
+            dynamic_mask,
+            sidebar_mask,
+            StaticAssetName,
+            StaticShapeIndex,
+            AssetName,
+            ShapeIndex,
+            Owner,
+            Pips,
+            ControlGroup,
+            Cloak,
+            Continuous,
+            SidebarInfos,
+            SidebarAssetName,
+            SidebarContinuous,
         )
-        self.convolutions = nn.Sequential(
-            nn.Conv2d(static_embedding_dim, static_embedding_dim, 3, padding=2),  # 1x64x64
-            nn.LeakyReLU(),
-            DownScaleLayer(static_embedding_dim, 2 * static_embedding_dim, 2),  # 2x32x32
-            nn.LeakyReLU(),
-            ConvolutionLayer(2 * static_embedding_dim),
-            DownScaleLayer(2 * static_embedding_dim, 4 * static_embedding_dim, 2),  # 4x16x16
-            nn.LeakyReLU(),
-            ConvolutionLayer(4 * static_embedding_dim),
-            DownScaleLayer(4 * static_embedding_dim, 8 * static_embedding_dim, 2),  # 8x8x8
-            nn.LeakyReLU(),
-            ConvolutionLayer(8 * static_embedding_dim),
-            DownScaleLayer(8 * static_embedding_dim, 16 * static_embedding_dim, 2),  # 16x4x4
-            nn.Flatten(),
-            HiddenLayer(16 * static_embedding_dim * 4 * 4, embedding_dim),
-            HiddenLayer(embedding_dim, embedding_dim),
-        )
+        time_progress, cell_states = self.lstm(latent_embedding[None, ...], self.cell_states)
+        self.cell_states = cell_states
+        actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
+        return actions
 
-    def forward(self, asset_indices, shape_indices):
-        map_embedding = self.asset_embedding(asset_indices, shape_indices).permute(0, 3, 1, 2)
-        output = self.convolutions(map_embedding)
-        return output
-
-
-class MapGenerator_62_62(nn.Sequential):
-    def __init__(self, embedding_dim=1024, out_channels=5 * 12):
-        super().__init__(
-            HiddenLayer(embedding_dim, embedding_dim),
-            HiddenLayer(embedding_dim, 16 * 4 * 4 * out_channels),
-            nn.Unflatten(-1, (16 * out_channels, 4, 4)),  # 16x4x4
-            UpscaleLayer(16 * out_channels, 8 * out_channels, 3, 2),  # 8x8x8
-            nn.LeakyReLU(),
-            ConvolutionLayer(8 * out_channels),
-            UpscaleLayer(8 * out_channels, 4 * out_channels, 3, 2),  # 4x16x16
-            nn.LeakyReLU(),
-            ConvolutionLayer(4 * out_channels),
-            UpscaleLayer(4 * out_channels, 2 * out_channels, 3, 2),  # 2x32x32
-            nn.LeakyReLU(),
-            ConvolutionLayer(2 * out_channels),
-            UpscaleLayer(2 * out_channels, out_channels, 3, 2),  # 1x64x64
-            nn.LeakyReLU(),
-            nn.Conv2d(out_channels, out_channels, 3, padding=0),  # 1x62x62
-        )
-
-
-class SidebarEntriesEncoder(nn.Module):
-    def __init__(self, num_layers=2, embedding_dim=7):
-        super().__init__()
-        self.buildable_embedding = nn.Embedding(len(dynamic_object_names), embedding_dim)
-        self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
-        self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=16,
-            ),
-            num_layers=num_layers,
-        )
-
-    def forward(self, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        siderbar_entries = torch.cat(
-            [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
-            axis=2,
-        )
-        sidebar_embeddings = self.encoder(siderbar_entries, src_key_padding_mask=sidebar_mask)
-        return sidebar_embeddings
+    def reset(self):
+        self.cell_states = None
 
 
 class TD_GameEmbedding(nn.Module):
@@ -213,32 +176,68 @@ class TD_GameEmbedding(nn.Module):
         return game_state_embedding
 
 
-class SidebarDecoder(nn.Module):
-    def __init__(self, embedding_dim=1024, num_layers=2, out_dim=12):
+class MapEmbedding_62_62(nn.Module):
+    def __init__(self, embedding_dim=1024, static_embedding_dim=10):
         super().__init__()
-        self.decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(
-                d_model=embedding_dim,
+        self.embedding_dim = embedding_dim
+        self.asset_embedding = DoubleEmbedding(
+            calculate_asset_num_shapes(static_tile_names), static_embedding_dim
+        )
+        self.convolutions = nn.Sequential(
+            nn.Conv2d(static_embedding_dim, static_embedding_dim, 3, padding=2),  # 1x64x64
+            nn.LeakyReLU(),
+            DownScaleLayer(static_embedding_dim, 2 * static_embedding_dim, 2),  # 2x32x32
+            nn.LeakyReLU(),
+            ConvolutionLayer(2 * static_embedding_dim),
+            DownScaleLayer(2 * static_embedding_dim, 4 * static_embedding_dim, 2),  # 4x16x16
+            nn.LeakyReLU(),
+            ConvolutionLayer(4 * static_embedding_dim),
+            DownScaleLayer(4 * static_embedding_dim, 8 * static_embedding_dim, 2),  # 8x8x8
+            nn.LeakyReLU(),
+            ConvolutionLayer(8 * static_embedding_dim),
+            DownScaleLayer(8 * static_embedding_dim, 16 * static_embedding_dim, 2),  # 16x4x4
+            nn.Flatten(),
+            HiddenLayer(16 * static_embedding_dim * 4 * 4, embedding_dim),
+            HiddenLayer(embedding_dim, embedding_dim),
+        )
+
+    def forward(self, asset_indices, shape_indices):
+        map_embedding = self.asset_embedding(asset_indices, shape_indices).permute(0, 3, 1, 2)
+        output = self.convolutions(map_embedding)
+        return output
+
+
+def calculate_asset_num_shapes(names_list):
+    names_dict = {v: i for i, v in enumerate(names_list)}
+    asset_num_shapes = {
+        names_dict[k]: v for k, v in all_asset_num_shapes.items() if k in names_dict
+    }
+    return asset_num_shapes
+
+
+class SidebarEntriesEncoder(nn.Module):
+    def __init__(self, num_layers=2, embedding_dim=7):
+        super().__init__()
+        self.buildable_embedding = nn.Embedding(len(dynamic_object_names), embedding_dim)
+        self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
+        self.encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=self.embedding_dim,
                 nhead=1,
                 batch_first=True,
                 layer_norm_eps=0,
-                dim_feedforward=embedding_dim,
+                dim_feedforward=16,
             ),
             num_layers=num_layers,
         )
-        self.sidebar_embedding = SidebarEntriesEncoder(num_layers=0)
-        self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
-        self.embedding_dim = out_dim
-        self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
 
-    def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        sidebar_in = self.linear_in(
-            self.sidebar_embedding(sidebar_mask, SidebarAssetName, SidebarContinuous)
+    def forward(self, sidebar_mask, SidebarAssetName, SidebarContinuous):
+        siderbar_entries = torch.cat(
+            [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
+            axis=2,
         )
-        decoded = self.linear_out(
-            self.decoder(sidebar_in, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask)
-        )
-        return decoded
+        sidebar_embeddings = self.encoder(siderbar_entries, src_key_padding_mask=sidebar_mask)
+        return sidebar_embeddings
 
 
 class TD_Action(nn.Module):
@@ -268,11 +267,7 @@ class TD_Action(nn.Module):
     def sample(self, mouse_positional_params, action_distribution):
         chosen_actions = multi_sample(torch.exp(action_distribution))
         chosen_mouse_positional_params = (
-            mouse_positional_params[
-                torch.arange(chosen_actions.shape[0]),
-                torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
-                :,
-            ]
+            self.mouse_action.choose_beta_parameters(mouse_positional_params, chosen_actions)
             .cpu()
             .numpy()
         )
@@ -292,11 +287,9 @@ class TD_Action(nn.Module):
     ):
         device = mouse_positional_params.device
         chosen_actions = torch.tensor(chosen_actions, device=device)
-        chosen_mouse_positional_params = mouse_positional_params[
-            torch.arange(chosen_actions.shape[0]),
-            torch.where(chosen_actions >= self.mouse_action.n_buttons, 0, chosen_actions),
-            :,
-        ]
+        chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
+            mouse_positional_params, chosen_actions
+        )
         prob = torch.take_along_dim(action_distribution, chosen_actions[:, None], dim=1)[:, 0]
 
         prob += log_beta(
@@ -310,56 +303,6 @@ class TD_Action(nn.Module):
             torch.tensor(mouse_y, device=device),
         )
         return prob
-
-
-class TD_GamePlay(nn.Module):
-    def __init__(self, embedding_dim=1024, n_lstm=2):
-        super().__init__()
-        self.reset()
-        self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
-        self.game_state = TD_GameEmbedding(embedding_dim)
-        self.actions = TD_Action(embedding_dim)
-
-    def forward(
-        self,
-        dynamic_mask,
-        sidebar_mask,
-        StaticAssetName,
-        StaticShapeIndex,
-        AssetName,
-        ShapeIndex,
-        Owner,
-        Pips,
-        ControlGroup,
-        Cloak,
-        Continuous,
-        SidebarInfos,
-        SidebarAssetName,
-        SidebarContinuous,
-    ):
-        latent_embedding = self.game_state(
-            dynamic_mask,
-            sidebar_mask,
-            StaticAssetName,
-            StaticShapeIndex,
-            AssetName,
-            ShapeIndex,
-            Owner,
-            Pips,
-            ControlGroup,
-            Cloak,
-            Continuous,
-            SidebarInfos,
-            SidebarAssetName,
-            SidebarContinuous,
-        )
-        time_progress, cell_states = self.lstm(latent_embedding[None, ...], self.cell_states)
-        self.cell_states = cell_states
-        actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
-        return actions
-
-    def reset(self):
-        self.cell_states = None
 
 
 class MouseAction(nn.Module):
@@ -384,3 +327,39 @@ class MouseAction(nn.Module):
         )
         mouse_buttons = logits[:, -self.n_buttons :]
         return mouse_parameters, mouse_buttons
+
+    def choose_beta_parameters(self, mouse_positional_params, chosen_actions):
+        chosen_mouse_positional_params = mouse_positional_params[
+            torch.arange(chosen_actions.shape[0]),
+            torch.where(chosen_actions >= self.n_buttons, 0, chosen_actions),
+            :,
+        ]
+        return chosen_mouse_positional_params
+
+
+class SidebarDecoder(nn.Module):
+    def __init__(self, embedding_dim=1024, num_layers=2, out_dim=12):
+        super().__init__()
+        self.decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                d_model=embedding_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=embedding_dim,
+            ),
+            num_layers=num_layers,
+        )
+        self.sidebar_embedding = SidebarEntriesEncoder(num_layers=0)
+        self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
+        self.embedding_dim = out_dim
+        self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
+
+    def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
+        sidebar_in = self.linear_in(
+            self.sidebar_embedding(sidebar_mask, SidebarAssetName, SidebarContinuous)
+        )
+        decoded = self.linear_out(
+            self.decoder(sidebar_in, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask)
+        )
+        return decoded
