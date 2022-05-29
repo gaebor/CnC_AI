@@ -33,3 +33,7 @@ def multi_sample(p):
     return searchsorted(p.cumsum(axis=1), rand(p.shape[0], 1, dtype=p.dtype, device=p.device))[
         :, 0
     ]
+
+
+def dictmap(d, f):
+    return {k: f(v) for k, v in d.items()}
