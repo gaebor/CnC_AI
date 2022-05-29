@@ -6,8 +6,8 @@ from itertools import chain
 from datetime import datetime
 import pickle
 
-import torch
 import numpy
+from torch import load as torch_load, save as torch_save
 
 import tornado.web
 import tornado.websocket
@@ -249,8 +249,10 @@ def main():
 
     GameHandler.device = args.device
     GameHandler.n_games = args.n
-    GameHandler.nn = (TD_GamePlay() if args.load == '' else torch.load(args.load)).to(
-        GameHandler.device
+    GameHandler.nn = (
+        (TD_GamePlay() if args.load == '' else torch_load(args.load))
+        .to(GameHandler.device)
+        .train(False)
     )
 
     GameHandler.chdir = args.dir
@@ -287,9 +289,8 @@ def main():
     tornado.ioloop.IOLoop.current().start()
     if args.save != '':
         GameHandler.nn.reset()
-        torch.save(GameHandler.nn, args.save)
+        torch_save(GameHandler.nn, args.save)
 
 
 if __name__ == '__main__':
-    with torch.no_grad():
-        main()
+    main()
