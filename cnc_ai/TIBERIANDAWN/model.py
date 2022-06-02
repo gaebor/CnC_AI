@@ -2,7 +2,7 @@
 
 from torch import nn
 import torch
-from numpy.random import beta
+from torch.distributions.beta import Beta
 
 from cnc_ai.nn import (
     DoubleEmbedding,
@@ -10,6 +10,7 @@ from cnc_ai.nn import (
     HiddenLayer,
     ConvolutionLayer,
     log_beta,
+    interflatten,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -47,7 +48,8 @@ class TD_GamePlay(nn.Module):
         SidebarAssetName,
         SidebarContinuous,
     ):
-        latent_embedding = self.game_state(
+        latent_embedding = interflatten(
+            self.game_state,
             dynamic_mask,
             sidebar_mask,
             StaticAssetName,
@@ -63,9 +65,11 @@ class TD_GamePlay(nn.Module):
             SidebarAssetName,
             SidebarContinuous,
         )
-        time_progress, cell_states = self.lstm(latent_embedding[None, ...], self.cell_states)
+        time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
         self.cell_states = cell_states[0].detach(), cell_states[1].detach()
-        actions = self.actions(time_progress[0], sidebar_mask, SidebarAssetName, SidebarContinuous)
+        actions = interflatten(
+            self.actions, time_progress, sidebar_mask, SidebarAssetName, SidebarContinuous
+        )
         return actions
 
     def reset(self):
@@ -149,7 +153,7 @@ class TD_GameEmbedding(nn.Module):
                 self.cloak_embedding(Cloak),
                 Continuous,
             ],
-            axis=2,
+            axis=-1,
         )
         internal_vectors = [
             map_embedding,
@@ -266,42 +270,32 @@ class TD_Action(nn.Module):
 
     def sample(self, mouse_positional_params, action_distribution):
         chosen_actions = multi_sample(torch.exp(action_distribution))
-        chosen_mouse_positional_params = (
-            self.mouse_action.choose_beta_parameters(mouse_positional_params, chosen_actions)
-            .detach()
-            .cpu()
-            .numpy()
+        chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
+            mouse_positional_params, chosen_actions
         )
-        chosen_actions = chosen_actions.cpu().numpy()
         alpha_x, beta_x, alpha_y, beta_y = (
             chosen_mouse_positional_params[:, 0],
             chosen_mouse_positional_params[:, 1],
             chosen_mouse_positional_params[:, 2],
             chosen_mouse_positional_params[:, 3],
         )
-        mouse_x, mouse_y = beta(alpha_x, beta_x), beta(alpha_y, beta_y)
+        mouse_x, mouse_y = Beta(alpha_x, beta_x).sample(), Beta(alpha_y, beta_y).sample()
 
         return chosen_actions, mouse_x, mouse_y
 
     def evaluate(
         self, mouse_positional_params, action_distribution, chosen_actions, mouse_x, mouse_y
     ):
-        device = mouse_positional_params.device
-        chosen_actions = torch.tensor(chosen_actions, device=device)
         chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
             mouse_positional_params, chosen_actions
         )
         prob = torch.take_along_dim(action_distribution, chosen_actions[:, None], dim=1)[:, 0]
 
         prob += log_beta(
-            chosen_mouse_positional_params[:, 0],
-            chosen_mouse_positional_params[:, 1],
-            torch.tensor(mouse_x, device=device),
+            chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1], mouse_x
         )
         prob += log_beta(
-            chosen_mouse_positional_params[:, 2],
-            chosen_mouse_positional_params[:, 3],
-            torch.tensor(mouse_y, device=device),
+            chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3], mouse_y
         )
         return prob
 

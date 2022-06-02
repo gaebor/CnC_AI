@@ -2,17 +2,16 @@ import argparse
 from os import spawnl, P_NOWAIT, mkdir
 import ctypes
 from random import choice
-from itertools import chain
+from itertools import chain, starmap
 from datetime import datetime
 import pickle
-
-import numpy
 
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
-from cnc_ai.nn import load, save
+from cnc_ai.nn import load, save, interflatten
+from cnc_ai.common import dictmap
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.TIBERIANDAWN.bridge import (
@@ -74,34 +73,31 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.close()
         else:
             # recieved the current game state
-            self.per_player_game_state = []
             offset = 0
+            self.game_states.append([])
             for _ in range(len(self.players)):
-                self.per_player_game_state.append(cnc_structs.convert_to_np(message[offset:]))
+                self.game_states[-1].append(cnc_structs.convert_to_np(message[offset:]))
                 offset += cnc_structs.get_game_state_size(message[offset:])
 
-            self.n_messages += 1
-
-            if self.n_messages >= GameHandler.end_limit:
+            if len(self.game_states) >= GameHandler.end_limit:
                 self.close()
                 return
 
             # sync games
             if (GameHandler.n_games == len(GameHandler.games)) and all(
-                game.n_messages == self.n_messages for game in GameHandler.games
+                len(game.game_states) == len(self.game_states) for game in GameHandler.games
             ):
-                # have to keep track of internal game state
-                game_state_tensor = pad_game_states(
-                    GameHandler.chain_game_states(), GameHandler.device
-                )
+                game_state_tensor = GameHandler.last_game_states_to_tensor()
                 action_parameters = GameHandler.nn(**game_state_tensor)
-                actions = GameHandler.nn.actions.sample(*action_parameters)
-                log_prob = GameHandler.nn.actions.evaluate(*action_parameters, *actions)
+                actions = interflatten(GameHandler.nn.actions.sample, *action_parameters)
+                log_prob = interflatten(
+                    GameHandler.nn.actions.evaluate, *action_parameters, *actions
+                )
                 for game, per_game_actions in zip(
-                    GameHandler.games, GameHandler.split_per_games(zip(*actions))
+                    GameHandler.games,
+                    GameHandler.split_per_games(zip(*GameHandler.extract_actions(*actions))),
                 ):
-                    numpy.save(game.messages, game.per_player_game_state)
-                    numpy.save(game.messages, per_game_actions)
+                    game.game_actions.append(per_game_actions)
                     message = b''
                     for player, action in zip(game.players, per_game_actions):
                         message += render_action(player.GlyphxPlayerID, *action)
@@ -110,7 +106,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         GameHandler.games.append(self)
         self.loser_mask = 0
-        self.n_messages = 0
+        self.game_states = []
+        self.game_actions = []
         self.set_nodelay(True)
         self.init_game()
         self.start_recording()
@@ -140,13 +137,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.players.append(player)
 
     def print_what_player_sees(self, player):
-        game_state = self.per_player_game_state[player]
+        game_state = self.game_states[-1][player]
         print(cnc_structs.render_game_state_terminal(game_state))
 
     def assess_players_performance(self):
         scores = []
-        if len(self.per_player_game_state) > 0:
-            for player, game_state in zip(self.players, self.per_player_game_state):
+        if len(self.game_states[-1]) > 0:
+            for player, game_state in zip(self.players, self.game_states[-1]):
                 scores.append(cnc_structs.score(game_state, player.ColorIndex))
             loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         else:
@@ -159,7 +156,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.loser_mask = self.assess_players_performance()
         with open(self.folder + '/loser_mask.txt', 'wt') as f:
             print(self.loser_mask, file=f)
-        print(f'game: {id(self)}, length: {self.n_messages}, loser_mask: {self.loser_mask}')
+        print(f'game: {id(self)}, length: {len(self.game_states)}, loser_mask: {self.loser_mask}')
         if self.loser_mask > 0:
             for i in range(len(self.players)):
                 print(f"player {i}:")
@@ -233,7 +230,16 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def chain_game_states(cls):
-        return list(chain(*(game.per_player_game_state for game in cls.games)))
+        return list(map(list, starmap(chain, zip(*(game.game_states for game in cls.games)))))
+
+    @classmethod
+    def last_game_states_to_tensor(cls):
+        tensors = list(chain(*(game.game_states[-1] for game in cls.games)))
+        padded_tensors = pad_game_states(tensors)
+        tensors_in_device = dictmap(
+            padded_tensors, lambda t: t.to(cls.device).reshape(1, *t.shape)
+        )
+        return tensors_in_device
 
     @classmethod
     def split_per_games(cls, l):
@@ -242,6 +248,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         for game in cls.games:
             result.append([next(l) for _ in range(len(game.players))])
         return result
+
+    @staticmethod
+    def extract_actions(*actions):
+        return tuple(action[-1].cpu().numpy() for action in actions)
 
 
 def main():

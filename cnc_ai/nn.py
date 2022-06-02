@@ -235,3 +235,12 @@ def load(Class, path):
         )
     module.load_state_dict(parameters['state_dict'])
     return module
+
+
+def interflatten(f, *varg, dim_range=(0, 1)):
+    flattened_dims = varg[0].shape[dim_range[0] : dim_range[1] + 1]
+    result = f(*(x.flatten(*dim_range) for x in varg))
+    if isinstance(result, tuple):
+        return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
+    else:
+        return result.unflatten(dim_range[0], flattened_dims)
