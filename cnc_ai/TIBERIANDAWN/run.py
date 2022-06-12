@@ -2,11 +2,12 @@ import argparse
 from os import spawnl, P_NOWAIT, mkdir
 import ctypes
 from random import choice
-from itertools import chain, starmap
+from itertools import chain
 from datetime import datetime
 import pickle
 
 import numpy
+import torch
 
 import tornado.web
 import tornado.websocket
@@ -93,9 +94,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
                 action_parameters = GameHandler.nn(**game_state_tensor)
                 actions = interflatten(GameHandler.nn.actions.sample, *action_parameters)
-                log_prob = interflatten(
-                    GameHandler.nn.actions.evaluate, *action_parameters, *actions
-                )
                 for game, per_game_actions in zip(
                     GameHandler.games,
                     GameHandler.split_per_games(zip(*GameHandler.extract_actions(*actions))),
@@ -216,8 +214,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     @classmethod
     def destroy_if_all_stopped(cls):
         if set(cls.games) == set(cls.ended_games):
-            cls.games = []
-            cls.ended_games = []
             tornado.ioloop.IOLoop.current().stop()
 
     def save_gameplay(self):
@@ -233,8 +229,29 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             pickle.dump(self.game_actions, f)
 
     @classmethod
-    def chain_game_states(cls):
-        return list(map(list, starmap(chain, zip(*(game.game_states for game in cls.games)))))
+    def all_game_states_to_tensor(cls):
+        length = min(len(game.game_actions) for game in cls.games)
+        n_players = sum(len(game.players) for game in cls.games)
+        tensors = [
+            game_state
+            for i in range(length)
+            for game in cls.games
+            for game_state in game.game_states[i]
+        ]
+        padded_tensors = pad_game_states(tensors)
+        tensors_in_device = dictmap(
+            padded_tensors, lambda t: t.to(cls.device).reshape(length, n_players, *t.shape[1:])
+        )
+        return tensors_in_device
+
+    @classmethod
+    def all_game_actions_to_tensor(cls):
+        length = min(len(game.game_actions) for game in cls.games)
+        actions = numpy.concatenate([game.game_actions[:length] for game in cls.games], axis=1)
+        buttons = torch.tensor(actions[:, :, 0], dtype=torch.int64, device=cls.device)
+        mouse_x = torch.tensor(actions[:, :, 1], dtype=torch.float32, device=cls.device)
+        mouse_y = torch.tensor(actions[:, :, 2], dtype=torch.float32, device=cls.device)
+        return buttons, mouse_x, mouse_y
 
     @classmethod
     def last_game_states_to_tensor(cls):
@@ -252,6 +269,29 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         for game in cls.games:
             result.append([next(l) for _ in range(len(game.players))])
         return result
+
+    @classmethod
+    def get_rewards(cls):
+        rewards = torch.tensor(
+            [
+                0 if game.loser_mask == 0 else (-1 if game.loser_mask & (1 << player) else 1)
+                for game in cls.games
+                for player in range(len(game.players))
+            ],
+            dtype=torch.float32,
+            device=cls.device,
+        )
+        return rewards
+
+    @classmethod
+    def train(cls):
+        game_state_tensor = cls.all_game_states_to_tensor()
+        action_parameters = cls.nn(**game_state_tensor)
+        actions = cls.all_game_actions_to_tensor()
+        log_prob = interflatten(GameHandler.nn.actions.evaluate, *action_parameters, *actions).sum(
+            axis=0
+        )
+        objective = log_prob.dot(cls.get_rewards())
 
     @staticmethod
     def extract_actions(*actions):
@@ -304,6 +344,7 @@ def main():
     if args.save != '':
         GameHandler.nn.reset()
         save(GameHandler.nn, args.save)
+    GameHandler.train()
 
 
 if __name__ == '__main__':
