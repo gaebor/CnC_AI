@@ -1,5 +1,5 @@
 import argparse
-from os import spawnl, P_NOWAIT, mkdir
+from subprocess import Popen
 import ctypes
 from random import choice
 from itertools import chain
@@ -49,6 +49,13 @@ def get_args():
         default=r'C:\Program Files (x86)\Steam\steamapps\common\CnCRemastered',
         help='absolute path',
     )
+    parser.add_argument(
+        '--dll',
+        default='TiberianDawn.dll',
+        help='path to the game DLL, absolute or relative from `dir`. '
+        'This DLL is released with the game itself but it was opensourced too: '
+        'https://github.com/electronicarts/CnC_Remastered_Collection',
+    )
     parser.add_argument('-d', '--device', default='cpu', help='pytorch device')
     parser.add_argument(
         '--load',
@@ -65,7 +72,6 @@ def get_args():
 class GameHandler(tornado.websocket.WebSocketHandler):
     games = []
     players = []
-    chdir = '.'
     end_limit = 10_000
     nn = None
     device = 'cpu'
@@ -160,16 +166,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 self.print_what_player_sees(i)
 
     def init_game(self):
-        # change to the directory where CnC is installed
-        buffer = bytes(ctypes.c_uint32(0)) + GameHandler.chdir.encode('utf8') + b'\0'
-        self.write_message(buffer, binary=True)
-
-        # init dll
-        buffer = bytes(ctypes.c_uint32(1))
-        buffer += b'TiberianDawn.dll\0'
-        buffer += b'-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1\0'
-        self.write_message(buffer, binary=True)
-
         # communicate asset names
         buffer = bytes(ctypes.c_uint32(9))
         buffer += encode_list(cnc_structs.static_tile_names)
@@ -307,7 +303,6 @@ def main():
         GameHandler.device
     )
 
-    GameHandler.chdir = args.dir
     GameHandler.end_limit = args.end_limit
     GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
@@ -337,7 +332,7 @@ def main():
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
     for _ in range(args.n):
-        spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
+        Popen([args.exe, str(args.port), args.dir, args.dll])
     GameHandler.tqdm = trange(args.end_limit)
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
