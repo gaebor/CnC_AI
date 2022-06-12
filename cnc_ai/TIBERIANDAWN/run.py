@@ -291,7 +291,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         log_prob = interflatten(GameHandler.nn.actions.evaluate, *action_parameters, *actions).sum(
             axis=0
         )
-        objective = log_prob.dot(cls.get_rewards())
+        loss = -log_prob.dot(cls.get_rewards())
 
     @staticmethod
     def extract_actions(*actions):
@@ -303,10 +303,8 @@ def main():
 
     GameHandler.device = args.device
     GameHandler.n_games = args.n
-    GameHandler.nn = (
-        (TD_GamePlay() if args.load == '' else load(TD_GamePlay, args.load))
-        .to(GameHandler.device)
-        .train(False)
+    GameHandler.nn = (TD_GamePlay() if args.load == '' else load(TD_GamePlay, args.load)).to(
+        GameHandler.device
     )
 
     GameHandler.chdir = args.dir
