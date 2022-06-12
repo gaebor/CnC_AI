@@ -1,6 +1,5 @@
 #define NOMINMAX
 #include <Windows.h>
-#include <shellapi.h>
 
 #include <string>
 #include <vector>
@@ -450,18 +449,10 @@ bool init_loop()
     return false;
 }
 
-int main()
+int wmain(int argc, const wchar_t* argv[])
 {
-    LPWSTR *argv;
-    int argc;
-
-    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if( NULL == argv )
-    {
-        return 1;
-    }
     // name, port, chdir, dll
-    if (argc < 4)
+    if (argc != 4)
     {
         return 1;
     }
