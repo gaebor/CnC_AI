@@ -1,5 +1,6 @@
 import argparse
 from subprocess import Popen
+from os import mkdir
 import ctypes
 from random import choice
 from itertools import chain
@@ -8,17 +9,15 @@ import pickle
 
 from tqdm import trange
 import numpy
-import torch
 
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
-
-from cnc_ai.nn import load, save, interflatten
 from cnc_ai.common import dictmap
+
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
+from cnc_ai.TIBERIANDAWN.agent import NNAgent
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
     render_action,
@@ -73,10 +72,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     games = []
     players = []
     end_limit = 10_000
-    nn = None
-    device = 'cpu'
     n_games = 0
     ended_games = []
+    agent = None
+    tqdm = trange(0, disable=True)
 
     def on_message(self, message):
         if len(message) == 1:
@@ -100,15 +99,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
-                action_parameters = GameHandler.nn(**game_state_tensor)
-                actions = interflatten(GameHandler.nn.actions.sample, *action_parameters)
+                actions = GameHandler.agent(**game_state_tensor)
+                actions = [action[-1] for action in actions]
                 for game, per_game_actions in zip(
-                    GameHandler.games,
-                    GameHandler.split_per_games(zip(*GameHandler.extract_actions(*actions))),
+                    GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
                     game.game_actions.append(per_game_actions)
                     message = b''
-                    for player, action in zip(game.players, per_game_actions):
+                    for player, action in zip(game.players, zip(*per_game_actions)):
                         message += render_action(player.GlyphxPlayerID, *action)
                     game.write_message(message, binary=True)
 
@@ -236,26 +234,24 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         ]
         padded_tensors = pad_game_states(tensors)
         tensors_in_device = dictmap(
-            padded_tensors, lambda t: t.to(cls.device).reshape(length, n_players, *t.shape[1:])
+            padded_tensors, lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
         return tensors_in_device
 
     @classmethod
     def all_game_actions_to_tensor(cls):
         length = min(len(game.game_actions) for game in cls.games)
-        actions = numpy.concatenate([game.game_actions[:length] for game in cls.games], axis=1)
-        buttons = torch.tensor(actions[:, :, 0], dtype=torch.int64, device=cls.device)
-        mouse_x = torch.tensor(actions[:, :, 1], dtype=torch.float32, device=cls.device)
-        mouse_y = torch.tensor(actions[:, :, 2], dtype=torch.float32, device=cls.device)
+        actions = numpy.concatenate([game.game_actions[:length] for game in cls.games], axis=2)
+        buttons = actions[:, 0, :].astype('int64')
+        mouse_x = actions[:, 1, :]
+        mouse_y = actions[:, 2, :]
         return buttons, mouse_x, mouse_y
 
     @classmethod
     def last_game_states_to_tensor(cls):
         tensors = list(chain(*(game.game_states[-1] for game in cls.games)))
         padded_tensors = pad_game_states(tensors)
-        tensors_in_device = dictmap(
-            padded_tensors, lambda t: t.to(cls.device).reshape(1, *t.shape)
-        )
+        tensors_in_device = dictmap(padded_tensors, lambda t: t.reshape(1, *t.shape))
         return tensors_in_device
 
     @classmethod
@@ -268,41 +264,30 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def get_rewards(cls):
-        rewards = torch.tensor(
+        rewards = numpy.array(
             [
                 0 if game.loser_mask == 0 else (-1 if game.loser_mask & (1 << player) else 1)
                 for game in cls.games
                 for player in range(len(game.players))
-            ],
-            dtype=torch.float32,
-            device=cls.device,
+            ]
         )
         return rewards
 
     @classmethod
     def train(cls):
         game_state_tensor = cls.all_game_states_to_tensor()
-        action_parameters = cls.nn(**game_state_tensor)
+        rewards = cls.get_rewards()
         actions = cls.all_game_actions_to_tensor()
-        log_prob = interflatten(GameHandler.nn.actions.evaluate, *action_parameters, *actions).sum(
-            axis=0
-        )
-        loss = -log_prob.dot(cls.get_rewards())
-
-    @staticmethod
-    def extract_actions(*actions):
-        return tuple(action[-1].cpu().numpy() for action in actions)
+        cls.agent.learn(game_state_tensor, actions, rewards)
 
 
 def main():
     args = get_args()
 
-    GameHandler.device = args.device
     GameHandler.n_games = args.n
-    GameHandler.nn = (TD_GamePlay() if args.load == '' else load(TD_GamePlay, args.load)).to(
-        GameHandler.device
-    )
+    GameHandler.agent = NNAgent(device=args.device)
 
+    GameHandler.chdir = args.dir
     GameHandler.end_limit = args.end_limit
     GameHandler.players.append(
         cnc_structs.CNCPlayerInfoStruct(
@@ -338,8 +323,7 @@ def main():
     GameHandler.tqdm.close()
     GameHandler.train()
     if args.save != '':
-        GameHandler.nn.reset()
-        save(GameHandler.nn, args.save)
+        GameHandler.agent.save(args.save)
 
 
 if __name__ == '__main__':

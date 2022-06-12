@@ -10,10 +10,8 @@ from cnc_ai.TIBERIANDAWN import cnc_structs
 def pad_game_states(list_of_game_states):
     result = {
         **{
-            new_key: tensor(
-                compute_key_padding_mask(
-                    [len(game_state[key]) for game_state in list_of_game_states]
-                )
+            new_key: compute_key_padding_mask(
+                [len(game_state[key]) for game_state in list_of_game_states]
             )
             for new_key, key in [
                 ('dynamic_mask', 'AssetName'),
@@ -21,13 +19,13 @@ def pad_game_states(list_of_game_states):
             ]
         },
         **{
-            key: tensor(numpy.stack([game_state[key] for game_state in list_of_game_states], 0))
+            key: numpy.stack([game_state[key] for game_state in list_of_game_states], 0)
             for key in ['StaticAssetName', 'StaticShapeIndex', 'SidebarInfos']
         },
         **{
             key: pad_sequence(
                 [tensor(game_state[key]) for game_state in list_of_game_states], batch_first=True
-            )
+            ).numpy()
             for key in [
                 'AssetName',
                 'ShapeIndex',
@@ -66,7 +64,7 @@ def render_action(player_id, action_index, mouse_x, mouse_y):
     if action_index < 12:  # INPUTREQUEST
         return bytes(ctypes.c_uint32(5)) + bytes(
             cnc_structs.InputRequestArgs(
-                player_id=player_id, requestType=action_index, x1=1488 * mouse_x, y1=1488 * mouse_y
+                player_id=player_id, requestType=action_index, x1=mouse_x, y1=mouse_y
             )
         )
     else:  # SIDEBARREQUEST

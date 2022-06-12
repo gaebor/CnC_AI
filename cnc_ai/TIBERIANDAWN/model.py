@@ -281,7 +281,7 @@ class TD_Action(nn.Module):
         )
         mouse_x, mouse_y = Beta(alpha_x, beta_x).sample(), Beta(alpha_y, beta_y).sample()
 
-        return chosen_actions, mouse_x, mouse_y
+        return chosen_actions, mouse_x * 1488, mouse_y * 1488
 
     def evaluate(
         self, mouse_positional_params, action_distribution, chosen_actions, mouse_x, mouse_y
@@ -292,10 +292,14 @@ class TD_Action(nn.Module):
         prob = torch.take_along_dim(action_distribution, chosen_actions[:, None], dim=1)[:, 0]
 
         prob += log_beta(
-            chosen_mouse_positional_params[:, 0], chosen_mouse_positional_params[:, 1], mouse_x
+            chosen_mouse_positional_params[:, 0],
+            chosen_mouse_positional_params[:, 1],
+            mouse_x / 1488,
         )
         prob += log_beta(
-            chosen_mouse_positional_params[:, 2], chosen_mouse_positional_params[:, 3], mouse_y
+            chosen_mouse_positional_params[:, 2],
+            chosen_mouse_positional_params[:, 3],
+            mouse_y / 1488,
         )
         return prob
 
