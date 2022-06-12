@@ -17,7 +17,7 @@ import tornado.ioloop
 from cnc_ai.common import dictmap
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.agent import NNAgent
+from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
     render_action,
@@ -99,15 +99,20 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
-                actions = GameHandler.agent(**game_state_tensor)
-                actions = [action[-1] for action in actions]
+                simple_actions = SimpleAgent()(**game_state_tensor)
+                nn_actions = GameHandler.agent(**game_state_tensor)
+                actions = mix_actions(
+                    simple_actions,
+                    [action[-1] for action in nn_actions],
+                    (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
+                )
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
                     game.game_actions.append(per_game_actions)
                     message = b''
-                    for player, action in zip(game.players, zip(*per_game_actions)):
-                        message += render_action(player.GlyphxPlayerID, *action)
+                    for player, action in enumerate(zip(*per_game_actions)):
+                        message += render_action(player, *action)
                     game.write_message(message, binary=True)
 
     def open(self):

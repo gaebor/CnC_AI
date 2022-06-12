@@ -1,4 +1,5 @@
 import torch
+import numpy
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
@@ -52,8 +53,44 @@ class DummyAgent(AbstractAgent):
 
 class SimpleAgent(AbstractAgent):
     def __call__(self, **inputs):
-        return
+        # dynamic_mask,
+        # sidebar_mask,
+        # StaticAssetName,
+        # StaticShapeIndex,
+        # AssetName,
+        # ShapeIndex,
+        # Owner,
+        # Pips,
+        # ControlGroup,
+        # Cloak,
+        # Continuous,
+        # SidebarInfos,
+        # SidebarAssetName,
+        # SidebarContinuous,
+        actions = [
+            SimpleAgent.get_action_single(dictmap(inputs, lambda x: x[-1][player]))
+            for player in range(inputs['AssetName'].shape[1])
+        ]
+        actions = tuple(map(numpy.array, zip(*actions)))
+        return actions
+
+    @staticmethod
+    def get_action_single(inputs):
+        unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
+        sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
+        if 63 in unit_names:
+            mcv_index = list(unit_names).index(63)
+            if mcv_index >= 0:
+                MCV_features = inputs['Continuous'][mcv_index]
+                return 2, *MCV_features[:2]
+        return 0, 0.0, 0.0
 
     @staticmethod
     def load(path):
         return SimpleAgent()
+
+
+def mix_actions(actions1, actions2, choices):
+    for action1, action2 in zip(actions1, actions2):
+        action1[choices] = action2[choices]
+    return tuple(actions1)
