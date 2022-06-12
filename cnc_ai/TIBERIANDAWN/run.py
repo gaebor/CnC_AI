@@ -6,9 +6,12 @@ from itertools import chain, starmap
 from datetime import datetime
 import pickle
 
+import numpy
+
 import tornado.web
 import tornado.websocket
 import tornado.ioloop
+
 
 from cnc_ai.nn import load, save, interflatten
 from cnc_ai.common import dictmap
@@ -110,11 +113,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         self.game_actions = []
         self.set_nodelay(True)
         self.init_game()
-        self.start_recording()
 
     def on_close(self):
         GameHandler.ended_games.append(self)
-        self.messages.close()
         self.end_game()
         for game in GameHandler.games:
             if game not in GameHandler.ended_games:
@@ -147,17 +148,15 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 scores.append(cnc_structs.score(game_state, player.ColorIndex))
             loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         else:
-            print(self.messages, self)
             loser_mask = 0
         return loser_mask
 
     def end_game(self):
         if self.loser_mask == 0:
             self.loser_mask = self.assess_players_performance()
-        with open(self.folder + '/loser_mask.txt', 'wt') as f:
-            print(self.loser_mask, file=f)
         print(f'game: {id(self)}, length: {len(self.game_states)}, loser_mask: {self.loser_mask}')
         if self.loser_mask > 0:
+            self.save_gameplay()
             for i in range(len(self.players)):
                 print(f"player {i}:")
                 self.print_what_player_sees(i)
@@ -221,12 +220,17 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             cls.ended_games = []
             tornado.ioloop.IOLoop.current().stop()
 
-    def start_recording(self):
-        self.folder = datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S.%fs") + '_' + str(id(self))
-        mkdir(self.folder)
-        with open(self.folder + '/players.pkl', 'wb') as f:
+    def save_gameplay(self):
+        folder = datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S.%fs") + '_' + str(id(self))
+        mkdir(folder)
+        with open(folder + '/players.pkl', 'wb') as f:
             pickle.dump(self.players, f)
-        self.messages = open(self.folder + '/messages.npy', 'wb')
+        with open(folder + '/loser_mask.txt', 'wt') as f:
+            print(self.loser_mask, file=f)
+        with open(folder + '/game_states.npy', 'wb') as f:
+            numpy.save(f, self.game_states)
+        with open(folder + '/game_actions.pkl', 'wb') as f:
+            pickle.dump(self.game_actions, f)
 
     @classmethod
     def chain_game_states(cls):
