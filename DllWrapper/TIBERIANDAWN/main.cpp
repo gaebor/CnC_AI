@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include <Windows.h>
+#include <shellapi.h>
 
 #include <string>
 #include <vector>
@@ -67,7 +68,6 @@ struct StartGameCustomArgs
 };
 
 
-bool ChDir(const char* dirname_utf8);
 bool Init(const char* dll_filename_utf8, const char* content_directory_ascii);
 void AddPlayer(const CNCPlayerInfoStruct*);
 bool StartGame(const StartGameArgs*);
@@ -131,36 +131,18 @@ static const CNCRulesDataStruct rule_data_struct = { {
     {0.9f, 0.9f, 0.9f, 1.05f, 1.05f, 1.f, 1.f, 0.05f, 0.1f, true, true, true}
 } };
 
-std::wstring FromUtf8(const char* str) noexcept
+std::string ToAscii(const std::wstring& wstr)
 {
-    static std::wstring wstr;
-    const int wchars_num = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
-    if (wchars_num > 0)
-    {
-        wstr.resize(wchars_num);
-        if (MultiByteToWideChar(CP_UTF8, 0, str, -1, &wstr.front(), wchars_num) > 0)
-        {
-            return wstr; // copy
-        }
-    }
-    return std::wstring();
-}
-
-bool ChDir(const char* dirname_utf8)
-{
-    const auto dirname_unicode = FromUtf8(dirname_utf8);
-    return SetCurrentDirectoryW(dirname_unicode.data()) == TRUE;
+    const std::string ascii(wstr.begin(), wstr.end());
+    return ascii;
 }
 
 #define LoadSymbolFromDll(name) {name = (decltype(name))GetProcAddress(dll_handle, #name);\
                                 if (name == NULL) return false;}
 
-bool Init(const char* dll_filename_utf8, const char* content_directory_ascii)
+bool Init(const wchar_t* dll_filename_unicode, const char* content_directory_ascii)
 {
-    {
-        const auto dll_filename = FromUtf8(dll_filename_utf8);
-        dll_handle = LoadLibraryW(dll_filename.data());
-    }
+    dll_handle = LoadLibraryW(dll_filename_unicode);
     content_directory = content_directory_ascii + 3;
     if (dll_handle == NULL)
         return false;
@@ -414,24 +396,7 @@ bool init_loop()
         const auto message_type = *(const WebsocketMessageType*)message_ptr;
         step_buffer(message_ptr, message_size, sizeof(WebsocketMessageType));
 
-        if (message_type == CHDIR)
-        {
-            if (message_size < 1)
-                return false;
-            const std::string dir_path = safe_str_copy(message_ptr, message_size);
-            if (!ChDir(dir_path.c_str()))
-                return false;
-        }
-        else if (message_type == INIT_DLL)
-        {
-            if (message_size < 2)
-                return false;
-            const std::string dll_path = safe_str_copy(message_ptr, message_size);
-            const std::string content_dir = safe_str_copy(message_ptr, message_size);
-            if (!Init(dll_path.c_str(), content_dir.c_str()))
-                return false;
-        }
-        else if (message_type == ADDPLAYER)
+        if (message_type == ADDPLAYER)
         {
             if (message_size < sizeof(CNCPlayerInfoStruct))
                 return false;
@@ -485,19 +450,41 @@ bool init_loop()
     return false;
 }
 
-int main(int argc, const char* argv[])
+int main()
 {
+    LPWSTR *argv;
+    int argc;
+
+    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if( NULL == argv )
+    {
+        return 1;
+    }
+    // name, port, chdir, dll
+    if (argc < 4)
+    {
+        return 1;
+    }
+
     std::vector<unsigned char> buffer(4 * 1024 * 1024);
     size_t message_size;
-    unsigned short port = 8888;
-    if (argc > 1)
+    unsigned short port;
     {
-        const auto parsed_int = atoi(argv[1]);
+        const auto parsed_int = atoi(ToAscii(argv[1]).c_str());
         if (parsed_int < std::numeric_limits<decltype(port)>::min() || parsed_int > std::numeric_limits<decltype(port)>::max())
         {
             return 1;
         }
         port = (decltype(port))parsed_int;
+    }
+
+    if (SetCurrentDirectoryW(argv[2]) != TRUE)
+    {
+        return 1;
+    }
+    if (Init(argv[3], "-CDDATA\\CNCDATA\\TIBERIAN_DAWN\\CD1") != TRUE)
+    {
+        return 1;
     }
 
     ProcessGuard process_guard;
