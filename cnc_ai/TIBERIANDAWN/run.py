@@ -6,6 +6,7 @@ from itertools import chain
 from datetime import datetime
 import pickle
 
+from tqdm import trange
 import numpy
 import torch
 
@@ -91,6 +92,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             if (GameHandler.n_games == len(GameHandler.games)) and all(
                 len(game.game_states) == len(self.game_states) for game in GameHandler.games
             ):
+                GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
                 action_parameters = GameHandler.nn(**game_state_tensor)
                 actions = interflatten(GameHandler.nn.actions.sample, *action_parameters)
@@ -152,11 +154,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def end_game(self):
         if self.loser_mask == 0:
             self.loser_mask = self.assess_players_performance()
-        print(f'game: {id(self)}, length: {len(self.game_states)}, loser_mask: {self.loser_mask}')
         if self.loser_mask > 0:
             self.save_gameplay()
             for i in range(len(self.players)):
-                print(f"player {i}:")
                 self.print_what_player_sees(i)
 
     def init_game(self):
@@ -340,11 +340,13 @@ def main():
     application.listen(args.port)
     for _ in range(args.n):
         spawnl(P_NOWAIT, args.exe, args.exe, str(args.port))
+    GameHandler.tqdm = trange(args.end_limit)
     tornado.ioloop.IOLoop.current().start()
+    GameHandler.tqdm.close()
+    GameHandler.train()
     if args.save != '':
         GameHandler.nn.reset()
         save(GameHandler.nn, args.save)
-    GameHandler.train()
 
 
 if __name__ == '__main__':
