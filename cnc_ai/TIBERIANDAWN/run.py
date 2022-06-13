@@ -280,7 +280,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         cls.tqdm = trange(end_limit)
         cls.players = list(players)
         cls.games = []
-        cls.pids = []
         cls.ended_games = []
 
 
@@ -316,12 +315,10 @@ def main():
 
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
-
-    for _ in range(args.n):
-        tornado.ioloop.IOLoop.current().add_callback(
-            lambda: GameHandler.pids.append(
-                Popen([args.exe, str(args.port), args.dir, args.dll]).pid
-            )
+    for i in range(args.n):
+        tornado.ioloop.IOLoop.current().call_later(
+            0.1 * i,
+            lambda: Popen([args.exe, str(args.port), args.dir, args.dll]),
         )
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
