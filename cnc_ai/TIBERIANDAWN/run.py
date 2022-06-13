@@ -17,7 +17,7 @@ import tornado.ioloop
 from cnc_ai.common import dictmap
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
+from cnc_ai.TIBERIANDAWN.agent import NNAgent
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
     render_action,
@@ -69,14 +69,6 @@ def get_args():
 
 
 class GameHandler(tornado.websocket.WebSocketHandler):
-    games = []
-    players = []
-    end_limit = 10_000
-    n_games = 0
-    ended_games = []
-    agent = None
-    tqdm = trange(0, disable=True)
-
     def on_message(self, message):
         if len(message) == 1:
             self.loser_mask = ctypes.c_ubyte.from_buffer_copy(message).value
@@ -99,13 +91,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
-                simple_actions = SimpleAgent()(**game_state_tensor)
-                nn_actions = GameHandler.agent(**game_state_tensor)
-                actions = mix_actions(
-                    simple_actions,
-                    [action[-1] for action in nn_actions],
-                    (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
-                )
+                actions = GameHandler.agent(**game_state_tensor)
+                actions = [action[-1] for action in actions]
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
@@ -285,45 +272,57 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         actions = cls.all_game_actions_to_tensor()
         cls.agent.learn(game_state_tensor, actions, rewards)
 
+    @classmethod
+    def configure(cls, n_games=2, device='cpu', end_limit=10_000, players=()):
+        cls.n_games = n_games
+        cls.agent = NNAgent(device=device)
+        cls.end_limit = end_limit
+        cls.tqdm = trange(end_limit)
+        cls.players = list(players)
+        cls.games = []
+        cls.pids = []
+        cls.ended_games = []
+
 
 def main():
     args = get_args()
-
-    GameHandler.n_games = args.n
-    GameHandler.agent = NNAgent(device=args.device)
-
-    GameHandler.chdir = args.dir
-    GameHandler.end_limit = args.end_limit
-    GameHandler.players.append(
-        cnc_structs.CNCPlayerInfoStruct(
-            GlyphxPlayerID=314159265,
-            Name=b"ai1",
-            House=127,
-            Team=0,
-            AllyFlags=0,
-            ColorIndex=127,
-            IsAI=False,
-            StartLocationIndex=127,
-        )
-    )
-    GameHandler.players.append(
-        cnc_structs.CNCPlayerInfoStruct(
-            GlyphxPlayerID=271828182,
-            Name=b"ai2",
-            House=127,
-            Team=1,
-            AllyFlags=0,
-            ColorIndex=127,
-            IsAI=False,
-            StartLocationIndex=127,
-        )
+    GameHandler.configure(
+        args.n,
+        args.device,
+        args.end_limit,
+        [
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=314159265,
+                Name=b"ai1",
+                House=127,
+                Team=0,
+                AllyFlags=0,
+                ColorIndex=127,
+                IsAI=False,
+                StartLocationIndex=127,
+            ),
+            cnc_structs.CNCPlayerInfoStruct(
+                GlyphxPlayerID=271828182,
+                Name=b"ai2",
+                House=127,
+                Team=1,
+                AllyFlags=0,
+                ColorIndex=127,
+                IsAI=False,
+                StartLocationIndex=127,
+            ),
+        ],
     )
 
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
+
     for _ in range(args.n):
-        Popen([args.exe, str(args.port), args.dir, args.dll])
-    GameHandler.tqdm = trange(args.end_limit)
+        tornado.ioloop.IOLoop.current().add_callback(
+            lambda: GameHandler.pids.append(
+                Popen([args.exe, str(args.port), args.dir, args.dll]).pid
+            )
+        )
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
     GameHandler.train()
