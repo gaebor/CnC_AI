@@ -175,7 +175,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     MPlayerBases=1,
                     MPlayerCredits=5000,
                     MPlayerTiberium=1,
-                    MPlayerGoodies=1,
+                    MPlayerGoodies=0,
                     MPlayerGhosts=0,
                     MPlayerSolo=1,
                     MPlayerUnitCount=1,
