@@ -273,9 +273,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         cls.agent.learn(game_state_tensor, actions, rewards)
 
     @classmethod
-    def configure(cls, n_games=2, device='cpu', end_limit=10_000, players=()):
+    def configure(cls, agent, n_games=2, end_limit=10_000, players=()):
         cls.n_games = n_games
-        cls.agent = NNAgent(device=device)
+        cls.agent = agent
         cls.end_limit = end_limit
         cls.tqdm = trange(end_limit)
         cls.players = list(players)
@@ -285,9 +285,17 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
 def main():
     args = get_args()
+
+    if args.load:
+        agent = NNAgent.load_model(args.load)
+    else:
+        agent = NNAgent()  # hyperparameters can come here
+    agent.to(args.device)
+    agent.init_optimizer()  # hyperparameters can come here
+
     GameHandler.configure(
+        agent,
         args.n,
-        args.device,
         args.end_limit,
         [
             cnc_structs.CNCPlayerInfoStruct(
@@ -323,7 +331,7 @@ def main():
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
     GameHandler.train()
-    if args.save != '':
+    if args.save:
         GameHandler.agent.save(args.save)
 
 
