@@ -152,8 +152,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.loser_mask = self.assess_players_performance()
         if self.loser_mask > 0:
             self.save_gameplay()
-            for i in range(len(self.players)):
-                self.print_what_player_sees(i)
 
     def init_game(self):
         # communicate asset names
@@ -330,7 +328,15 @@ def main():
         )
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
-    GameHandler.train()
+
+    any_result = False
+    for game in GameHandler.games:
+        if game.loser_mask > 0:
+            any_result = True
+            for i in range(len(game.players)):
+                game.print_what_player_sees(i)
+    if any_result:
+        GameHandler.train()
     if args.save:
         agent.save(args.save)
 
