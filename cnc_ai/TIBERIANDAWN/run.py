@@ -287,7 +287,7 @@ def main():
     args = get_args()
 
     if args.load:
-        agent = NNAgent.load_model(args.load)
+        agent = NNAgent.load(args.load)
     else:
         agent = NNAgent()  # hyperparameters can come here
     agent.to(args.device)
@@ -332,7 +332,7 @@ def main():
     GameHandler.tqdm.close()
     GameHandler.train()
     if args.save:
-        GameHandler.agent.save(args.save)
+        agent.save(args.save)
 
 
 if __name__ == '__main__':

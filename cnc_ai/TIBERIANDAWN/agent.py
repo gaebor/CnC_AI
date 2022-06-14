@@ -36,7 +36,7 @@ class NNAgent(AbstractAgent):
         (-log_prob.dot(rewards)).backward()
         self.optimizer.step()
 
-    def save_model(self, path):
+    def save(self, path):
         self.nn.reset()
         parameters = {
             'class': type(self.nn).__name__,
@@ -53,7 +53,7 @@ class NNAgent(AbstractAgent):
         self.nn.to(device)
 
     @staticmethod
-    def load_model(path):
+    def load(path):
         parameters = torch.load(path)
         agent = NNAgent(**parameters['init'])
         if type(agent.nn).__name__ != parameters['class']:
@@ -100,7 +100,7 @@ class SimpleAgent(AbstractAgent):
         return 0, 0.0, 0.0
 
     @staticmethod
-    def load_model(path):
+    def load(path):
         return SimpleAgent()
 
 
