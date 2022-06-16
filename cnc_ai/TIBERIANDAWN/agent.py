@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import torch
 import numpy
 
@@ -5,6 +7,7 @@ from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.nn import interflatten
 from cnc_ai.common import dictmap
+from cnc_ai.TIBERIANDAWN.cnc_structs import render_game_state_terminal
 
 
 class NNAgent(AbstractAgent):
@@ -66,38 +69,82 @@ class NNAgent(AbstractAgent):
 
 
 class SimpleAgent(AbstractAgent):
+    class Player:
+        def __init__(self):
+            self.state = {}
+            self.color = None
+
+        def get_action(self, inputs):
+            # dynamic_mask,
+            # sidebar_mask,
+            # StaticAssetName,
+            # StaticShapeIndex,
+            # AssetName,
+            # ShapeIndex,
+            # Owner,
+            # Pips,
+            # ControlGroup,
+            # Cloak,
+            # Continuous,
+            # SidebarInfos,
+            # SidebarAssetName,
+            # SidebarContinuous,
+            unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
+            sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
+            if 63 in unit_names:
+                mcv_index = list(unit_names).index(63)
+                if mcv_index >= 0:
+                    if self.color is None:
+                        self.color = inputs['Owner'][mcv_index]
+                    MCV_features = inputs['Continuous'][mcv_index]
+                    return 2, MCV_features[0], MCV_features[1]
+            elif 72 not in unit_names or 73 not in unit_names:
+                if 72 in sidebar:
+                    nuke = list(sidebar).index(72)
+                    progress = inputs['SidebarContinuous'][nuke][0]
+                    if progress == 0:
+                        # start building
+                        return ((1 + nuke) * 12 + 0, 0.0, 0.0)
+                    elif progress == 1:
+                        if not self.state.get('place_building', False):
+                            # start placement
+                            self.state['place_building'] = True
+                            return ((1 + nuke) * 12 + 3, 0.0, 0.0)
+                        else:
+                            # place
+                            self.state['place_building'] = False
+                            new_spot = self.find_new_spot(inputs)
+                            return (2, *new_spot)
+            # print(render_game_state_terminal(inputs))
+            return 0, 0.0, 0.0
+
+        def find_new_spot(self, inputs):
+            unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]
+            unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
+            CY_position = unit_positions[list(unit_names).index(39)]
+            random_tile = numpy.random.randint(0, 7)
+            east = (random_tile & 1) > 0
+            south = (random_tile & 2) > 0
+            far = (random_tile & 4) > 0
+            diff = numpy.zeros_like(CY_position)
+            diff[1] = 1 if east else -1
+            diff[0] = 1 if south else -1
+            if far:
+                diff *= 24
+            else:
+                diff *= 48
+            return CY_position + diff
+
+    def __init__(self):
+        self.players = defaultdict(SimpleAgent.Player)
+
     def __call__(self, **inputs):
-        # dynamic_mask,
-        # sidebar_mask,
-        # StaticAssetName,
-        # StaticShapeIndex,
-        # AssetName,
-        # ShapeIndex,
-        # Owner,
-        # Pips,
-        # ControlGroup,
-        # Cloak,
-        # Continuous,
-        # SidebarInfos,
-        # SidebarAssetName,
-        # SidebarContinuous,
         actions = [
-            SimpleAgent.get_action_single(dictmap(inputs, lambda x: x[-1][player]))
+            self.players[player].get_action(dictmap(inputs, lambda x: x[-1][player]))
             for player in range(inputs['AssetName'].shape[1])
         ]
         actions = tuple(map(numpy.array, zip(*actions)))
         return actions
-
-    @staticmethod
-    def get_action_single(inputs):
-        unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
-        sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
-        if 63 in unit_names:
-            mcv_index = list(unit_names).index(63)
-            if mcv_index >= 0:
-                MCV_features = inputs['Continuous'][mcv_index]
-                return 2, MCV_features[0], MCV_features[1]
-        return 0, 0.0, 0.0
 
     @staticmethod
     def load(path):
