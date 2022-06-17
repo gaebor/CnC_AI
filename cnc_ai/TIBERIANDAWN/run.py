@@ -65,6 +65,24 @@ def get_args():
     parser.add_argument(
         '--save', default='', help='save model to pytorch model file after the game(s)'
     )
+    parser.add_argument(
+        '-D',
+        dest='spawn',
+        default=True,
+        action='store_false',
+        help="disable spawn subprocesses to run the DLL (set by '--exe'). "
+        "this is good for debugging when you start the dll wrapper separately.",
+    )
+    parser.add_argument(
+        '-P',
+        '--print',
+        default=False,
+        action='store_true',
+        help="print out what was the terminal state of the game(s)",
+    )
+    parser.add_argument(
+        '-T', '--train', default=False, action='store_true', help="train at the end of the game"
+    )
     return parser.parse_args()
 
 
@@ -154,6 +172,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             self.save_gameplay()
 
     def init_game(self):
+        self.folder = datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S.%fs") + '_' + str(id(self))
+
         # communicate asset names
         buffer = bytes(ctypes.c_uint32(9))
         buffer += encode_list(cnc_structs.static_tile_names)
@@ -178,7 +198,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     MPlayerGoodies=0,
                     MPlayerGhosts=0,
                     MPlayerSolo=1,
-                    MPlayerUnitCount=1,
+                    MPlayerUnitCount=0,
                     IsMCVDeploy=False,
                     SpawnVisceroids=False,
                     EnableSuperweapons=True,
@@ -201,15 +221,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             tornado.ioloop.IOLoop.current().stop()
 
     def save_gameplay(self):
-        folder = datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S.%fs") + '_' + str(id(self))
-        mkdir(folder)
-        with open(folder + '/players.pkl', 'wb') as f:
+        mkdir(self.folder)
+        with open(self.folder + '/players.pkl', 'wb') as f:
             pickle.dump(self.players, f)
-        with open(folder + '/loser_mask.txt', 'wt') as f:
+        with open(self.folder + '/loser_mask.txt', 'wt') as f:
             print(self.loser_mask, file=f)
-        with open(folder + '/game_states.npy', 'wb') as f:
+        with open(self.folder + '/game_states.npy', 'wb') as f:
             numpy.save(f, self.game_states)
-        with open(folder + '/game_actions.pkl', 'wb') as f:
+        with open(self.folder + '/game_actions.pkl', 'wb') as f:
             pickle.dump(self.game_actions, f)
 
     @classmethod
@@ -321,21 +340,22 @@ def main():
 
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
-    for i in range(args.n):
-        tornado.ioloop.IOLoop.current().call_later(
-            0.1 * i,
-            lambda: Popen([args.exe, str(args.port), args.dir, args.dll]),
-        )
+    if args.spawn:
+        for i in range(args.n):
+            tornado.ioloop.IOLoop.current().call_later(
+                0.1 * i,
+                lambda: Popen([args.exe, str(args.port), args.dir, args.dll]),
+            )
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
 
-    any_result = False
-    for game in GameHandler.games:
-        if game.loser_mask > 0:
-            any_result = True
+    if args.print:
+        for game in GameHandler.games:
+            print(game.folder)
             for i in range(len(game.players)):
+                print(i)
                 game.print_what_player_sees(i)
-    if any_result:
+    if args.train:
         GameHandler.train()
     if args.save:
         agent.save(args.save)
