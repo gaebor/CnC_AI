@@ -17,7 +17,7 @@ import tornado.ioloop
 from cnc_ai.common import dictmap
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.agent import NNAgent
+from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
 from cnc_ai.TIBERIANDAWN.bridge import (
     pad_game_states,
     render_action,
@@ -70,7 +70,7 @@ def get_args():
         dest='spawn',
         default=True,
         action='store_false',
-        help="disable spawn subprocesses to run the DLL (set by '--exe'). "
+        help="don't spawn subprocesses to run the DLL (set by '--exe'). "
         "this is good for debugging when you start the dll wrapper separately.",
     )
     parser.add_argument(
@@ -84,6 +84,9 @@ def get_args():
         '-T', '--train', default=False, action='store_true', help="train at the end of the game"
     )
     return parser.parse_args()
+
+
+simple_agent = SimpleAgent()
 
 
 class GameHandler(tornado.websocket.WebSocketHandler):
@@ -109,8 +112,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
-                actions = GameHandler.agent(**game_state_tensor)
-                actions = [action[-1] for action in actions]
+                nn_actions = GameHandler.agent(**game_state_tensor)
+                simple_actions = simple_agent(**game_state_tensor)
+                actions = mix_actions(
+                    simple_actions,
+                    [action[-1] for action in nn_actions],
+                    (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
+                )
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
@@ -349,9 +357,9 @@ def main():
     tornado.ioloop.IOLoop.current().start()
     GameHandler.tqdm.close()
 
-    if args.print:
-        for game in GameHandler.games:
-            print(game.folder)
+    for game in GameHandler.games:
+        print(game.folder, game.loser_mask)
+        if args.print:
             for i in range(len(game.players)):
                 print(i)
                 game.print_what_player_sees(i)
