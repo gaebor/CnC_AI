@@ -164,14 +164,16 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         print(cnc_structs.render_game_state_terminal(game_state))
 
     def assess_players_performance(self):
-        scores = []
-        if len(self.game_states[-1]) > 0:
-            for player, game_state in zip(self.players, self.game_states[-1]):
-                scores.append(cnc_structs.score(game_state, player.ColorIndex))
-            loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
-        else:
-            loser_mask = 0
+        scores = self.compute_scores()
+        loser_mask = sum(1 << i for i in range(len(self.players)) if scores[i] < max(scores))
         return loser_mask
+
+    def compute_scores(self):
+        scores = [0] * len(self.players)
+        if len(self.game_states[-1]) > 0:
+            for i, (player, game_state) in enumerate(zip(self.players, self.game_states[-1])):
+                scores[i] = cnc_structs.score(game_state, player.ColorIndex)
+        return scores
 
     def end_game(self):
         if self.loser_mask == 0:
@@ -358,7 +360,7 @@ def main():
     GameHandler.tqdm.close()
 
     for game in GameHandler.games:
-        print(game.folder, game.loser_mask)
+        print(game.folder, game.compute_scores())
         if args.print:
             for i in range(len(game.players)):
                 print(i)
