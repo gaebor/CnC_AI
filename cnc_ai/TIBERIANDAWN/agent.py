@@ -7,7 +7,6 @@ from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.nn import interflatten
 from cnc_ai.common import dictmap
-from cnc_ai.TIBERIANDAWN.cnc_structs import render_game_state_terminal
 
 
 class NNAgent(AbstractAgent):
