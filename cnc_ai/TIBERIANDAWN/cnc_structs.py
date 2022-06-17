@@ -245,10 +245,9 @@ def score(game_state_arrays, owner):
             asset_name = dynamic_object_names[asset_index]
             result += costs.get(f'{asset_name}_{shape_index}', costs.get(asset_name, 0))
 
-    for sidebar_asset_index, sidebar_progress in zip(
-        game_state_arrays['SidebarAssetName'], game_state_arrays['SidebarContinuous'][:, 0]
-    ):
-        result += costs.get(dynamic_object_names[sidebar_asset_index], 0) * sidebar_progress
+    progress = game_state_arrays['SidebarContinuous'][:, 0]
+    cost = game_state_arrays['SidebarContinuous'][:, 1]
+    result += progress.dot(cost)
 
     return result
 
