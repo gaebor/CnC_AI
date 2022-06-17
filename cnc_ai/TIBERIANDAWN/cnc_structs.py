@@ -162,24 +162,12 @@ class StartGameCustomArgs(CncStruct):
     ]
 
 
-class NoughtRequestArgs(CncStruct):
-    _fields_ = [('player_id', ctypes.c_uint32)]
-
-
-class SidebarRequestArgs(CncStruct):
+class ActionRequestArgs(CncStruct):
     _fields_ = [
         ('player_id', ctypes.c_uint32),
-        ('requestType', ctypes.c_int),
-        ('assetNameIndex', ctypes.c_uint32),
-    ]
-
-
-class InputRequestArgs(CncStruct):
-    _fields_ = [
-        ('player_id', ctypes.c_uint32),
-        ('requestType', ctypes.c_int),
-        ('x1', ctypes.c_float),
-        ('y1', ctypes.c_float),
+        ('action_index', ctypes.c_uint32),
+        ('x', ctypes.c_float),
+        ('y', ctypes.c_float),
     ]
 
 

@@ -98,7 +98,7 @@ class SimpleAgent(AbstractAgent):
                         self.color = inputs['Owner'][mcv_index]
                     MCV_features = inputs['Continuous'][mcv_index]
                     return 2, MCV_features[0], MCV_features[1]
-            elif 72 not in unit_names or 73 not in unit_names:
+            elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
                     nuke = list(sidebar).index(72)
                     progress = inputs['SidebarContinuous'][nuke][0]
@@ -106,15 +106,15 @@ class SimpleAgent(AbstractAgent):
                         # start building
                         return ((1 + nuke) * 12 + 0, 0.0, 0.0)
                     elif progress == 1:
-                        if not self.state.get('place_building', False):
-                            # start placement
-                            self.state['place_building'] = True
-                            return ((1 + nuke) * 12 + 3, 0.0, 0.0)
-                        else:
+                        if self.state.get('place_building', False):
                             # place
                             self.state['place_building'] = False
                             new_spot = self.find_new_spot(inputs)
-                            return (2, *new_spot)
+                            return ((1 + nuke) * 12 + 4, *new_spot)
+                        else:
+                            # start placement
+                            self.state['place_building'] = True
+                            return ((1 + nuke) * 12 + 3, 0.0, 0.0)
             # print(render_game_state_terminal(inputs))
             return 0, 0.0, 0.0
 
@@ -122,17 +122,7 @@ class SimpleAgent(AbstractAgent):
             unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]
             unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
             CY_position = unit_positions[list(unit_names).index(39)]
-            random_tile = numpy.random.randint(0, 7)
-            east = (random_tile & 1) > 0
-            south = (random_tile & 2) > 0
-            far = (random_tile & 4) > 0
-            diff = numpy.zeros_like(CY_position)
-            diff[1] = 1 if east else -1
-            diff[0] = 1 if south else -1
-            if far:
-                diff *= 24
-            else:
-                diff *= 48
+            diff = numpy.random.randint(-3, 4, size=2) * 24
             return CY_position + diff
 
     def __init__(self):

@@ -91,29 +91,14 @@ bool Advance();
 bool GetCommonVectorRepresentation();
 bool GetPlayersVectorRepresentation(void*& buffer, size_t& buffer_size);
 
-struct SidebarRequestArgs
+struct ActionRequestArgs
 {
     std::uint32_t player_id;
-    SidebarRequestEnum requestType;
-    std::uint32_t assetNameIndex;
+    std::uint32_t action_index;
+    float x, y;
 };
 
-
-struct NoughtRequestArgs
-{
-    std::uint32_t player_id;
-};
-
-struct InputRequestArgs
-{
-    std::uint32_t player_id;
-    InputRequestEnum requestType;
-    float x1;
-    float y1;
-};
-
-void HandleSidebarRequest(const SidebarRequestArgs*);
-void HandleInputRequest(const InputRequestArgs*);
+void HandleActionRequest(const ActionRequestArgs*);
 
 HMODULE dll_handle;
 std::vector<CNCPlayerInfoStruct> players;
@@ -321,51 +306,51 @@ bool GetPlayersVectorRepresentation(unsigned char*& buffer, size_t& buffer_size)
     return true;
 }
 
-void HandleSidebarRequest(const SidebarRequestArgs* args)
+void HandleActionRequest(const ActionRequestArgs* args)
 {
     if (args->player_id >= players.size())
         return;
-
-    const auto& player = players[args->player_id];
-    const auto& sidebar = players_sidebar[args->player_id];
-    if (args->assetNameIndex < sidebar.Entries.size())
+    if (args->action_index < 12)
     {
-        const auto& entry = sidebar.Entries[args->assetNameIndex];
-        if (args->requestType == SIDEBAR_REQUEST_PLACE)
-            return; // buildings are placed with click for now
-
-        CNC_Handle_Sidebar_Request(args->requestType, player.GlyphxPlayerID, entry.BuildableType, entry.BuildableID, 0, 0);
-    }
-}
-
-void HandleInputRequest(const InputRequestArgs* args)
-{
-    if (args->player_id >= players.size())
-        return;
-
-    switch (args->requestType)
-    {
-    case INPUT_REQUEST_SPECIAL_KEYS: // these should be handled differently
-        break;
-    case INPUT_REQUEST_MOD_GAME_COMMAND_1_AT_POSITION: // used for starting the area selection
-        players_area_corner[args->player_id] = std::make_pair(args->x1, args->y1);
-        break;
-    case INPUT_REQUEST_MOUSE_AREA:
-    case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
-    {
-        auto previous_position = players_area_corner.find(args->player_id);
-        if (previous_position != players_area_corner.end()) {
-            CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID,
-                static_cast<int>(previous_position->second.first), static_cast<int>(previous_position->second.second),
-                static_cast<int>(args->x1), static_cast<int>(args->y1)
-            );
-            players_area_corner.erase(previous_position);
+        const auto request_type = InputRequestEnum(args->action_index);
+        switch (request_type)
+        {
+        case INPUT_REQUEST_SPECIAL_KEYS: // these should be handled differently
+            break;
+        case INPUT_REQUEST_MOD_GAME_COMMAND_1_AT_POSITION: // used for starting the area selection
+            players_area_corner[args->player_id] = std::make_pair(args->x, args->y);
+            break;
+        case INPUT_REQUEST_MOUSE_AREA:
+        case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
+        {
+            auto previous_position = players_area_corner.find(args->player_id);
+            if (previous_position != players_area_corner.end()) {
+                CNC_Handle_Input(request_type, 0U, players[args->player_id].GlyphxPlayerID,
+                    static_cast<int>(previous_position->second.first), static_cast<int>(previous_position->second.second),
+                    static_cast<int>(args->x), static_cast<int>(args->y)
+                );
+                players_area_corner.erase(previous_position);
+            }
+        } break;
+        default:
+            players_area_corner.erase(args->player_id);
+            CNC_Handle_Input(request_type, 0U, players[args->player_id].GlyphxPlayerID, static_cast<int>(args->x), static_cast<int>(args->y), 0, 0);
+            break;
         }
-    } break;
-    default:
-        players_area_corner.erase(args->player_id);
-        CNC_Handle_Input(args->requestType, 0U, players[args->player_id].GlyphxPlayerID, static_cast<int>(args->x1), static_cast<int>(args->y1), 0, 0);
-        break;
+    }
+    else
+    {
+        const auto& player = players[args->player_id];
+        const auto& sidebar = players_sidebar[args->player_id];
+
+        const auto request_type = SidebarRequestEnum(args->action_index % 12);
+        const auto sidebar_index = (args->action_index - 12) / 12;
+        if (sidebar_index < sidebar.Entries.size())
+        {
+            const auto& entry = sidebar.Entries[sidebar_index];
+            CNC_Handle_Sidebar_Request(request_type, player.GlyphxPlayerID, entry.BuildableType, entry.BuildableID, static_cast<short>(args->x) / 24, static_cast<short>(args->y) / 24);
+        }
+
     }
 }
 
@@ -376,9 +361,9 @@ enum WebsocketMessageType : std::uint32_t
     ADDPLAYER,
     STARTGAME,
     STARTGAMECUSTOM,
-    INPUTREQUEST,
-    SIDEBARREQUEST,
-    NOUGHTREQUEST,
+    ACTIONREQUEST,
+    RESERVED1,
+    RESERVED2,
     LOAD_GAME,
     LOAD_STATIC_ASSET_NAMES,
     LOAD_DYNAMIC_ASSET_NAMES,
@@ -506,19 +491,10 @@ int wmain(int argc, const wchar_t* argv[])
         {
             const auto message_type = *(const WebsocketMessageType*)message_ptr;
             step_buffer(message_ptr, message_size, sizeof(WebsocketMessageType));
-            switch (message_type)
+            if (message_type == ACTIONREQUEST)
             {
-            case INPUTREQUEST:
-                HandleInputRequest((const InputRequestArgs*)message_ptr);
-                step_buffer(message_ptr, message_size, sizeof(InputRequestArgs));
-                break;
-            case SIDEBARREQUEST:
-                HandleSidebarRequest((const SidebarRequestArgs*)message_ptr);
-                step_buffer(message_ptr, message_size, sizeof(SidebarRequestArgs));
-                break;
-            case NOUGHTREQUEST:
-                step_buffer(message_ptr, message_size, sizeof(NoughtRequestArgs));
-                break;
+                HandleActionRequest((const ActionRequestArgs*)message_ptr);
+                step_buffer(message_ptr, message_size, sizeof(ActionRequestArgs));
             }
         }
     }
