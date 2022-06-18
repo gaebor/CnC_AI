@@ -158,24 +158,14 @@ class TD_GameEmbedding(nn.Module):
         )
         internal_vectors = [
             map_embedding,
-            self.dynamic_object_encoder(dynamic_objects, src_key_padding_mask=dynamic_mask)[:, 0],
+            self.dynamic_object_encoder(dynamic_objects, src_key_padding_mask=dynamic_mask).sum(
+                axis=1
+            ),
             SidebarInfos,
+            self.siderbar_entries_encoder(sidebar_mask, SidebarAssetName, SidebarContinuous).sum(
+                axis=1
+            ),
         ]
-        sidebar_embeddings = self.siderbar_entries_encoder(
-            sidebar_mask, SidebarAssetName, SidebarContinuous
-        )
-        if SidebarAssetName.shape[1] > 0:
-            sidebar_embedding = sidebar_embeddings[:, 0, :]
-            sidebar_embedding[sidebar_mask[:, 0], :] = 0
-            internal_vectors.append(sidebar_embedding)
-        else:
-            internal_vectors.append(
-                torch.zeros(
-                    (dynamic_objects.shape[0], self.siderbar_entries_encoder.embedding_dim),
-                    dtype=dynamic_objects.dtype,
-                    device=dynamic_objects.device,
-                )
-            )
         internal_state = torch.cat(internal_vectors, 1)
         game_state_embedding = self.dense(internal_state)
         return game_state_embedding
@@ -242,6 +232,7 @@ class SidebarEntriesEncoder(nn.Module):
             axis=2,
         )
         sidebar_embeddings = self.encoder(siderbar_entries, src_key_padding_mask=sidebar_mask)
+        sidebar_embeddings[sidebar_mask] = 0
         return sidebar_embeddings
 
 
@@ -254,19 +245,17 @@ class TD_Action(nn.Module):
             embedding_dim=embedding_dim, num_layers=2, out_dim=12
         )
         self.flatten = nn.Flatten()
-        self.sidebar_unflatten = nn.Unflatten(-1, (-1, self.sidebar_decoder.embedding_dim))
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params, mouse_button_logits = self.mouse_action(game_state)
         sidebar = self.sidebar_decoder(
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
-        sidebar[sidebar_mask] = torch.tensor(
-            float('-inf'), dtype=game_state.dtype, device=game_state.device
-        )
+        sidebar[sidebar_mask] = float('-inf')
         action_distribution = nn.functional.log_softmax(
             torch.cat([mouse_button_logits, self.flatten(sidebar)], 1), -1
         )
+
         return mouse_positional_params, action_distribution
 
     def sample(self, mouse_positional_params, action_distribution):
