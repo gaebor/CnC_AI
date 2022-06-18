@@ -16,7 +16,7 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.optimizer = None
 
-    def init_optimizer(self, lr=1e-5, weight_decay=1e-10, **params):
+    def init_optimizer(self, lr=1e-4, weight_decay=1e-10, **params):
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
         )
