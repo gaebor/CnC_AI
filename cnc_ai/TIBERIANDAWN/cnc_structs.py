@@ -144,22 +144,38 @@ class StaticMap(CncStruct):
     ]
 
 
-class StartGameArgs(CncStruct):
+class GameArgs(CncStruct):
+    _fields_ = [('multiplayer_info', CNCMultiplayerOptionsStruct)]
+
+
+class StartGameArgs(GameArgs):
     _fields_ = [
-        ('multiplayer_info', CNCMultiplayerOptionsStruct),
         ('scenario_index', ctypes.c_int),
         ('build_level', ctypes.c_int),
         ('difficulty', ctypes.c_int),
     ]
 
+    def render_message(self) -> bytes:
+        return bytes(ctypes.c_uint32(3)) + bytes(self)
 
-class StartGameCustomArgs(CncStruct):
+
+class StartGameCustomArgs(GameArgs):
     _fields_ = [
-        ('multiplayer_info', CNCMultiplayerOptionsStruct),
         ('directory_path', ctypes.c_char * 256),
         ('scenario_name', ctypes.c_char * 256),
         ('build_level', ctypes.c_int),
     ]
+
+    def render_message(self) -> bytes:
+        return bytes(ctypes.c_uint32(4)) + bytes(self)
+
+
+class LoadGameArgs:
+    def __init__(self, filename: bytes):
+        self.filename = filename
+
+    def render_message(self) -> bytes:
+        return bytes(ctypes.c_uint32(8)) + self.filename + b'\0'
 
 
 class ActionRequestArgs(CncStruct):

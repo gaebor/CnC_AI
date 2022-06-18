@@ -129,7 +129,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
 
                 if 'NN' in GameHandler.agents:
-                    nn_actions = GameHandler.agent(**game_state_tensor)
+                    nn_actions = GameHandler.nn_agent(**game_state_tensor)
                     nn_actions = [action[-1] for action in nn_actions]
                 if 'AI' in GameHandler.agents:
                     simple_actions = GameHandler.simple_agent(**game_state_tensor)
@@ -220,32 +220,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         self.add_players()
 
         # start game
-        buffer = bytes(ctypes.c_uint32(3))
-        buffer += bytes(
-            cnc_structs.StartGameArgs(
-                cnc_structs.CNCMultiplayerOptionsStruct(
-                    MPlayerCount=2,
-                    MPlayerBases=1,
-                    MPlayerCredits=5000,
-                    MPlayerTiberium=1,
-                    MPlayerGoodies=0,
-                    MPlayerGhosts=0,
-                    MPlayerSolo=1,
-                    MPlayerUnitCount=0,
-                    IsMCVDeploy=False,
-                    SpawnVisceroids=False,
-                    EnableSuperweapons=True,
-                    MPlayerShadowRegrow=False,
-                    MPlayerAftermathUnits=True,
-                    CaptureTheFlag=False,
-                    DestroyStructures=False,
-                    ModernBalance=True,
-                ),
-                50,
-                7,
-                2,
-            )
-        )
+        buffer = self.start_game_args.render_message()
         self.write_message(buffer, binary=True)
 
     @classmethod
@@ -304,33 +279,32 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             result.append([next(l) for _ in range(len(game.players))])
         return result
 
-    @classmethod
-    def get_rewards(cls):
-        rewards = numpy.array(
-            [
-                0 if game.loser_mask == 0 else (-1 if game.loser_mask & (1 << player) else 1)
-                for game in cls.games
-                for player in range(len(game.players))
-            ]
-        )
-        if cls.agents == 'AIvAI':
-            return numpy.ones_like(rewards)
+    def get_rewards(self):
+        rewards = [
+            0 if self.loser_mask == 0 else (-1 if self.loser_mask & (1 << player) else 1)
+            for player in range(len(self.players))
+        ]
+        if GameHandler.agents == 'AIvAI':
+            rewards = numpy.ones_like(rewards)
         return rewards
 
     @classmethod
     def train(cls, n=1):
         game_state_tensor = cls.all_game_states_to_tensor()
-        rewards = cls.get_rewards()
+        rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
         actions = cls.all_game_actions_to_tensor()
-        cls.agent.learn(game_state_tensor, actions, rewards, n=n)
+        cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n)
 
     @classmethod
-    def configure(cls, agent, n_games=2, end_limit=10_000, players=(), agents='NNvNN'):
+    def configure(
+        cls, nn_agent, players, start_game_args, n_games=2, end_limit=10_000, agents='NNvNN'
+    ):
         cls.n_games = n_games
-        cls.agent = agent
+        cls.nn_agent = nn_agent
         cls.end_limit = end_limit
         cls.tqdm = trange(end_limit)
         cls.players = list(players)
+        cls.start_game_args = start_game_args
         cls.games = []
         cls.ended_games = []
         cls.simple_agent = SimpleAgent()
@@ -349,8 +323,6 @@ def main():
 
     GameHandler.configure(
         agent,
-        args.n,
-        args.end_limit,
         [
             cnc_structs.CNCPlayerInfoStruct(
                 GlyphxPlayerID=314159265,
@@ -373,6 +345,31 @@ def main():
                 StartLocationIndex=127,
             ),
         ],
+        start_game_args=cnc_structs.StartGameArgs(
+            cnc_structs.CNCMultiplayerOptionsStruct(
+                MPlayerCount=2,
+                MPlayerBases=1,
+                MPlayerCredits=5000,
+                MPlayerTiberium=1,
+                MPlayerGoodies=0,
+                MPlayerGhosts=0,
+                MPlayerSolo=1,
+                MPlayerUnitCount=0,
+                IsMCVDeploy=False,
+                SpawnVisceroids=False,
+                EnableSuperweapons=True,
+                MPlayerShadowRegrow=False,
+                MPlayerAftermathUnits=True,
+                CaptureTheFlag=False,
+                DestroyStructures=False,
+                ModernBalance=True,
+            ),
+            50,
+            7,
+            2,
+        ),
+        n_games=args.n,
+        end_limit=args.end_limit,
         agents=args.agents,
     )
 
@@ -388,7 +385,7 @@ def main():
     GameHandler.tqdm.close()
 
     for game in GameHandler.games:
-        print(game.folder, game.compute_scores())
+        print(game.folder, game.compute_scores(), game.get_rewards())
         if args.print:
             for i in range(len(game.players)):
                 print(i)
