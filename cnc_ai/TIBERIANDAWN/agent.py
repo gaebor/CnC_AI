@@ -16,7 +16,7 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.optimizer = None
 
-    def init_optimizer(self, lr=0.01, weight_decay=1e-6, **params):
+    def init_optimizer(self, lr=1e-3, weight_decay=1e-6, **params):
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
         )
@@ -38,8 +38,10 @@ class NNAgent(AbstractAgent):
 
         self.optimizer.zero_grad()
         action_parameters = self.nn(**game_state_tensors)
-        log_probs = interflatten(self.nn.actions.evaluate, *action_parameters, *actions)
-        (-log_probs.sum(axis=0).dot(rewards)).backward()
+        action_log_probs = interflatten(self.nn.actions.evaluate, *action_parameters, *actions)
+        game_entropy = -action_log_probs.mean(axis=0)
+        print(game_entropy)
+        game_entropy.dot(rewards).backward()
         self.optimizer.step()
 
     def save(self, path):
