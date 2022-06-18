@@ -11,6 +11,7 @@ from cnc_ai.nn import (
     ConvolutionLayer,
     log_beta,
     interflatten,
+    take_along_first_dim,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -289,19 +290,19 @@ class TD_Action(nn.Module):
         chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
             mouse_positional_params, chosen_actions
         )
-        prob = torch.take_along_dim(action_distribution, chosen_actions[:, None], dim=1)[:, 0]
+        button_prob = take_along_first_dim(action_distribution, chosen_actions)
 
-        prob += log_beta(
+        mouse_x_prob = log_beta(
             chosen_mouse_positional_params[:, 0],
             chosen_mouse_positional_params[:, 1],
             mouse_x / 1488,
         )
-        prob += log_beta(
+        mouse_y_prob = log_beta(
             chosen_mouse_positional_params[:, 2],
             chosen_mouse_positional_params[:, 3],
             mouse_y / 1488,
         )
-        return prob
+        return button_prob + mouse_x_prob + mouse_y_prob
 
 
 class MouseAction(nn.Module):
@@ -328,12 +329,10 @@ class MouseAction(nn.Module):
         return mouse_parameters, mouse_buttons
 
     def choose_beta_parameters(self, mouse_positional_params, chosen_actions):
-        chosen_mouse_positional_params = mouse_positional_params[
-            torch.arange(chosen_actions.shape[0]),
+        return take_along_first_dim(
+            mouse_positional_params,
             torch.where(chosen_actions >= self.n_buttons, 0, chosen_actions),
-            :,
-        ]
-        return chosen_mouse_positional_params
+        )
 
 
 class SidebarDecoder(nn.Module):

@@ -227,3 +227,7 @@ def interflatten(f, *varg, dim_range=(0, 1)):
         return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
     else:
         return result.unflatten(dim_range[0], flattened_dims)
+
+
+def take_along_first_dim(array, indices):
+    return array[torch.arange(indices.shape[0]), indices, ...]
