@@ -35,7 +35,7 @@ class UpscaleLayer(nn.Sequential):
         super().__init__(
             nn.Conv2d(
                 in_channels,
-                out_channels * upscale ** 2,
+                out_channels * upscale**2,
                 kernel_size=kernel_size,
                 stride=1,
                 padding=(kernel_size - 1) // 2,
@@ -210,14 +210,38 @@ class SoftmaxReadout(nn.Module):
         return result
 
 
-def log_beta(alpha, beta, x):
-    return (
-        torch.log(x) * (alpha - 1)
-        + torch.log(1 - x) * (beta - 1)
-        + torch.lgamma(alpha + beta)
-        - torch.lgamma(alpha)
-        - torch.lgamma(beta)
-    )
+class DistributionSampler:
+    def __init__(self, distribution: type):
+        if not issubclass(distribution, torch.distributions.distribution.Distribution):
+            raise ValueError(
+                f'{distribution} should be a subclass of {torch.distributions.distribution.Distribution}!'
+            )
+        self.distribution = distribution
+
+    def apply_params(self, params):
+        return self.distribution(params)
+
+    def sample(self, params):
+        return self.apply_params(params).sample()
+
+    def surprise(self, params, x):
+        return -self.apply_params(params).log_prob(x)
+
+
+class MultiChoiceSamplerWithLogits(DistributionSampler):
+    def __init__(self):
+        super().__init__(torch.distributions.multinomial.Multinomial)
+
+    def apply_params(self, params):
+        return self.distribution(1, logits=params)
+
+    def sample(self, params):
+        return super().sample(params).to(torch.bool)
+
+
+class TwoParameterContinuousSampler(DistributionSampler):
+    def apply_params(self, params):
+        return self.distribution(params[:, 0], params[:, 1])
 
 
 def interflatten(f, *varg, dim_range=(0, 1)):
@@ -227,7 +251,3 @@ def interflatten(f, *varg, dim_range=(0, 1)):
         return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
     else:
         return result.unflatten(dim_range[0], flattened_dims)
-
-
-def take_along_first_dim(array, indices):
-    return array[torch.arange(indices.shape[0]), indices, ...]

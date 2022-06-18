@@ -6,7 +6,7 @@ def number_of_digits(n):
 
 
 def retrieve(t):
-    return t.detach().to('cpu')
+    return t.detach().to('cpu').numpy()
 
 
 def max(m, axes):

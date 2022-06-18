@@ -6,7 +6,7 @@ import numpy
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.nn import interflatten
-from cnc_ai.common import dictmap
+from cnc_ai.common import dictmap, retrieve
 
 
 class NNAgent(AbstractAgent):
@@ -16,7 +16,7 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.optimizer = None
 
-    def init_optimizer(self, lr=1e-5, weight_decay=1e-6, **params):
+    def init_optimizer(self, lr=1e-5, weight_decay=1e-10, **params):
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
         )
@@ -29,23 +29,17 @@ class NNAgent(AbstractAgent):
 
     def learn(self, game_state_tensors, actions, rewards, n=1):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
-        actions = (
-            self._to_device(actions[0]),
-            self._to_device(actions[1]).to(torch.float32),
-            self._to_device(actions[2]).to(torch.float32),
-        )
-        rewards = self._to_device(rewards).to(torch.float32)
+        actions = tuple(map(self._to_device, actions))
+        rewards = self._to_device(rewards)
         for _ in range(n):
             self.optimizer.zero_grad()
             action_parameters = self.nn(**game_state_tensors)
-            actions_surprise = -interflatten(
-                self.nn.actions.evaluate, *action_parameters, *actions
-            )
+            actions_surprise = interflatten(self.nn.actions.surprise, *action_parameters, *actions)
             games_surprise = actions_surprise.mean(axis=0)
-            objective = games_surprise.dot(rewards)
+            objective = games_surprise.dot(rewards.to(games_surprise.dtype))
             objective.backward()
             self.optimizer.step()
-            print(games_surprise.detach().to('cpu').numpy(), end='\r')
+            print(retrieve(games_surprise), end='\r')
 
     def save(self, path):
         self.nn.reset()

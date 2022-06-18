@@ -2,16 +2,15 @@
 
 from torch import nn
 import torch
-from torch.distributions.beta import Beta
 
 from cnc_ai.nn import (
     DoubleEmbedding,
     DownScaleLayer,
     HiddenLayer,
     ConvolutionLayer,
-    log_beta,
+    MultiChoiceSamplerWithLogits,
+    TwoParameterContinuousSampler,
     interflatten,
-    take_along_first_dim,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -20,8 +19,6 @@ from cnc_ai.TIBERIANDAWN.cnc_structs import (
     dynamic_object_names,
     MAX_OBJECT_PIPS,
 )
-
-from cnc_ai.common import multi_sample
 
 
 class TD_GamePlay(nn.Module):
@@ -240,62 +237,52 @@ class TD_Action(nn.Module):
     def __init__(self, embedding_dim=1024):
         super().__init__()
         self.per_tile_actions = (5, 12)
-        self.mouse_action = MouseAction(embedding_dim)
+        self.mouse_parameters = MouseParameters(embedding_dim)
+        self.mouse_x = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
+        self.mouse_y = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
+
         self.sidebar_decoder = SidebarDecoder(
             embedding_dim=embedding_dim, num_layers=1, out_dim=12
         )
+        self.button_sampler = MultiChoiceSamplerWithLogits()
         self.flatten = nn.Flatten()
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        mouse_positional_params, mouse_button_logits = self.mouse_action(game_state)
+        mouse_positional_params, mouse_button_logits = self.mouse_parameters(game_state)
         sidebar = self.sidebar_decoder(
             game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
         sidebar[sidebar_mask] = float('-inf')
-        action_distribution = nn.functional.log_softmax(
-            torch.cat([mouse_button_logits, self.flatten(sidebar)], 1), -1
+        action_logits = torch.cat([mouse_button_logits, self.flatten(sidebar)], 1)
+
+        return mouse_positional_params, action_logits
+
+    def sample(self, mouse_parameters, action_logits):
+        chosen_actions = self.button_sampler.sample(action_logits)
+        chosen_mouse_parameters = self.mouse_parameters.choose_parameters(
+            mouse_parameters, chosen_actions
         )
-
-        return mouse_positional_params, action_distribution
-
-    def sample(self, mouse_positional_params, action_distribution):
-        chosen_actions = multi_sample(torch.exp(action_distribution))
-        chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
-            mouse_positional_params, chosen_actions
+        mouse_x, mouse_y = (
+            self.mouse_x.sample(chosen_mouse_parameters[:, :2]),
+            self.mouse_y.sample(chosen_mouse_parameters[:, 2:]),
         )
-        alpha_x, beta_x, alpha_y, beta_y = (
-            chosen_mouse_positional_params[:, 0],
-            chosen_mouse_positional_params[:, 1],
-            chosen_mouse_positional_params[:, 2],
-            chosen_mouse_positional_params[:, 3],
+        return chosen_actions.nonzero()[:, 1], mouse_x * 1488, mouse_y * 1488
+
+    def surprise(self, mouse_parameters, action_logits, chosen_actions, mouse_x, mouse_y):
+        action_mask = torch.eye(
+            action_logits.shape[1], dtype=torch.bool, device=chosen_actions.device
+        )[chosen_actions]
+        chosen_mouse_parameters = self.mouse_parameters.choose_parameters(
+            mouse_parameters, action_mask
         )
-        mouse_x, mouse_y = Beta(alpha_x, beta_x).sample(), Beta(alpha_y, beta_y).sample()
-
-        return chosen_actions, mouse_x * 1488, mouse_y * 1488
-
-    def evaluate(
-        self, mouse_positional_params, action_distribution, chosen_actions, mouse_x, mouse_y
-    ):
-        chosen_mouse_positional_params = self.mouse_action.choose_beta_parameters(
-            mouse_positional_params, chosen_actions
-        )
-        button_prob = take_along_first_dim(action_distribution, chosen_actions)
-
-        mouse_x_prob = log_beta(
-            chosen_mouse_positional_params[:, 0],
-            chosen_mouse_positional_params[:, 1],
-            mouse_x / 1488,
-        )
-        mouse_y_prob = log_beta(
-            chosen_mouse_positional_params[:, 2],
-            chosen_mouse_positional_params[:, 3],
-            mouse_y / 1488,
-        )
-        return button_prob + mouse_x_prob + mouse_y_prob
+        button_surprise = self.button_sampler.surprise(action_logits, action_mask)
+        mouse_x_surprise = self.mouse_x.surprise(chosen_mouse_parameters[:, :2], mouse_x / 1488)
+        mouse_y_surprise = self.mouse_y.surprise(chosen_mouse_parameters[:, 2:], mouse_y / 1488)
+        return button_surprise + mouse_x_surprise + mouse_y_surprise
 
 
-class MouseAction(nn.Module):
-    def __init__(self, embedding_dim=1024, n_layers=2):
+class MouseParameters(nn.Module):
+    def __init__(self, embedding_dim=1024, n_layers=1):
         super().__init__()
         self.n_buttons = 12  # types of mouse action, including None
         self.ff = nn.Sequential(
@@ -308,7 +295,7 @@ class MouseAction(nn.Module):
         mouse_parameters = torch.cat(
             [
                 torch.ones(logits.shape[0], 1, 4, dtype=logits.dtype, device=logits.device),
-                torch.exp(
+                nn.functional.softplus(
                     logits[:, : 4 * (self.n_buttons - 1)].reshape(-1, self.n_buttons - 1, 4)
                 ),
             ],
@@ -317,11 +304,11 @@ class MouseAction(nn.Module):
         mouse_buttons = logits[:, -self.n_buttons :]
         return mouse_parameters, mouse_buttons
 
-    def choose_beta_parameters(self, mouse_positional_params, chosen_actions):
-        return take_along_first_dim(
-            mouse_positional_params,
-            torch.where(chosen_actions >= self.n_buttons, 0, chosen_actions),
-        )
+    def choose_parameters(self, mouse_parameters, chosen_actions):
+        mouse_actions = chosen_actions[:, : self.n_buttons].clone()
+        mouse_actions[:, 0] |= chosen_actions[:, self.n_buttons :].sum(axis=1) > 0
+        chosen_mouse_positional_params = mouse_parameters[mouse_actions]
+        return chosen_mouse_positional_params
 
 
 class SidebarDecoder(nn.Module):
