@@ -29,7 +29,11 @@ class NNAgent(AbstractAgent):
 
     def learn(self, game_state_tensors, actions, rewards):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
-        actions = map(self._to_device, actions)
+        actions = (
+            self._to_device(actions[0]),
+            self._to_device(actions[1]).to(torch.float32),
+            self._to_device(actions[2]).to(torch.float32),
+        )
         rewards = self._to_device(rewards).to(torch.float32)
 
         self.optimizer.zero_grad()
