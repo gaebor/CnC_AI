@@ -16,7 +16,7 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.optimizer = None
 
-    def init_optimizer(self, lr=1e-3, weight_decay=1e-6, **params):
+    def init_optimizer(self, lr=1e-5, weight_decay=1e-6, **params):
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
         )
@@ -27,7 +27,7 @@ class NNAgent(AbstractAgent):
         actions = interflatten(self.nn.actions.sample, *action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
-    def learn(self, game_state_tensors, actions, rewards):
+    def learn(self, game_state_tensors, actions, rewards, n=1):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = (
             self._to_device(actions[0]),
@@ -35,14 +35,17 @@ class NNAgent(AbstractAgent):
             self._to_device(actions[2]).to(torch.float32),
         )
         rewards = self._to_device(rewards).to(torch.float32)
-
-        self.optimizer.zero_grad()
-        action_parameters = self.nn(**game_state_tensors)
-        action_log_probs = interflatten(self.nn.actions.evaluate, *action_parameters, *actions)
-        game_entropy = -action_log_probs.mean(axis=0)
-        print(game_entropy)
-        game_entropy.dot(rewards).backward()
-        self.optimizer.step()
+        for _ in range(n):
+            self.optimizer.zero_grad()
+            action_parameters = self.nn(**game_state_tensors)
+            actions_surprise = -interflatten(
+                self.nn.actions.evaluate, *action_parameters, *actions
+            )
+            games_surprise = actions_surprise.mean(axis=0)
+            objective = games_surprise.dot(rewards)
+            objective.backward()
+            self.optimizer.step()
+            print(games_surprise.detach().to('cpu').numpy(), end='\r')
 
     def save(self, path):
         self.nn.reset()

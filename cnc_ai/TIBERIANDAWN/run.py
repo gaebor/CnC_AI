@@ -84,9 +84,7 @@ def get_args():
         action='store_true',
         help="Print out what was the terminal state of the game(s).",
     )
-    parser.add_argument(
-        '-T', '--train', default=False, action='store_true', help="Train at the end of the game."
-    )
+    parser.add_argument('-T', '--train', default=0, type=int, help="Train at the end of the game.")
     parser.add_argument(
         '-r',
         '--record',
@@ -95,10 +93,15 @@ def get_args():
         help="Save recording of the games for later inspection or training. "
         "If you train at the end of the games than save recording may not be necessary.",
     )
+    parser.add_argument(
+        '-a',
+        '--agents',
+        dest='agents',
+        default='AIvAI',
+        choices=['AIvAI', 'AIvNN', 'NNvNN'],
+        help=" ",
+    )
     return parser.parse_args()
-
-
-simple_agent = SimpleAgent()
 
 
 class GameHandler(tornado.websocket.WebSocketHandler):
@@ -124,13 +127,23 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             ):
                 GameHandler.tqdm.update()
                 game_state_tensor = GameHandler.last_game_states_to_tensor()
-                nn_actions = GameHandler.agent(**game_state_tensor)
-                simple_actions = simple_agent(**game_state_tensor)
-                actions = mix_actions(
-                    simple_actions,
-                    [action[-1] for action in nn_actions],
-                    (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
-                )
+
+                if 'NN' in GameHandler.agents:
+                    nn_actions = GameHandler.agent(**game_state_tensor)
+                    nn_actions = [action[-1] for action in nn_actions]
+                if 'AI' in GameHandler.agents:
+                    simple_actions = GameHandler.simple_agent(**game_state_tensor)
+
+                if GameHandler.agents == 'NNvNN':
+                    actions = nn_actions
+                elif GameHandler.agents == 'AIvAI':
+                    actions = simple_actions
+                else:
+                    actions = mix_actions(
+                        simple_actions,
+                        nn_actions,
+                        (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
+                    )
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
@@ -300,17 +313,19 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 for player in range(len(game.players))
             ]
         )
+        if cls.agents == 'AIvAI':
+            return numpy.ones_like(rewards)
         return rewards
 
     @classmethod
-    def train(cls):
+    def train(cls, n=1):
         game_state_tensor = cls.all_game_states_to_tensor()
         rewards = cls.get_rewards()
         actions = cls.all_game_actions_to_tensor()
-        cls.agent.learn(game_state_tensor, actions, rewards)
+        cls.agent.learn(game_state_tensor, actions, rewards, n=n)
 
     @classmethod
-    def configure(cls, agent, n_games=2, end_limit=10_000, players=()):
+    def configure(cls, agent, n_games=2, end_limit=10_000, players=(), agents='NNvNN'):
         cls.n_games = n_games
         cls.agent = agent
         cls.end_limit = end_limit
@@ -318,6 +333,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         cls.players = list(players)
         cls.games = []
         cls.ended_games = []
+        cls.simple_agent = SimpleAgent()
+        cls.agents = agents
 
 
 def main():
@@ -356,6 +373,7 @@ def main():
                 StartLocationIndex=127,
             ),
         ],
+        agents=args.agents,
     )
 
     application = tornado.web.Application([(r"/", GameHandler)])
@@ -378,8 +396,8 @@ def main():
     if args.record:
         for game in GameHandler.games:
             game.save_gameplay()
-    if args.train:
-        GameHandler.train()
+    if args.train > 0:
+        GameHandler.train(args.train)
     if args.save:
         agent.save(args.save)
 
