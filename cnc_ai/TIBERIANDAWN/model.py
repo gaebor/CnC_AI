@@ -25,7 +25,7 @@ from cnc_ai.common import multi_sample
 
 
 class TD_GamePlay(nn.Module):
-    def __init__(self, embedding_dim=1024, n_lstm=2):
+    def __init__(self, embedding_dim=1024, n_lstm=1):
         super().__init__()
         self.reset()
         self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
@@ -112,10 +112,10 @@ class TD_GameEmbedding(nn.Module):
                 layer_norm_eps=0,
                 dim_feedforward=128,
             ),
-            num_layers=2,
+            num_layers=1,
         )
 
-        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=2)
+        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=1)
         self.dense = nn.Sequential(
             HiddenLayer(
                 self.map_embedding.embedding_dim
@@ -211,7 +211,7 @@ def calculate_asset_num_shapes(names_list):
 
 
 class SidebarEntriesEncoder(nn.Module):
-    def __init__(self, num_layers=2, embedding_dim=7):
+    def __init__(self, num_layers=1, embedding_dim=7):
         super().__init__()
         self.buildable_embedding = nn.Embedding(len(dynamic_object_names), embedding_dim)
         self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
@@ -242,7 +242,7 @@ class TD_Action(nn.Module):
         self.per_tile_actions = (5, 12)
         self.mouse_action = MouseAction(embedding_dim)
         self.sidebar_decoder = SidebarDecoder(
-            embedding_dim=embedding_dim, num_layers=2, out_dim=12
+            embedding_dim=embedding_dim, num_layers=1, out_dim=12
         )
         self.flatten = nn.Flatten()
 
@@ -325,7 +325,7 @@ class MouseAction(nn.Module):
 
 
 class SidebarDecoder(nn.Module):
-    def __init__(self, embedding_dim=1024, num_layers=2, out_dim=12):
+    def __init__(self, embedding_dim=1024, num_layers=1, out_dim=12):
         super().__init__()
         self.decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(
