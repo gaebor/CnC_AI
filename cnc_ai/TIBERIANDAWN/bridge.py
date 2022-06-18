@@ -1,31 +1,48 @@
 import ctypes
 
 import numpy
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence as pad_sequence_torch
 from torch import tensor
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
 
 
+def pad_sequence(tensors):
+    padded_tensors = pad_sequence_torch([tensor(t) for t in tensors], batch_first=True).numpy()
+    return padded_tensors
+
+
+def resize_sequence_to_minimum_length(sequence):
+    if len(sequence) == 0:
+        return numpy.zeros((1,) + sequence.shape[1:], dtype=sequence.dtype)
+    return sequence
+
+
 def pad_game_states(list_of_game_states):
+    auxiliary_sidebar = {
+        key: [
+            resize_sequence_to_minimum_length(game_state[key])
+            for game_state in list_of_game_states
+        ]
+        for key in [
+            'SidebarAssetName',
+            'SidebarContinuous',
+        ]
+    }
+
     result = {
-        **{
-            new_key: compute_key_padding_mask(
-                [len(game_state[key]) for game_state in list_of_game_states]
-            )
-            for new_key, key in [
-                ('dynamic_mask', 'AssetName'),
-                ('sidebar_mask', 'SidebarAssetName'),
-            ]
-        },
+        'dynamic_mask': compute_key_padding_mask(
+            [len(game_state['AssetName']) for game_state in list_of_game_states]
+        ),
+        'sidebar_mask': compute_key_padding_mask(
+            [len(sidebar) for sidebar in auxiliary_sidebar['SidebarAssetName']]
+        ),
         **{
             key: numpy.stack([game_state[key] for game_state in list_of_game_states], 0)
             for key in ['StaticAssetName', 'StaticShapeIndex', 'SidebarInfos']
         },
         **{
-            key: pad_sequence(
-                [tensor(game_state[key]) for game_state in list_of_game_states], batch_first=True
-            ).numpy()
+            key: pad_sequence([game_state[key] for game_state in list_of_game_states])
             for key in [
                 'AssetName',
                 'ShapeIndex',
@@ -34,9 +51,11 @@ def pad_game_states(list_of_game_states):
                 'ControlGroup',
                 'Cloak',
                 'Continuous',
-                'SidebarAssetName',
-                'SidebarContinuous',
             ]
+        },
+        **{
+            key: pad_sequence(auxiliary_sidebar[key])
+            for key in ['SidebarAssetName', 'SidebarContinuous']
         },
     }
     return result

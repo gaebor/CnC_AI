@@ -314,6 +314,7 @@ void HandleActionRequest(const ActionRequestArgs* args)
 
     const auto& player = players[args->player_id];
     const auto& previous_action = players_previous_action[args->player_id];
+    const auto& sidebar = players_sidebar[args->player_id];
 
     if (args->action_index < 12)
     {
@@ -335,14 +336,22 @@ void HandleActionRequest(const ActionRequestArgs* args)
             }
         } break;
         default:
-            if ((request_type == INPUT_REQUEST_MOUSE_LEFT_CLICK) && (previous_action.action_index >= 12) && (previous_action.action_index % 12 == SIDEBAR_REQUEST_START_PLACEMENT))
+            if (
+                (request_type == INPUT_REQUEST_MOUSE_LEFT_CLICK) &&
+                (previous_action.action_index >= 12) &&
+                (previous_action.action_index % 12 == SIDEBAR_REQUEST_START_PLACEMENT))
             {
-                const auto& previous_sidebar_entry = players_sidebar[args->player_id].Entries[(previous_action.action_index - 12) / 12];
-                CNC_Handle_Sidebar_Request(
-                    SIDEBAR_REQUEST_PLACE, players[args->player_id].GlyphxPlayerID,
-                    previous_sidebar_entry.BuildableType, previous_sidebar_entry.BuildableID,
-                    static_cast<short>(args->x) / 24, static_cast<short>(args->y) / 24
-                );
+                const auto previous_sidebar_index = (previous_action.action_index - 12) / 12;
+                // maybe sidebar has changed over time
+                if (previous_sidebar_index < sidebar.Entries.size())
+                {
+                    const auto& previous_sidebar_entry = sidebar.Entries[previous_sidebar_index];
+                    CNC_Handle_Sidebar_Request(
+                        SIDEBAR_REQUEST_PLACE, players[args->player_id].GlyphxPlayerID,
+                        previous_sidebar_entry.BuildableType, previous_sidebar_entry.BuildableID,
+                        static_cast<short>(args->x) / 24, static_cast<short>(args->y) / 24
+                    );
+                }
             } else
             {
                 CNC_Handle_Input(request_type, 0U, players[args->player_id].GlyphxPlayerID, static_cast<int>(args->x), static_cast<int>(args->y), 0, 0);
