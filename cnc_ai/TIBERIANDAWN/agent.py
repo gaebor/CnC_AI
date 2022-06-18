@@ -38,8 +38,8 @@ class NNAgent(AbstractAgent):
 
         self.optimizer.zero_grad()
         action_parameters = self.nn(**game_state_tensors)
-        log_prob = interflatten(self.nn.actions.evaluate, *action_parameters, *actions).sum(axis=0)
-        (-log_prob.dot(rewards)).backward()
+        log_probs = interflatten(self.nn.actions.evaluate, *action_parameters, *actions)
+        (-log_probs.sum(axis=0).dot(rewards)).backward()
         self.optimizer.step()
 
     def save(self, path):
