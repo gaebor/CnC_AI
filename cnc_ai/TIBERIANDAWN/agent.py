@@ -103,7 +103,7 @@ class SimpleAgent(AbstractAgent):
                     progress = inputs['SidebarContinuous'][nuke][0]
                     if progress == 0:
                         # start building
-                        return ((1 + nuke) * 12 + 0, 0.0, 0.0)
+                        return ((1 + nuke) * 12 + 0, 0.5, 0.5)
                     elif progress == 1:
                         if self.state.get('place_building', False):
                             # place
@@ -113,9 +113,8 @@ class SimpleAgent(AbstractAgent):
                         else:
                             # start placement
                             self.state['place_building'] = True
-                            return ((1 + nuke) * 12 + 3, 0.0, 0.0)
-            # print(render_game_state_terminal(inputs))
-            return 0, 0.0, 0.0
+                            return ((1 + nuke) * 12 + 3, 0.5, 0.5)
+            return 0, 0.5, 0.5
 
         def find_new_spot(self, inputs):
             unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]
