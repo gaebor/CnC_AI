@@ -109,7 +109,7 @@ class SimpleAgent(AbstractAgent):
                             # place
                             self.state['place_building'] = False
                             new_spot = self.find_new_spot(inputs)
-                            return ((1 + nuke) * 12 + 4, *new_spot)
+                            return (2, *new_spot)
                         else:
                             # start placement
                             self.state['place_building'] = True
