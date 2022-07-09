@@ -334,7 +334,7 @@ class MouseParameters(nn.Module):
         # INPUT_REQUEST_MOUSE_MOVE
         # INPUT_REQUEST_MOUSE_AREA
         # INPUT_REQUEST_MOUSE_AREA_ADDITIVE
-        move_mouse = chosen_actions[:, [1, 5, 6]].sum(1) > 0
+        move_mouse = chosen_actions[:, [1, 5, 6]].any(dim=1)
         parameter_index = torch.stack([~move_mouse, move_mouse], dim=1)
         chosen_mouse_positional_params = mouse_parameters[parameter_index]
         return chosen_mouse_positional_params
