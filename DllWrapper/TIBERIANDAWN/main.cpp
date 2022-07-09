@@ -105,7 +105,14 @@ std::vector<CNCPlayerInfoStruct> players;
 std::vector<unsigned char> orginal_houses;
 VectorRepresentation game_state;
 std::vector<SideBar> players_sidebar;
-std::vector<ActionRequestArgs> players_previous_action;
+
+struct MousePosition
+{
+    float x, y;
+    MousePosition() : x(0.5f), y(0.5f) {}
+};
+
+std::vector<MousePosition> players_mouse_position;
 
 std::string content_directory;
 
@@ -165,7 +172,7 @@ void AddPlayer(const CNCPlayerInfoStruct *player)
     players.emplace_back(*player);
     orginal_houses.emplace_back(player->House);
     players_sidebar.resize(players.size());
-    players_previous_action.resize(players.size());
+    players_mouse_position.resize(players.size());
 }
 
 bool retrieve_players_info()
@@ -311,8 +318,11 @@ void HandleActionRequest(const ActionRequestArgs *args)
     if (args->player_id >= players.size())
         return;
 
+    if (args->action_index == INPUT_REQUEST_NONE)
+        return;
+
     const auto &player = players[args->player_id];
-    const auto &previous_action = players_previous_action[args->player_id];
+    auto &mouse_position = players_mouse_position[args->player_id];
     const auto &sidebar = players_sidebar[args->player_id];
 
     if (args->action_index < 12)
@@ -322,55 +332,45 @@ void HandleActionRequest(const ActionRequestArgs *args)
         {
         case INPUT_REQUEST_SPECIAL_KEYS: // these should be handled differently
             break;
-        case INPUT_REQUEST_MOD_GAME_COMMAND_1_AT_POSITION: // used for starting the area selection
+        case INPUT_REQUEST_MOUSE_MOVE:
+            CNC_Handle_Input(
+                request_type, 0U,
+                players[args->player_id].GlyphxPlayerID,
+                static_cast<int>(args->x), static_cast<int>(args->y),
+                0, 0);
+            mouse_position.x = args->x;
+            mouse_position.y = args->y;
             break;
         case INPUT_REQUEST_MOUSE_AREA:
         case INPUT_REQUEST_MOUSE_AREA_ADDITIVE:
-        {
-            if (previous_action.action_index == INPUT_REQUEST_MOD_GAME_COMMAND_1_AT_POSITION)
-            {
-                CNC_Handle_Input(request_type, 0U, players[args->player_id].GlyphxPlayerID,
-                                 static_cast<int>(previous_action.x), static_cast<int>(previous_action.y),
-                                 static_cast<int>(args->x), static_cast<int>(args->y));
-            }
-        }
-        break;
+            CNC_Handle_Input(
+                request_type, 0U,
+                players[args->player_id].GlyphxPlayerID,
+                static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y),
+                static_cast<int>(args->x), static_cast<int>(args->y));
+            mouse_position.x = args->x;
+            mouse_position.y = args->y;
+            break;
         default:
-            if (
-                (request_type == INPUT_REQUEST_MOUSE_LEFT_CLICK) &&
-                (previous_action.action_index >= 12) &&
-                (previous_action.action_index % 12 == SIDEBAR_REQUEST_START_PLACEMENT))
-            {
-                const auto previous_sidebar_index = (previous_action.action_index - 12) / 12;
-                // maybe sidebar has changed over time
-                if (previous_sidebar_index < sidebar.Entries.size())
-                {
-                    const auto &previous_sidebar_entry = sidebar.Entries[previous_sidebar_index];
-                    CNC_Handle_Sidebar_Request(
-                        SIDEBAR_REQUEST_PLACE, players[args->player_id].GlyphxPlayerID,
-                        previous_sidebar_entry.BuildableType, previous_sidebar_entry.BuildableID,
-                        static_cast<short>(args->x) / 24, static_cast<short>(args->y) / 24);
-                }
-            }
-            else
-            {
-                CNC_Handle_Input(request_type, 0U, players[args->player_id].GlyphxPlayerID, static_cast<int>(args->x), static_cast<int>(args->y), 0, 0);
-            }
+            CNC_Handle_Input(request_type, 0U, player.GlyphxPlayerID, static_cast<int>(mouse_position.x), static_cast<int>(mouse_position.y), 0, 0);
             break;
         }
     }
     else
     {
-        const auto request_type = SidebarRequestEnum(args->action_index % 12);
         const auto sidebar_index = (args->action_index - 12) / 12;
         if (sidebar_index < sidebar.Entries.size())
         {
             const auto &entry = sidebar.Entries[sidebar_index];
-            CNC_Handle_Sidebar_Request(request_type, player.GlyphxPlayerID, entry.BuildableType, entry.BuildableID, static_cast<short>(args->x) / 24, static_cast<short>(args->y) / 24);
+            CNC_Handle_Sidebar_Request(
+                SidebarRequestEnum(args->action_index % 12),
+                player.GlyphxPlayerID,
+                entry.BuildableType,
+                entry.BuildableID,
+                static_cast<short>(mouse_position.x) / 24,
+                static_cast<short>(mouse_position.y) / 24);
         }
     }
-    if (args->action_index != INPUT_REQUEST_NONE)
-        players_previous_action[args->player_id] = *args;
 }
 
 enum WebsocketMessageType : std::uint32_t
