@@ -259,23 +259,22 @@ class TD_Action(nn.Module):
             ),
             num_layers=1,
         )
-        self.transformer_out = HiddenLayer(embedding_dim, n_actions)
+        self.transformer_out = nn.Linear(embedding_dim, n_actions)
 
         self.button_sampler = MultiChoiceSamplerWithLogits()
         self.flatten = nn.Flatten()
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
-        sidebar = self.transformer_in(self.sidebar_embedding(SidebarAssetName, SidebarContinuous))
+        sidebar = self.sidebar_embedding(SidebarAssetName, SidebarContinuous)
         # prepend a row before the sidebar
         # these are the mouse actions
-        possible_actions = prepend_row(sidebar)
+        possible_actions = self.transformer_in(prepend_row(sidebar))
         action_mask = prepend_row(sidebar_mask)
-        possible_actions = self.transformer_out(
-            self.action_transformer(
-                possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
-            )
+        transformed = self.action_transformer(
+            possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
         )
+        possible_actions = self.transformer_out(transformed)
         possible_actions[action_mask] = float('-inf')
         action_logits = self.flatten(possible_actions)
 
