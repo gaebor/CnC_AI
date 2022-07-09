@@ -73,19 +73,5 @@ def compute_key_padding_mask(lengths):
     return _static_masks[lengths, :max_length]
 
 
-def render_add_player_command(player):
-    buffer = bytes(ctypes.c_uint32(2))
-    buffer += bytes(player)
-    return buffer
-
-
-def render_action(player_id, action_index, mouse_x, mouse_y):
-    return bytes(ctypes.c_uint32(5)) + bytes(
-        cnc_structs.ActionRequestArgs(
-            player_id=player_id, action_index=action_index, x=mouse_x, y=mouse_y
-        )
-    )
-
-
 def encode_list(list_of_strings):
     return b''.join(map(lambda s: str.encode(s, encoding='ascii') + b'\0', list_of_strings))

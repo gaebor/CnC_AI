@@ -78,6 +78,11 @@ class CNCPlayerInfoStruct(CncStruct):
         ('IsRadarJammed', ctypes.c_bool),
     ]
 
+    def render_message(self):
+        buffer = bytes(ctypes.c_uint32(2))
+        buffer += bytes(self)
+        return buffer
+
 
 class StaticTile(CncStruct):
     _fields_ = [
@@ -185,6 +190,9 @@ class ActionRequestArgs(CncStruct):
         ('x', ctypes.c_float),
         ('y', ctypes.c_float),
     ]
+
+    def render_message(self):
+        return bytes(ctypes.c_uint32(5)) + bytes(self)
 
 
 with open(Path(__file__).parent / 'static_tile_names.txt', 'rt') as f:

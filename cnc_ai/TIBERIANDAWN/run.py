@@ -18,12 +18,7 @@ from cnc_ai.common import dictmap
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
-from cnc_ai.TIBERIANDAWN.bridge import (
-    pad_game_states,
-    render_action,
-    encode_list,
-    render_add_player_command,
-)
+from cnc_ai.TIBERIANDAWN.bridge import pad_game_states, encode_list
 
 
 def get_args():
@@ -150,7 +145,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     game.game_actions.append(per_game_actions)
                     message = b''
                     for player, action in enumerate(zip(*per_game_actions)):
-                        message += render_action(player, *action)
+                        message += cnc_structs.ActionRequestArgs(
+                            player_id=player, action_index=action[0], x=action[1], y=action[2]
+                        ).render_message()
                     game.write_message(message, binary=True)
 
     def open(self):
@@ -181,7 +178,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             if player.House not in [0, 1]:
                 player.House = choice([0, 1])
 
-            self.write_message(render_add_player_command(player), binary=True)
+            self.write_message(player.render_message(), binary=True)
             self.players.append(player)
 
     def print_what_player_sees(self, player):
