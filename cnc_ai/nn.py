@@ -129,14 +129,23 @@ class DoubleEmbedding(nn.Module):
         self.embedding = nn.Embedding(self.sub_embedding_sizes.sum(), embedding_dim)
         self.embedding_dim = self.embedding.embedding_dim
         self.register_buffer(
-            'offsets', torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(0)], 0)
+            'offsets',
+            torch.cat([torch.tensor([0]), self.sub_embedding_sizes[:-1].cumsum(dim=0)], dim=0),
         )
 
     def forward(self, asset_index, shape_index):
-        assert (shape_index < nn.functional.embedding(asset_index, self.sub_embedding_sizes)).all()
-        indices = nn.functional.embedding(asset_index, self.offsets) + shape_index
+        assert (
+            shape_index < DoubleEmbedding.one_d_lookup(asset_index, self.sub_embedding_sizes)
+        ).all()
+        indices = DoubleEmbedding.one_d_lookup(asset_index, self.offsets) + shape_index
         embedding = self.embedding(indices)
         return embedding
+
+    @staticmethod
+    def one_d_lookup(indices, embedding):
+        return torch.flatten(
+            nn.functional.embedding(indices, embedding.unflatten(-1, (-1, 1))), -2, -1
+        )
 
 
 class Predictor(nn.Module):
