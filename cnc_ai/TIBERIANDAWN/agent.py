@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import torch
 import numpy
@@ -73,10 +73,12 @@ class NNAgent(AbstractAgent):
 class SimpleAgent(AbstractAgent):
     class Player:
         def __init__(self):
-            self.state = {}
             self.color = None
+            self.actions = deque()
 
         def get_action(self, inputs):
+            if len(self.actions) > 0:
+                return self.actions.pop()
             # dynamic_mask,
             # sidebar_mask,
             # StaticAssetName,
@@ -95,11 +97,15 @@ class SimpleAgent(AbstractAgent):
             sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
             if 63 in unit_names:
                 mcv_index = list(unit_names).index(63)
-                if mcv_index >= 0:
-                    if self.color is None:
-                        self.color = inputs['Owner'][mcv_index]
-                    MCV_features = inputs['Continuous'][mcv_index]
-                    return 2, MCV_features[0], MCV_features[1]
+                if self.color is None:
+                    self.color = inputs['Owner'][mcv_index]
+                MCV_features = inputs['Continuous'][mcv_index]
+                # move mouse to position then click with left mouse button
+                self.actions.append((1, MCV_features[0], MCV_features[1]))
+                self.actions.append((2, 744.0, 744.0))
+                # do nothing for now
+                return 0, 744.0, 744.0
+
             elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
                     nuke = list(sidebar).index(72)
@@ -108,15 +114,14 @@ class SimpleAgent(AbstractAgent):
                         # start building
                         return ((1 + nuke) * 12 + 0, 744.0, 744.0)
                     elif progress == 1:
-                        if self.state.get('place_building', False):
-                            # place
-                            self.state['place_building'] = False
-                            new_spot = self.find_new_spot(inputs)
-                            return (2, *new_spot)
-                        else:
-                            # start placement
-                            self.state['place_building'] = True
-                            return ((1 + nuke) * 12 + 3, 744.0, 744.0)
+                        new_spot = self.find_new_spot(inputs)
+                        # move mouse to position
+                        # then start placement
+                        # then place
+                        self.actions.append((1, *new_spot))
+                        self.actions.append(((1 + nuke) * 12 + 3, 744.0, 744.0))
+                        self.actions.append(((1 + nuke) * 12 + 4, 744.0, 744.0))
+                        return 0, 744.0, 744.0
             return 0, 744.0, 744.0
 
         def find_new_spot(self, inputs):
