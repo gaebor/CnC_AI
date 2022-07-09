@@ -266,7 +266,7 @@ def prepend_row(tensor):
     result = torch.cat(
         [
             torch.zeros(
-                (tensor.shape[0], 1, tensor.shape[2]), dtype=tensor.dtype, device=tensor.device
+                (tensor.shape[0], 1) + tensor.shape[2:], dtype=tensor.dtype, device=tensor.device
             ),
             tensor,
         ],
