@@ -1,5 +1,3 @@
-# https://github.com/eriklindernoren/PyTorch-GAN
-
 from torch import nn
 import torch
 
@@ -112,7 +110,18 @@ class TD_GameEmbedding(nn.Module):
             num_layers=1,
         )
 
-        self.siderbar_entries_encoder = SidebarEntriesEncoder(num_layers=1)
+        self.siderbar_entries_encoder = SidebarEmbedding()
+        self.sidebar_transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=self.siderbar_entries_encoder.embedding_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=16,
+            ),
+            num_layers=1,
+        )
+
         self.dense = nn.Sequential(
             HiddenLayer(
                 self.map_embedding.embedding_dim
@@ -153,13 +162,16 @@ class TD_GameEmbedding(nn.Module):
             ],
             axis=-1,
         )
+        sidebar_entries = self.siderbar_entries_encoder(
+            sidebar_mask, SidebarAssetName, SidebarContinuous
+        )
         internal_vectors = [
             map_embedding,
             self.dynamic_object_encoder(dynamic_objects, src_key_padding_mask=dynamic_mask).sum(
                 axis=1
             ),
             SidebarInfos,
-            self.siderbar_entries_encoder(sidebar_mask, SidebarAssetName, SidebarContinuous).sum(
+            self.sidebar_transformer(sidebar_entries, src_key_padding_mask=sidebar_mask).sum(
                 axis=1
             ),
         ]
@@ -207,28 +219,17 @@ def calculate_asset_num_shapes(names_list):
     return asset_num_shapes
 
 
-class SidebarEntriesEncoder(nn.Module):
-    def __init__(self, num_layers=1, embedding_dim=7):
+class SidebarEmbedding(nn.Module):
+    def __init__(self, embedding_dim=7):
         super().__init__()
         self.buildable_embedding = nn.Embedding(len(dynamic_object_names), embedding_dim)
         self.embedding_dim = self.buildable_embedding.embedding_dim + 6  # sidebar continuous
-        self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=16,
-            ),
-            num_layers=num_layers,
-        )
 
     def forward(self, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        siderbar_entries = torch.cat(
+        sidebar_embeddings = torch.cat(
             [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
             axis=2,
         )
-        sidebar_embeddings = self.encoder(siderbar_entries, src_key_padding_mask=sidebar_mask)
         sidebar_embeddings[sidebar_mask] = 0
         return sidebar_embeddings
 
@@ -324,7 +325,7 @@ class SidebarDecoder(nn.Module):
             ),
             num_layers=num_layers,
         )
-        self.sidebar_embedding = SidebarEntriesEncoder(num_layers=0)
+        self.sidebar_embedding = SidebarEmbedding()
         self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
         self.embedding_dim = out_dim
         self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
