@@ -247,31 +247,34 @@ class TD_Action(nn.Module):
         self.mouse_x = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
         self.mouse_y = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
 
-        self.sidebar_embedding = SidebarEmbedding(
-            # embedding_dim=embedding_dim, num_layers=1, out_dim=n_actions
-        )
-        self.sidebar_upscaping = HiddenLayer(self.sidebar_embedding.embedding_dim, n_actions)
+        self.sidebar_embedding = SidebarEmbedding()
+        self.transformer_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
         self.action_transformer = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(
-                d_model=n_actions, nhead=1, batch_first=True, layer_norm_eps=0, dim_feedforward=16
+                d_model=embedding_dim,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=embedding_dim,
             ),
             num_layers=1,
         )
+        self.transformer_out = HiddenLayer(embedding_dim, n_actions)
 
         self.button_sampler = MultiChoiceSamplerWithLogits()
         self.flatten = nn.Flatten()
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
-        sidebar = self.sidebar_upscaping(
-            self.sidebar_embedding(game_state, sidebar_mask, SidebarAssetName, SidebarContinuous)
-        )
+        sidebar = self.transformer_in(self.sidebar_embedding(SidebarAssetName, SidebarContinuous))
         # prepend a row before the sidebar
         # these are the mouse actions
         possible_actions = prepend_row(sidebar)
         action_mask = prepend_row(sidebar_mask)
-        possible_actions = self.action_transformer(
-            possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
+        possible_actions = self.transformer_out(
+            self.action_transformer(
+                possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
+            )
         )
         possible_actions[action_mask] = float('-inf')
         action_logits = self.flatten(possible_actions)
