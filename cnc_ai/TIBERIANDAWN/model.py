@@ -9,6 +9,7 @@ from cnc_ai.nn import (
     MultiChoiceSamplerWithLogits,
     TwoParameterContinuousSampler,
     interflatten,
+    prepend_row,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -240,26 +241,40 @@ class SidebarEmbedding(nn.Module):
 
 
 class TD_Action(nn.Module):
-    def __init__(self, embedding_dim=1024):
+    def __init__(self, embedding_dim=1024, n_actions=12):
         super().__init__()
-        self.per_tile_actions = (5, 12)
         self.mouse_parameters = MouseParameters(embedding_dim)
         self.mouse_x = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
         self.mouse_y = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
 
-        self.sidebar_decoder = SidebarDecoder(
-            embedding_dim=embedding_dim, num_layers=1, out_dim=12
+        self.sidebar_embedding = SidebarEmbedding(
+            # embedding_dim=embedding_dim, num_layers=1, out_dim=n_actions
         )
+        self.sidebar_upscaping = HiddenLayer(self.sidebar_embedding.embedding_dim, n_actions)
+        self.action_transformer = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                d_model=n_actions, nhead=1, batch_first=True, layer_norm_eps=0, dim_feedforward=16
+            ),
+            num_layers=1,
+        )
+
         self.button_sampler = MultiChoiceSamplerWithLogits()
         self.flatten = nn.Flatten()
 
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        mouse_positional_params, mouse_button_logits = self.mouse_parameters(game_state)
-        sidebar = self.sidebar_decoder(
-            game_state, sidebar_mask, SidebarAssetName, SidebarContinuous
+        mouse_positional_params = self.mouse_parameters(game_state)
+        sidebar = self.sidebar_upscaping(
+            self.sidebar_embedding(game_state, sidebar_mask, SidebarAssetName, SidebarContinuous)
         )
-        sidebar[sidebar_mask] = float('-inf')
-        action_logits = torch.cat([mouse_button_logits, self.flatten(sidebar)], 1)
+        # prepend a row before the sidebar
+        # these are the mouse actions
+        possible_actions = prepend_row(sidebar)
+        action_mask = prepend_row(sidebar_mask)
+        possible_actions = self.action_transformer(
+            possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
+        )
+        possible_actions[action_mask] = float('-inf')
+        action_logits = self.flatten(possible_actions)
 
         return mouse_positional_params, action_logits
 
@@ -290,54 +305,34 @@ class TD_Action(nn.Module):
 class MouseParameters(nn.Module):
     def __init__(self, embedding_dim=1024, n_layers=1):
         super().__init__()
-        self.n_buttons = 12  # types of mouse action, including None
         self.ff = nn.Sequential(
             *[HiddenLayer(embedding_dim) for _ in range(n_layers)],
-            HiddenLayer(embedding_dim, 4 * (self.n_buttons - 1) + self.n_buttons),
+            nn.Linear(embedding_dim, 4),
+            nn.Softplus()
         )
 
     def forward(self, latent_embedding):
-        logits = self.ff(latent_embedding)
-        mouse_parameters = torch.cat(
+        alpha_beta_params = self.ff(latent_embedding)
+        mouse_parameters = torch.stack(
             [
-                torch.ones(logits.shape[0], 1, 4, dtype=logits.dtype, device=logits.device),
-                nn.functional.softplus(
-                    logits[:, : 4 * (self.n_buttons - 1)].reshape(-1, self.n_buttons - 1, 4)
+                torch.ones(
+                    alpha_beta_params.shape[0],
+                    4,
+                    dtype=alpha_beta_params.dtype,
+                    device=alpha_beta_params.device,
                 ),
+                alpha_beta_params,
             ],
-            axis=1,
+            dim=1,
         )
-        mouse_buttons = logits[:, -self.n_buttons :]
-        return mouse_parameters, mouse_buttons
+        return mouse_parameters
 
-    def choose_parameters(self, mouse_parameters, chosen_actions):
-        mouse_actions = chosen_actions[:, : self.n_buttons].clone()
-        mouse_actions[:, 0] |= chosen_actions[:, self.n_buttons :].sum(axis=1) > 0
-        chosen_mouse_positional_params = mouse_parameters[mouse_actions]
+    @staticmethod
+    def choose_parameters(mouse_parameters, chosen_actions):
+        # INPUT_REQUEST_MOUSE_MOVE
+        # INPUT_REQUEST_MOUSE_AREA
+        # INPUT_REQUEST_MOUSE_AREA_ADDITIVE
+        move_mouse = chosen_actions[:, [1, 5, 6]].sum(1) > 0
+        parameter_index = torch.stack([~move_mouse, move_mouse], dim=1)
+        chosen_mouse_positional_params = mouse_parameters[parameter_index]
         return chosen_mouse_positional_params
-
-
-class SidebarDecoder(nn.Module):
-    def __init__(self, embedding_dim=1024, num_layers=1, out_dim=12):
-        super().__init__()
-        self.decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(
-                d_model=embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=embedding_dim,
-            ),
-            num_layers=num_layers,
-        )
-        self.sidebar_embedding = SidebarEmbedding()
-        self.linear_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
-        self.embedding_dim = out_dim
-        self.linear_out = HiddenLayer(embedding_dim, self.embedding_dim)
-
-    def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
-        sidebar_in = self.linear_in(self.sidebar_embedding(SidebarAssetName, SidebarContinuous))
-        decoded = self.linear_out(
-            self.decoder(sidebar_in, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask)
-        )
-        return decoded
