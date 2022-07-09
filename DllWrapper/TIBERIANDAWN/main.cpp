@@ -361,8 +361,6 @@ void HandleActionRequest(const ActionRequestArgs *args)
     }
     else
     {
-        const auto &sidebar = players_sidebar[args->player_id];
-
         const auto request_type = SidebarRequestEnum(args->action_index % 12);
         const auto sidebar_index = (args->action_index - 12) / 12;
         if (sidebar_index < sidebar.Entries.size())
