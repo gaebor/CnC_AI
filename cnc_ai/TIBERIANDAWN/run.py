@@ -254,12 +254,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         padded_tensors = dictmap(
             pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
-        actions = numpy.concatenate([game.game_actions[:length] for game in cls.games], axis=2)
+        previous_actions = numpy.concatenate(
+            [game.game_actions[:length] for game in cls.games], axis=2
+        )
         padded_tensors.update(
-            previous_action_item=actions[:, 0, :].astype('int64'),
-            previous_action_type=actions[:, 1, :].astype('int64'),
-            previous_mouse_x=actions[:, 2, :].astype('float32'),
-            previous_mouse_y=actions[:, 3, :].astype('float32'),
+            previous_action_item=previous_actions[:, 0, :].astype('int64'),
+            previous_action_type=previous_actions[:, 1, :].astype('int64'),
+            previous_mouse_x=previous_actions[:, 2, :].astype('float32'),
+            previous_mouse_y=previous_actions[:, 3, :].astype('float32'),
         )
         return padded_tensors
 
@@ -267,12 +269,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def last_game_states_to_tensor(cls):
         tensors = list(chain(*(game.game_states[-1] for game in cls.games)))
         padded_tensors = pad_game_states(tensors)
-        actions = numpy.concatenate([game.game_actions[-1] for game in cls.games], axis=1)
+        previous_actions = numpy.concatenate([game.game_actions[-1] for game in cls.games], axis=1)
         padded_tensors.update(
-            previous_action_item=actions[0, :].astype('int64'),
-            previous_action_type=actions[1, :].astype('int64'),
-            previous_mouse_x=actions[2, :].astype('float32'),
-            previous_mouse_y=actions[3, :].astype('float32'),
+            previous_action_item=padded_tensors['SidebarAssetName'][
+                numpy.arange(previous_actions.shape[1]), previous_actions[0, :].astype('int64')
+            ],
+            previous_action_type=previous_actions[1, :].astype('int64'),
+            previous_mouse_x=previous_actions[2, :].astype('float32'),
+            previous_mouse_y=previous_actions[3, :].astype('float32'),
         )
         tensors_with_one_time_dimension = dictmap(padded_tensors, lambda t: t.reshape(1, *t.shape))
         return tensors_with_one_time_dimension
