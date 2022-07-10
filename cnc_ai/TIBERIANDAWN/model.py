@@ -290,14 +290,18 @@ class TD_Action(nn.Module):
         chosen_item, action_type = chosen_actions[:, 1], chosen_actions[:, 2]
         return chosen_item, action_type, mouse_x * 1488, mouse_y * 1488
 
-    def surprise(self, mouse_parameters, action_logits, chosen_actions, mouse_x, mouse_y):
-        action_mask = torch.eye(
-            action_logits.shape[1], dtype=torch.bool, device=chosen_actions.device
-        )[chosen_actions]
+    def surprise(
+        self, mouse_parameters, action_logits, chosen_item, action_type, mouse_x, mouse_y
+    ):
+        action_mask = torch.zeros(action_logits.shape, dtype=torch.bool, device=chosen_item.device)
+        action_mask[torch.arange(action_logits.shape[0]), chosen_item, action_type] = True
         chosen_mouse_parameters = self.mouse_parameters.choose_parameters(
             mouse_parameters, action_mask
         )
-        button_surprise = self.button_sampler.surprise(action_logits, action_mask)
+        button_surprise = self.button_sampler.surprise(
+            action_logits.reshape(action_logits.shape[0], -1),
+            action_mask.reshape(action_logits.shape[0], -1),
+        )
         mouse_x_surprise = self.mouse_x.surprise(chosen_mouse_parameters[:, :2], mouse_x / 1488)
         mouse_y_surprise = self.mouse_y.surprise(chosen_mouse_parameters[:, 2:], mouse_y / 1488)
         return button_surprise + mouse_x_surprise + mouse_y_surprise
