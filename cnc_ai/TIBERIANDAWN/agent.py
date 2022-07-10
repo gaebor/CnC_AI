@@ -95,16 +95,17 @@ class SimpleAgent(AbstractAgent):
             # SidebarContinuous,
             unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
             sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
+            len_sidebar = inputs['SidebarAssetName'].shape[0]
             if 63 in unit_names:
                 mcv_index = list(unit_names).index(63)
                 if self.color is None:
                     self.color = inputs['Owner'][mcv_index]
                 MCV_features = inputs['Continuous'][mcv_index]
                 # move mouse to position then click with left mouse button
-                self.actions.append((1, MCV_features[0], MCV_features[1]))
-                self.actions.append((2, 744.0, 744.0))
+                self.actions.append((0, 1, MCV_features[0], MCV_features[1]))
+                self.actions.append((0, 2, 744.0, 744.0))
                 # do nothing for now
-                return 0, 744.0, 744.0
+                return 0, 0, 744.0, 744.0
 
             elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
@@ -112,17 +113,17 @@ class SimpleAgent(AbstractAgent):
                     progress = inputs['SidebarContinuous'][nuke][0]
                     if progress == 0:
                         # start building
-                        return ((1 + nuke) * 12 + 0, 744.0, 744.0)
+                        return nuke, 0, 744.0, 744.0
                     elif progress == 1:
                         new_spot = self.find_new_spot(inputs)
                         # move mouse to position
                         # then start placement
                         # then place
-                        self.actions.append((1, *new_spot))
-                        self.actions.append(((1 + nuke) * 12 + 3, 744.0, 744.0))
-                        self.actions.append(((1 + nuke) * 12 + 4, 744.0, 744.0))
-                        return 0, 744.0, 744.0
-            return 0, 744.0, 744.0
+                        self.actions.append((0, 1, *new_spot))
+                        self.actions.append((nuke, 3, 744.0, 744.0))
+                        self.actions.append((nuke, 4, 744.0, 744.0))
+                        return 0, 0, 744.0, 744.0
+            return 0, 0, 744.0, 744.0
 
         def find_new_spot(self, inputs):
             unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]

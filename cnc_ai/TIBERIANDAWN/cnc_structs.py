@@ -186,7 +186,8 @@ class LoadGameArgs:
 class ActionRequestArgs(CncStruct):
     _fields_ = [
         ('player_id', ctypes.c_uint32),
-        ('action_index', ctypes.c_uint32),
+        ('action_item', ctypes.c_uint32),
+        ('action_type', ctypes.c_uint32),
         ('x', ctypes.c_float),
         ('y', ctypes.c_float),
     ]

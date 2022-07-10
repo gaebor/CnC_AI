@@ -9,7 +9,6 @@ from cnc_ai.nn import (
     MultiChoiceSamplerWithLogits,
     TwoParameterContinuousSampler,
     interflatten,
-    prepend_row,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -137,12 +136,12 @@ class TD_GameEmbedding(nn.Module):
                 AssetName, ShapeIndex, Owner, Pips, ControlGroup, Cloak, Continuous
             ),
             src_key_padding_mask=dynamic_mask,
-        )[:, 0]
+        ).sum(dim=1)
 
         sidebar = self.sidebar_transformer(
             self.siderbar_embedding(SidebarAssetName, SidebarContinuous),
             src_key_padding_mask=sidebar_mask,
-        )[:, 0]
+        ).sum(dim=1)
 
         internal_state = torch.cat([map_embedding, dynamic_objects, SidebarInfos, sidebar], dim=1)
         game_state_embedding = self.dense(internal_state)
@@ -267,29 +266,29 @@ class TD_Action(nn.Module):
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
         sidebar = self.sidebar_embedding(SidebarAssetName, SidebarContinuous)
-        # prepend a row before the sidebar
-        # these are the mouse actions
-        possible_actions = self.transformer_in(prepend_row(sidebar))
-        action_mask = prepend_row(sidebar_mask)
+        actions_input = self.transformer_in(sidebar)
         transformed = self.action_transformer(
-            possible_actions, game_state[:, None, :], tgt_key_padding_mask=action_mask
+            actions_input, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask
         )
-        possible_actions = self.transformer_out(transformed)
-        possible_actions[action_mask] = float('-inf')
-        action_logits = self.flatten(possible_actions)
+        action_logits = self.transformer_out(transformed)
+        action_logits[sidebar_mask] = float('-inf')
 
         return mouse_positional_params, action_logits
 
     def sample(self, mouse_parameters, action_logits):
-        chosen_actions = self.button_sampler.sample(action_logits)
+        chosen_actions_mask = self.button_sampler.sample(
+            action_logits.reshape(action_logits.shape[0], -1)
+        ).reshape(action_logits.shape[0], -1, action_logits.shape[2])
         chosen_mouse_parameters = self.mouse_parameters.choose_parameters(
-            mouse_parameters, chosen_actions
+            mouse_parameters, chosen_actions_mask
         )
         mouse_x, mouse_y = (
             self.mouse_x.sample(chosen_mouse_parameters[:, :2]),
             self.mouse_y.sample(chosen_mouse_parameters[:, 2:]),
         )
-        return chosen_actions.nonzero()[:, 1], mouse_x * 1488, mouse_y * 1488
+        chosen_actions = chosen_actions_mask.nonzero()
+        chosen_item, action_type = chosen_actions[:, 1], chosen_actions[:, 2]
+        return chosen_item, action_type, mouse_x * 1488, mouse_y * 1488
 
     def surprise(self, mouse_parameters, action_logits, chosen_actions, mouse_x, mouse_y):
         action_mask = torch.eye(
@@ -330,11 +329,11 @@ class MouseParameters(nn.Module):
         return mouse_parameters
 
     @staticmethod
-    def choose_parameters(mouse_parameters, chosen_actions):
+    def choose_parameters(mouse_parameters, chosen_actions_mask):
         # INPUT_REQUEST_MOUSE_MOVE
         # INPUT_REQUEST_MOUSE_AREA
         # INPUT_REQUEST_MOUSE_AREA_ADDITIVE
-        move_mouse = chosen_actions[:, [1, 5, 6]].any(dim=1)
+        move_mouse = chosen_actions_mask[:, 0, [1, 5, 6]].any(dim=1)
         parameter_index = torch.stack([~move_mouse, move_mouse], dim=1)
         chosen_mouse_positional_params = mouse_parameters[parameter_index]
         return chosen_mouse_positional_params

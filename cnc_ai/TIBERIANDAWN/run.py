@@ -139,15 +139,14 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                         nn_actions,
                         (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
                     )
+                # print(decode_action(actions[0], game_state_tensor['SidebarAssetName'][0]))
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
                     game.game_actions.append(per_game_actions)
                     message = b''
                     for player, action in enumerate(zip(*per_game_actions)):
-                        message += cnc_structs.ActionRequestArgs(
-                            player_id=player, action_index=action[0], x=action[1], y=action[2]
-                        ).render_message()
+                        message += cnc_structs.ActionRequestArgs(player, *action).render_message()
                     game.write_message(message, binary=True)
 
     def open(self):

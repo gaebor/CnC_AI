@@ -253,16 +253,3 @@ def interflatten(f, *varg, dim_range=(0, 1)):
         return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
     else:
         return result.unflatten(dim_range[0], flattened_dims)
-
-
-def prepend_row(tensor):
-    result = torch.cat(
-        [
-            torch.zeros(
-                (tensor.shape[0], 1) + tensor.shape[2:], dtype=tensor.dtype, device=tensor.device
-            ),
-            tensor,
-        ],
-        dim=1,
-    )
-    return result

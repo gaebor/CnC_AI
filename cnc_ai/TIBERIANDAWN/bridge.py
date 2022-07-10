@@ -18,24 +18,18 @@ def resize_sequence_to_minimum_length(sequence):
     return sequence
 
 
-def pad_game_states(list_of_game_states):
-    auxiliary_sidebar = {
-        key: [
-            resize_sequence_to_minimum_length(game_state[key])
-            for game_state in list_of_game_states
-        ]
-        for key in [
-            'SidebarAssetName',
-            'SidebarContinuous',
-        ]
-    }
+def prepend_zero(tensor):
+    result = numpy.concatenate(
+        [numpy.zeros((tensor.shape[0], 1) + tensor.shape[2:], dtype=tensor.dtype), tensor],
+        axis=1,
+    )
+    return result
 
+
+def pad_game_states(list_of_game_states):
     result = {
         'dynamic_mask': compute_key_padding_mask(
             [len(game_state['AssetName']) for game_state in list_of_game_states]
-        ),
-        'sidebar_mask': compute_key_padding_mask(
-            [len(sidebar) for sidebar in auxiliary_sidebar['SidebarAssetName']]
         ),
         **{
             key: numpy.stack([game_state[key] for game_state in list_of_game_states], 0)
@@ -51,13 +45,16 @@ def pad_game_states(list_of_game_states):
                 'ControlGroup',
                 'Cloak',
                 'Continuous',
+                'SidebarAssetName',
+                'SidebarContinuous',
             ]
         },
-        **{
-            key: pad_sequence(auxiliary_sidebar[key])
-            for key in ['SidebarAssetName', 'SidebarContinuous']
-        },
     }
+    result['sidebar_mask'] = compute_key_padding_mask(
+        [len(game_state['SidebarAssetName']) + 1 for game_state in list_of_game_states]
+    )
+    result['SidebarAssetName'] = prepend_zero(result['SidebarAssetName'])
+    result['SidebarContinuous'] = prepend_zero(result['SidebarContinuous'])
     return result
 
 
