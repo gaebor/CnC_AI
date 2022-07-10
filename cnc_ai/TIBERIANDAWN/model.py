@@ -43,6 +43,10 @@ class TD_GamePlay(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
+        previous_action_item,
+        previous_action_type,
+        previous_mouse_x,
+        previous_mouse_y,
     ):
         latent_embedding = interflatten(
             self.game_state,
@@ -60,6 +64,10 @@ class TD_GamePlay(nn.Module):
             SidebarInfos,
             SidebarAssetName,
             SidebarContinuous,
+            previous_action_item,
+            previous_action_type,
+            previous_mouse_x,
+            previous_mouse_y,
         )
         time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
         self.cell_states = cell_states[0].detach(), cell_states[1].detach()
@@ -101,12 +109,16 @@ class TD_GameEmbedding(nn.Module):
             num_layers=1,
         )
 
+        self.previous_action_embedding = nn.Embedding(len(dynamic_object_names) * 12, 16)
+
         self.dense = nn.Sequential(
             HiddenLayer(
                 self.map_embedding.embedding_dim
                 + self.dynamic_object_embedding.embedding_dim
                 + self.siderbar_embedding.embedding_dim
-                + 6,  # sidebar members
+                + 6  # sidebar members
+                + self.previous_action_embedding.embedding_dim
+                + 2,  # previous mouse position
                 embedding_dim,
             ),
             HiddenLayer(embedding_dim, embedding_dim),
@@ -128,6 +140,10 @@ class TD_GameEmbedding(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
+        previous_action_item,
+        previous_action_type,
+        previous_mouse_x,
+        previous_mouse_y,
     ):
         map_embedding = self.map_embedding(StaticAssetName, StaticShapeIndex)
 
@@ -143,7 +159,22 @@ class TD_GameEmbedding(nn.Module):
             src_key_padding_mask=sidebar_mask,
         ).sum(dim=1)
 
-        internal_state = torch.cat([map_embedding, dynamic_objects, SidebarInfos, sidebar], dim=1)
+        previous_actions = self.previous_action_embedding(
+            previous_action_item * 12 + previous_action_type
+        )
+
+        internal_state = torch.cat(
+            [
+                map_embedding,
+                dynamic_objects,
+                SidebarInfos,
+                sidebar,
+                previous_actions,
+                previous_mouse_x[:, None],
+                previous_mouse_y[:, None],
+            ],
+            dim=1,
+        )
         game_state_embedding = self.dense(internal_state)
         return game_state_embedding
 

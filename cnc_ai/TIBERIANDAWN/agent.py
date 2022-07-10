@@ -27,9 +27,18 @@ class NNAgent(AbstractAgent):
         actions = interflatten(self.nn.actions.sample, *action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
-    def learn(self, game_state_tensors, actions, rewards, n=1):
+    def learn(self, game_state_tensors, rewards, n=1):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
-        actions = tuple(map(self._to_device, actions))
+        actions = tuple(
+            game_state_tensors[key][1:]
+            for key in [
+                'previous_action_item',
+                'previous_action_type',
+                'previous_mouse_x',
+                'previous_mouse_y',
+            ]
+        )
+        game_state_tensors = dictmap(game_state_tensors, lambda t: t[:-1])
         rewards = self._to_device(rewards)
         for _ in range(n):
             self.optimizer.zero_grad()
