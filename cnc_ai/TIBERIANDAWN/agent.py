@@ -32,9 +32,9 @@ class NNAgent(AbstractAgent):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
         rewards = self._to_device(rewards)
-        for time_step in (pbar1 := trange(time_window, time_window + n, leave=True)):
+        for time_step in (progress_bar := trange(time_window, time_window + n, leave=True)):
             self.nn.reset()
-            for i in (pbar2 := trange(0, actions[0].shape[0], time_step, leave=False)):
+            for i in trange(0, actions[0].shape[0], time_step, leave=False):
                 self.optimizer.zero_grad()
                 action_parameters = self.nn(
                     **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
@@ -45,11 +45,13 @@ class NNAgent(AbstractAgent):
                     *map(lambda t: t[i : i + time_step], actions),
                 )
                 games_surprise = actions_surprise.mean(axis=0)
-                pbar2.set_description(str(retrieve(games_surprise)))
+                current_performance = (
+                    '[' + ', '.join(map('{:.3f}'.format, retrieve(games_surprise))) + ']'
+                )
+                progress_bar.set_description(current_performance)
                 objective = games_surprise.dot(rewards.to(games_surprise.dtype))
                 objective.backward()
                 self.optimizer.step()
-            pbar1.set_description(str(retrieve(games_surprise)))
 
     def save(self, path):
         self.nn.reset()
