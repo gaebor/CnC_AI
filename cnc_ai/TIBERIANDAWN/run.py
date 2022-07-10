@@ -258,7 +258,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             [game.game_actions[:length] for game in cls.games], axis=2
         )
         padded_tensors.update(
-            previous_action_item=previous_actions[:, 0, :].astype('int64'),
+            previous_action_item=numpy.take_along_axis(
+                padded_tensors['SidebarAssetName'],
+                previous_actions[:, 0, :].astype('int64')[:, :, None],
+                axis=2,
+            )[:, :, 0].astype('int64'),
             previous_action_type=previous_actions[:, 1, :].astype('int64'),
             previous_mouse_x=previous_actions[:, 2, :].astype('float32'),
             previous_mouse_y=previous_actions[:, 3, :].astype('float32'),
@@ -271,9 +275,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         padded_tensors = pad_game_states(tensors)
         previous_actions = numpy.concatenate([game.game_actions[-1] for game in cls.games], axis=1)
         padded_tensors.update(
-            previous_action_item=padded_tensors['SidebarAssetName'][
-                numpy.arange(previous_actions.shape[1]), previous_actions[0, :].astype('int64')
-            ],
+            previous_action_item=numpy.take_along_axis(
+                padded_tensors['SidebarAssetName'],
+                previous_actions[0, :].astype('int64')[:, None],
+                axis=1,
+            )[:, 0].astype('int64'),
             previous_action_type=previous_actions[1, :].astype('int64'),
             previous_mouse_x=previous_actions[2, :].astype('float32'),
             previous_mouse_y=previous_actions[3, :].astype('float32'),
