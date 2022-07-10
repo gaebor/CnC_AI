@@ -134,18 +134,11 @@ class DoubleEmbedding(nn.Module):
         )
 
     def forward(self, asset_index, shape_index):
-        assert (
-            shape_index < DoubleEmbedding.one_d_lookup(asset_index, self.sub_embedding_sizes)
-        ).all()
-        indices = DoubleEmbedding.one_d_lookup(asset_index, self.offsets) + shape_index
+        asset_index = asset_index.to(torch.long)
+        assert (shape_index < self.sub_embedding_sizes[asset_index]).all()
+        indices = self.offsets[asset_index] + shape_index
         embedding = self.embedding(indices)
         return embedding
-
-    @staticmethod
-    def one_d_lookup(indices, embedding):
-        return torch.flatten(
-            nn.functional.embedding(indices, embedding.unflatten(-1, (-1, 1))), -2, -1
-        )
 
 
 class Predictor(nn.Module):
