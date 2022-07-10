@@ -255,10 +255,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def all_game_actions_to_tensor(cls):
         length = min(len(game.game_actions) for game in cls.games)
         actions = numpy.concatenate([game.game_actions[:length] for game in cls.games], axis=2)
-        buttons = actions[:, 0, :].astype('int64')
-        mouse_x = actions[:, 1, :]
-        mouse_y = actions[:, 2, :]
-        return buttons, mouse_x, mouse_y
+        action_item = actions[:, 0, :].astype('int64')
+        action_type = actions[:, 1, :].astype('int64')
+        mouse_x = actions[:, 2, :]
+        mouse_y = actions[:, 3, :]
+        return action_item, action_type, mouse_x, mouse_y
 
     @classmethod
     def last_game_states_to_tensor(cls):
