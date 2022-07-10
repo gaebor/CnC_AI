@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include <Windows.h>
 
+#include <sstream>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -93,9 +94,10 @@ bool GetPlayersVectorRepresentation(void *&buffer, size_t &buffer_size);
 struct ActionRequestArgs
 {
     std::uint32_t player_id;
-    std::uint32_t action_index;
+    std::uint32_t action_item;
+    std::uint32_t action_type;
     float x, y;
-    ActionRequestArgs() : player_id(0), action_index(0), x(0.5f), y(0.5f) {}
+    ActionRequestArgs() : player_id(0), action_item(0), action_type(0), x(0.5f), y(0.5f) {}
 };
 
 void HandleActionRequest(const ActionRequestArgs *);
@@ -119,12 +121,6 @@ std::string content_directory;
 static const CNCRulesDataStruct rule_data_struct = {{{1.2f, 1.2f, 1.2f, 0.3f, 0.8f, 0.8f, 0.6f, 0.001f, 0.001f, false, true, true},
                                                      {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 0.02f, 0.03f, true, true, true},
                                                      {0.9f, 0.9f, 0.9f, 1.05f, 1.05f, 1.f, 1.f, 0.05f, 0.1f, true, true, true}}};
-
-std::string ToAscii(const std::wstring &wstr)
-{
-    const std::string ascii(wstr.begin(), wstr.end());
-    return ascii;
-}
 
 #define LoadSymbolFromDll(name)                                   \
     {                                                             \
@@ -318,16 +314,17 @@ void HandleActionRequest(const ActionRequestArgs *args)
     if (args->player_id >= players.size())
         return;
 
-    if (args->action_index == INPUT_REQUEST_NONE)
+    if ((args->action_item == 0) && (args->action_type == INPUT_REQUEST_NONE))
         return;
 
     const auto &player = players[args->player_id];
     auto &mouse_position = players_mouse_position[args->player_id];
     const auto &sidebar = players_sidebar[args->player_id];
 
-    if (args->action_index < 12)
+    if (args->action_item == 0)
     {
-        const auto request_type = InputRequestEnum(args->action_index);
+        // mouse
+        const auto request_type = InputRequestEnum(args->action_type);
         switch (request_type)
         {
         case INPUT_REQUEST_SPECIAL_KEYS: // these should be handled differently
@@ -358,17 +355,18 @@ void HandleActionRequest(const ActionRequestArgs *args)
     }
     else
     {
-        const auto sidebar_index = (args->action_index - 12) / 12;
+        const auto sidebar_index = args->action_item - 1;
         if (sidebar_index < sidebar.Entries.size())
         {
             const auto &entry = sidebar.Entries[sidebar_index];
             CNC_Handle_Sidebar_Request(
-                SidebarRequestEnum(args->action_index % 12),
+                SidebarRequestEnum(args->action_type),
                 player.GlyphxPlayerID,
                 entry.BuildableType,
                 entry.BuildableID,
                 static_cast<short>(mouse_position.x) / 24,
-                static_cast<short>(mouse_position.y) / 24);
+                static_cast<short>(mouse_position.y) / 24
+            );
         }
     }
 }
@@ -465,12 +463,8 @@ int wmain(int argc, const wchar_t *argv[])
     size_t message_size;
     unsigned short port;
     {
-        const auto parsed_int = atoi(ToAscii(argv[1]).c_str());
-        if (parsed_int < std::numeric_limits<decltype(port)>::min() || parsed_int > std::numeric_limits<decltype(port)>::max())
-        {
-            return 1;
-        }
-        port = (decltype(port))parsed_int;
+        std::wistringstream iss(argv[1]);
+        iss >> port;
     }
 
     if (SetCurrentDirectoryW(argv[2]) != TRUE)
