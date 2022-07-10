@@ -2,6 +2,7 @@ from collections import defaultdict, deque
 
 import torch
 import numpy
+from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
@@ -27,19 +28,28 @@ class NNAgent(AbstractAgent):
         actions = interflatten(self.nn.actions.sample, *action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
-    def learn(self, game_state_tensors, actions, rewards, n=1):
+    def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
         rewards = self._to_device(rewards)
-        for _ in range(n):
-            self.optimizer.zero_grad()
-            action_parameters = self.nn(**game_state_tensors)
-            actions_surprise = interflatten(self.nn.actions.surprise, *action_parameters, *actions)
-            games_surprise = actions_surprise.mean(axis=0)
-            objective = games_surprise.dot(rewards.to(games_surprise.dtype))
-            objective.backward()
-            self.optimizer.step()
-            print(retrieve(games_surprise), end='\r')
+        for time_step in (pbar1 := trange(time_window, time_window + n, leave=True)):
+            self.nn.reset()
+            for i in (pbar2 := trange(0, actions[0].shape[0], time_step, leave=False)):
+                self.optimizer.zero_grad()
+                action_parameters = self.nn(
+                    **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
+                )
+                actions_surprise = interflatten(
+                    self.nn.actions.surprise,
+                    *action_parameters,
+                    *map(lambda t: t[i : i + time_step], actions),
+                )
+                games_surprise = actions_surprise.mean(axis=0)
+                pbar2.set_description(str(retrieve(games_surprise)))
+                objective = games_surprise.dot(rewards.to(games_surprise.dtype))
+                objective.backward()
+                self.optimizer.step()
+            pbar1.set_description(str(retrieve(games_surprise)))
 
     def save(self, path):
         self.nn.reset()

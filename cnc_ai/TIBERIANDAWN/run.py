@@ -38,6 +38,13 @@ def get_args():
         help='stop game after this many iterations if still going',
     )
     parser.add_argument(
+        '-T',
+        '--time-window',
+        default=200,
+        type=int,
+        help='limits the maximum depth in time to backpropagate to',
+    )
+    parser.add_argument(
         '--exe', default='TIBERIANDAWN_wrapper.exe', metavar='absolute path', help=' '
     )
     parser.add_argument(
@@ -79,7 +86,7 @@ def get_args():
         action='store_true',
         help="Print out what was the terminal state of the game(s).",
     )
-    parser.add_argument('-T', '--train', default=0, type=int, help="Train at the end of the game.")
+    parser.add_argument('--train', default=0, type=int, help="Train at the end of the game.")
     parser.add_argument(
         '-r',
         '--record',
@@ -311,10 +318,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         return rewards
 
     @classmethod
-    def train(cls, n=1):
+    def train(cls, n=1, time_window=200):
         game_state_tensor, actions = cls.all_game_states_and_actions()
         rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
-        cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n)
+        cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n, time_window=time_window)
 
     @classmethod
     def configure(
@@ -406,8 +413,8 @@ def main():
     GameHandler.tqdm.close()
 
     for game in GameHandler.games:
-        print(game.folder, game.compute_scores(), game.get_rewards())
         if args.print:
+            print(game.folder, game.compute_scores(), game.get_rewards())
             for i in range(len(game.players)):
                 print(i)
                 game.print_what_player_sees(i)
@@ -415,7 +422,7 @@ def main():
         for game in GameHandler.games:
             game.save_gameplay()
     if args.train > 0:
-        GameHandler.train(args.train)
+        GameHandler.train(args.train, args.time_window)
     if args.save:
         agent.save(args.save)
 
