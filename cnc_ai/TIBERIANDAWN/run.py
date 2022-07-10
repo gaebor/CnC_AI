@@ -242,8 +242,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             pickle.dump(self.game_actions, f)
 
     @classmethod
-    def all_game_states_to_tensor(cls):
-        length = min(len(game.game_actions) for game in cls.games)
+    def all_game_states_and_actions(cls):
+        length = min(len(game.game_actions) for game in cls.games) - 1
         n_players = sum(len(game.players) for game in cls.games)
         tensors = [
             game_state
@@ -254,20 +254,26 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         padded_tensors = dictmap(
             pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
-        previous_actions = numpy.concatenate(
-            [game.game_actions[:length] for game in cls.games], axis=2
+        all_actions = numpy.concatenate(
+            [game.game_actions[: length + 1] for game in cls.games], axis=2
         )
         padded_tensors.update(
             previous_action_item=numpy.take_along_axis(
                 padded_tensors['SidebarAssetName'],
-                previous_actions[:, 0, :].astype('int64')[:, :, None],
+                all_actions[:-1, 0, :].astype('int64')[:, :, None],
                 axis=2,
             )[:, :, 0].astype('int64'),
-            previous_action_type=previous_actions[:, 1, :].astype('int64'),
-            previous_mouse_x=previous_actions[:, 2, :].astype('float32'),
-            previous_mouse_y=previous_actions[:, 3, :].astype('float32'),
+            previous_action_type=all_actions[:-1, 1, :].astype('int64'),
+            previous_mouse_x=all_actions[:-1, 2, :].astype('float32'),
+            previous_mouse_y=all_actions[:-1, 3, :].astype('float32'),
         )
-        return padded_tensors
+        actions = (
+            all_actions[1:, 0, :].astype('int64'),
+            all_actions[1:, 1, :].astype('int64'),
+            all_actions[1:, 2, :].astype('float32'),
+            all_actions[1:, 3, :].astype('float32'),
+        )
+        return padded_tensors, actions
 
     @classmethod
     def last_game_states_to_tensor(cls):
@@ -306,9 +312,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def train(cls, n=1):
-        game_state_tensor = cls.all_game_states_to_tensor()
+        game_state_tensor, actions = cls.all_game_states_and_actions()
         rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
-        cls.nn_agent.learn(game_state_tensor, rewards, n=n)
+        cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n)
 
     @classmethod
     def configure(
