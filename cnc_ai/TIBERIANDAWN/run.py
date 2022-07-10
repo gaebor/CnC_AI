@@ -413,8 +413,8 @@ def main():
     GameHandler.tqdm.close()
 
     for game in GameHandler.games:
+        print(game.folder, game.compute_scores(), game.get_rewards())
         if args.print:
-            print(game.folder, game.compute_scores(), game.get_rewards())
             for i in range(len(game.players)):
                 print(i)
                 game.print_what_player_sees(i)
