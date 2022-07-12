@@ -9,6 +9,7 @@ from cnc_ai.nn import (
     MultiChoiceSamplerWithLogits,
     TwoParameterContinuousSampler,
     TransformerEncoder,
+    TransformerDecoder,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -23,7 +24,7 @@ class TD_GamePlay(nn.Module):
     def __init__(self, embedding_dim=1024, n_lstm=1, dropout=0.1):
         super().__init__()
         self.reset()
-        self.game_state = TD_GameEmbedding(embedding_dim)
+        self.game_state = TD_GameEmbedding(embedding_dim, dropout=dropout)
         self.lstm = nn.LSTM(
             embedding_dim,
             embedding_dim,
@@ -32,7 +33,7 @@ class TD_GamePlay(nn.Module):
             bidirectional=False,
             dropout=dropout,
         )
-        self.actions = TD_Action(embedding_dim)
+        self.actions = TD_Action(embedding_dim, dropout=dropout)
 
     def forward(
         self,
@@ -272,7 +273,7 @@ class SidebarEmbedding(nn.Module):
 
 
 class TD_Action(nn.Module):
-    def __init__(self, embedding_dim=1024, n_actions=12):
+    def __init__(self, embedding_dim=1024, n_actions=12, dropout=0.1):
         super().__init__()
         self.mouse_parameters = MouseParameters(embedding_dim)
         self.mouse_x = TwoParameterContinuousSampler(torch.distributions.beta.Beta)
@@ -280,14 +281,10 @@ class TD_Action(nn.Module):
 
         self.sidebar_embedding = SidebarEmbedding()
         self.transformer_in = HiddenLayer(self.sidebar_embedding.embedding_dim, embedding_dim)
-        self.action_transformer = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(
-                d_model=embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=embedding_dim,
-            ),
+        self.action_transformer = TransformerDecoder(
+            d_model=embedding_dim,
+            dim_feedforward=embedding_dim,
+            dropout=dropout,
             num_layers=1,
         )
         self.transformer_out = nn.Linear(embedding_dim, n_actions)
@@ -300,7 +297,7 @@ class TD_Action(nn.Module):
         sidebar = self.sidebar_embedding(SidebarAssetName, SidebarContinuous)
         actions_input = self.transformer_in(sidebar)
         transformed = self.action_transformer(
-            actions_input, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask
+            actions_input, game_state[:, :, None, :], tgt_key_padding_mask=sidebar_mask
         )
         action_logits = self.transformer_out(transformed)
         action_logits[sidebar_mask] = float('-inf')
@@ -353,14 +350,13 @@ class MouseParameters(nn.Module):
         mouse_parameters = torch.stack(
             [
                 torch.ones(
-                    alpha_beta_params.shape[0],
-                    4,
+                    (alpha_beta_params.shape[0], alpha_beta_params.shape[1], 4),
                     dtype=alpha_beta_params.dtype,
                     device=alpha_beta_params.device,
                 ),
                 alpha_beta_params,
             ],
-            dim=1,
+            dim=2,
         )
         return mouse_parameters
 

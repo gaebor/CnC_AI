@@ -268,3 +268,29 @@ class TransformerEncoder(nn.TransformerEncoder):
         )
         output = flattened_output.reshape(*src.shape)
         return output
+
+
+class TransformerDecoder(nn.TransformerDecoder):
+    def __init__(self, d_model, dim_feedforward, num_layers, dropout=0.1):
+        super().__init__(
+            nn.TransformerDecoderLayer(
+                d_model=d_model,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+            ),
+            num_layers=num_layers,
+        )
+
+    def forward(self, src, tgt, tgt_key_padding_mask):
+        flattened_src = src.reshape(-1, *src.shape[-2:])
+        flattened_tgt = tgt.reshape(-1, *tgt.shape[-2:])
+        flattened_output = super().forward(
+            flattened_src,
+            flattened_tgt,
+            tgt_key_padding_mask=tgt_key_padding_mask.reshape(-1, tgt_key_padding_mask.shape[-1]),
+        )
+        output = flattened_output.reshape(*tgt.shape)
+        return output
