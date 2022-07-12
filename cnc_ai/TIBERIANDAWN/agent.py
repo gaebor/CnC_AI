@@ -32,7 +32,8 @@ class NNAgent(AbstractAgent):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
         rewards = self._to_device(rewards)
-        for time_step in (progress_bar := trange(time_window, time_window + n, leave=True)):
+        progress_bar = trange(time_window, time_window + n, leave=True)
+        for time_step in progress_bar:
             self.nn.reset()
             for i in trange(0, actions[0].shape[0], time_step, leave=False):
                 self.optimizer.zero_grad()
