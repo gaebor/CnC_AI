@@ -247,7 +247,7 @@ class TwoParameterContinuousSampler(DistributionSampler):
 
 
 class TransformerEncoder(nn.TransformerEncoder):
-    def __init__(self, d_model, dim_feedforward, num_layers):
+    def __init__(self, d_model, dim_feedforward, num_layers, dropout=0.1):
         super().__init__(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
@@ -255,6 +255,7 @@ class TransformerEncoder(nn.TransformerEncoder):
                 batch_first=True,
                 layer_norm_eps=0,
                 dim_feedforward=dim_feedforward,
+                dropout=dropout,
             ),
             num_layers=num_layers,
         )

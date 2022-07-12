@@ -20,11 +20,18 @@ from cnc_ai.TIBERIANDAWN.cnc_structs import (
 
 
 class TD_GamePlay(nn.Module):
-    def __init__(self, embedding_dim=1024, n_lstm=1):
+    def __init__(self, embedding_dim=1024, n_lstm=1, dropout=0.1):
         super().__init__()
         self.reset()
-        self.lstm = nn.LSTM(embedding_dim, embedding_dim, n_lstm)
         self.game_state = TD_GameEmbedding(embedding_dim)
+        self.lstm = nn.LSTM(
+            embedding_dim,
+            embedding_dim,
+            n_lstm,
+            batch_first=False,
+            bidirectional=False,
+            dropout=dropout,
+        )
         self.actions = TD_Action(embedding_dim)
 
     def forward(
@@ -78,18 +85,24 @@ class TD_GamePlay(nn.Module):
 
 
 class TD_GameEmbedding(nn.Module):
-    def __init__(self, embedding_dim=1024):
+    def __init__(self, embedding_dim=1024, dropout=0.1):
         super().__init__()
-        self.map_embedding = MapEmbedding_62_62(embedding_dim)
+        self.map_embedding = MapEmbedding_62_62(embedding_dim, dropout=dropout)
 
         self.dynamic_object_embedding = DynamicObjectEmbedding()
         self.dynamic_object_transformer = TransformerEncoder(
-            d_model=self.dynamic_object_embedding.embedding_dim, dim_feedforward=128, num_layers=1
+            d_model=self.dynamic_object_embedding.embedding_dim,
+            dim_feedforward=128,
+            num_layers=1,
+            dropout=dropout,
         )
 
         self.siderbar_embedding = SidebarEmbedding()
         self.sidebar_transformer = TransformerEncoder(
-            d_model=self.siderbar_embedding.embedding_dim, dim_feedforward=16, num_layers=1
+            d_model=self.siderbar_embedding.embedding_dim,
+            dim_feedforward=16,
+            num_layers=1,
+            dropout=dropout,
         )
 
         self.previous_action_embedding = nn.Embedding(len(dynamic_object_names) * 12, 16)
@@ -103,8 +116,9 @@ class TD_GameEmbedding(nn.Module):
                 + self.previous_action_embedding.embedding_dim
                 + 2,  # previous mouse position
                 embedding_dim,
+                dropout=dropout,
             ),
-            HiddenLayer(embedding_dim, embedding_dim),
+            HiddenLayer(embedding_dim, embedding_dim, dropout=dropout),
         )
 
     def forward(
@@ -163,7 +177,7 @@ class TD_GameEmbedding(nn.Module):
 
 
 class MapEmbedding_62_62(nn.Module):
-    def __init__(self, embedding_dim=1024, static_embedding_dim=10):
+    def __init__(self, embedding_dim=1024, static_embedding_dim=10, dropout=0.1):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.asset_embedding = DoubleEmbedding(
@@ -174,17 +188,17 @@ class MapEmbedding_62_62(nn.Module):
             nn.LeakyReLU(),
             DownScaleLayer(static_embedding_dim, 2 * static_embedding_dim, 2),  # 2x32x32
             nn.LeakyReLU(),
-            ConvolutionLayer(2 * static_embedding_dim),
+            ConvolutionLayer(2 * static_embedding_dim, dropout=dropout),
             DownScaleLayer(2 * static_embedding_dim, 4 * static_embedding_dim, 2),  # 4x16x16
             nn.LeakyReLU(),
-            ConvolutionLayer(4 * static_embedding_dim),
+            ConvolutionLayer(4 * static_embedding_dim, dropout=dropout),
             DownScaleLayer(4 * static_embedding_dim, 8 * static_embedding_dim, 2),  # 8x8x8
             nn.LeakyReLU(),
-            ConvolutionLayer(8 * static_embedding_dim),
+            ConvolutionLayer(8 * static_embedding_dim, dropout=dropout),
             DownScaleLayer(8 * static_embedding_dim, 16 * static_embedding_dim, 2),  # 16x4x4
             nn.Flatten(),
-            HiddenLayer(16 * static_embedding_dim * 4 * 4, embedding_dim),
-            HiddenLayer(embedding_dim, embedding_dim),
+            HiddenLayer(16 * static_embedding_dim * 4 * 4, embedding_dim, dropout=dropout),
+            HiddenLayer(embedding_dim, embedding_dim, dropout=dropout),
         )
 
     def forward(self, asset_indices, shape_indices):
