@@ -297,8 +297,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             previous_mouse_x=previous_actions[2, :].astype('float32'),
             previous_mouse_y=previous_actions[3, :].astype('float32'),
         )
-        tensors_with_one_time_dimension = dictmap(padded_tensors, lambda t: t.reshape(1, *t.shape))
-        return tensors_with_one_time_dimension
+        # tensors_with_one_time_dimension = dictmap(padded_tensors, lambda t: t.reshape(1, *t.shape))
+        return padded_tensors
 
     @classmethod
     def split_per_games(cls, l):

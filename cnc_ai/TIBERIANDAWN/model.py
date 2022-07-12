@@ -8,7 +8,7 @@ from cnc_ai.nn import (
     ConvolutionLayer,
     MultiChoiceSamplerWithLogits,
     TwoParameterContinuousSampler,
-    interflatten,
+    TransformerEncoder,
 )
 
 from cnc_ai.TIBERIANDAWN.cnc_structs import (
@@ -48,8 +48,7 @@ class TD_GamePlay(nn.Module):
         previous_mouse_x,
         previous_mouse_y,
     ):
-        latent_embedding = interflatten(
-            self.game_state,
+        latent_embedding = self.game_state(
             dynamic_mask,
             sidebar_mask,
             StaticAssetName,
@@ -71,9 +70,7 @@ class TD_GamePlay(nn.Module):
         )
         time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
         self.cell_states = cell_states[0].detach(), cell_states[1].detach()
-        actions = interflatten(
-            self.actions, time_progress, sidebar_mask, SidebarAssetName, SidebarContinuous
-        )
+        actions = self.actions(time_progress, sidebar_mask, SidebarAssetName, SidebarContinuous)
         return actions
 
     def reset(self):
@@ -86,27 +83,13 @@ class TD_GameEmbedding(nn.Module):
         self.map_embedding = MapEmbedding_62_62(embedding_dim)
 
         self.dynamic_object_embedding = DynamicObjectEmbedding()
-        self.dynamic_object_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.dynamic_object_embedding.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=128,
-            ),
-            num_layers=1,
+        self.dynamic_object_transformer = TransformerEncoder(
+            d_model=self.dynamic_object_embedding.embedding_dim, dim_feedforward=128, num_layers=1
         )
 
         self.siderbar_embedding = SidebarEmbedding()
-        self.sidebar_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.siderbar_embedding.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=16,
-            ),
-            num_layers=1,
+        self.sidebar_transformer = TransformerEncoder(
+            d_model=self.siderbar_embedding.embedding_dim, dim_feedforward=16, num_layers=1
         )
 
         self.previous_action_embedding = nn.Embedding(len(dynamic_object_names) * 12, 16)
@@ -152,12 +135,12 @@ class TD_GameEmbedding(nn.Module):
                 AssetName, ShapeIndex, Owner, Pips, ControlGroup, Cloak, Continuous
             ),
             src_key_padding_mask=dynamic_mask,
-        ).sum(dim=1)
+        ).sum(dim=-2)
 
         sidebar = self.sidebar_transformer(
             self.siderbar_embedding(SidebarAssetName, SidebarContinuous),
             src_key_padding_mask=sidebar_mask,
-        ).sum(dim=1)
+        ).sum(dim=-2)
 
         previous_actions = self.previous_action_embedding(
             previous_action_item * 12 + previous_action_type
@@ -170,10 +153,10 @@ class TD_GameEmbedding(nn.Module):
                 SidebarInfos,
                 sidebar,
                 previous_actions,
-                previous_mouse_x[:, None],
-                previous_mouse_y[:, None],
+                previous_mouse_x[..., None],
+                previous_mouse_y[..., None],
             ],
-            dim=1,
+            dim=-1,
         )
         game_state_embedding = self.dense(internal_state)
         return game_state_embedding
@@ -205,8 +188,13 @@ class MapEmbedding_62_62(nn.Module):
         )
 
     def forward(self, asset_indices, shape_indices):
-        map_embedding = self.asset_embedding(asset_indices, shape_indices).permute(0, 3, 1, 2)
-        output = self.convolutions(map_embedding)
+        map_embedding = self.asset_embedding(asset_indices, shape_indices)
+        dimensions = list(range(map_embedding.ndim))
+        dimensions = dimensions[:-3] + [dimensions[-1]] + dimensions[-3:-1]
+        map_embedding_with_channels = map_embedding.permute(*dimensions)
+        output = self.convolutions(
+            map_embedding_with_channels.reshape(-1, *map_embedding_with_channels.shape[-3:])
+        ).reshape(*map_embedding_with_channels.shape[:-3], self.embedding_dim)
         return output
 
 
@@ -264,8 +252,7 @@ class SidebarEmbedding(nn.Module):
 
     def forward(self, SidebarAssetName, SidebarContinuous):
         sidebar_embeddings = torch.cat(
-            [self.buildable_embedding(SidebarAssetName), SidebarContinuous],
-            axis=2,
+            [self.buildable_embedding(SidebarAssetName), SidebarContinuous], axis=-1
         )
         return sidebar_embeddings
 

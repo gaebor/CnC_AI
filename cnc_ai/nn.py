@@ -246,10 +246,24 @@ class TwoParameterContinuousSampler(DistributionSampler):
         return self.distribution(params[:, 0], params[:, 1])
 
 
-def interflatten(f, *varg, dim_range=(0, 1)):
-    flattened_dims = varg[0].shape[dim_range[0] : dim_range[1] + 1]
-    result = f(*(x.flatten(*dim_range) for x in varg))
-    if isinstance(result, tuple):
-        return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
-    else:
-        return result.unflatten(dim_range[0], flattened_dims)
+class TransformerEncoder(nn.TransformerEncoder):
+    def __init__(self, d_model, dim_feedforward, num_layers):
+        super().__init__(
+            nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=1,
+                batch_first=True,
+                layer_norm_eps=0,
+                dim_feedforward=dim_feedforward,
+            ),
+            num_layers=num_layers,
+        )
+
+    def forward(self, src, src_key_padding_mask):
+        flattened_input = src.reshape(-1, *src.shape[-2:])
+        flattened_output = super().forward(
+            flattened_input,
+            src_key_padding_mask=src_key_padding_mask.reshape(-1, src_key_padding_mask.shape[-1]),
+        )
+        output = flattened_output.reshape(*src.shape)
+        return output

@@ -6,7 +6,6 @@ from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
-from cnc_ai.nn import interflatten
 from cnc_ai.common import dictmap, retrieve
 
 
@@ -27,7 +26,7 @@ class NNAgent(AbstractAgent):
     def __call__(self, **game_state_tensor):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
-        actions = interflatten(self.nn.actions.sample, *action_parameters)
+        actions = self.nn.actions.sample(*action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
@@ -43,8 +42,7 @@ class NNAgent(AbstractAgent):
                 action_parameters = self.nn(
                     **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
                 )
-                actions_surprise = interflatten(
-                    self.nn.actions.surprise,
+                actions_surprise = self.nn.actions.surprise(
                     *action_parameters,
                     *map(lambda t: t[i : i + time_step], actions),
                 )
