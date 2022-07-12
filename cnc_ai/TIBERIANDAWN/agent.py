@@ -15,9 +15,11 @@ class NNAgent(AbstractAgent):
         self.device = 'cpu'
         self.model_params = model_params
         self.nn = TD_GamePlay(**model_params)
+        self.nn.eval()
         self.optimizer = None
 
     def init_optimizer(self, lr=1e-4, weight_decay=1e-10, **params):
+        self.nn.train()
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
         )
@@ -31,6 +33,7 @@ class NNAgent(AbstractAgent):
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
+        print(rewards)
         rewards = self._to_device(rewards)
         progress_bar = trange(time_window, time_window + n, leave=True)
         for time_step in progress_bar:

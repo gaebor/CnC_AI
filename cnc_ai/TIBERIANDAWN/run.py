@@ -321,6 +321,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
     def train(cls, n=1, time_window=200):
         game_state_tensor, actions = cls.all_game_states_and_actions()
         rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
+        cls.nn_agent.init_optimizer()  # hyperparameters can come here
         cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n, time_window=time_window)
 
     @classmethod
@@ -347,7 +348,6 @@ def main():
     else:
         agent = NNAgent()  # hyperparameters can come here
     agent.to(args.device)
-    agent.init_optimizer()  # hyperparameters can come here
 
     GameHandler.configure(
         agent,
