@@ -14,7 +14,7 @@ if version_match:
     dependency_links = ['https://download.pytorch.org/whl/' + cuda_version_str]
     INSTALL_REQUIRES.append(f'torch>=1.9.1+{cuda_version_str}')
 else:
-    dependency_links = []
+    dependency_links = ['https://download.pytorch.org/whl/cpu']
     INSTALL_REQUIRES.append('torch')
 
 
