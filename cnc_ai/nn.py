@@ -284,12 +284,12 @@ class TransformerDecoder(nn.TransformerDecoder):
             num_layers=num_layers,
         )
 
-    def forward(self, src, tgt, tgt_key_padding_mask):
-        flattened_src = src.reshape(-1, *src.shape[-2:])
+    def forward(self, tgt, memory, tgt_key_padding_mask):
         flattened_tgt = tgt.reshape(-1, *tgt.shape[-2:])
+        flattened_memory = memory.reshape(-1, *memory.shape[-2:])
         flattened_output = super().forward(
-            flattened_src,
             flattened_tgt,
+            flattened_memory,
             tgt_key_padding_mask=tgt_key_padding_mask.reshape(-1, tgt_key_padding_mask.shape[-1]),
         )
         output = flattened_output.reshape(*tgt.shape)
