@@ -356,11 +356,11 @@ class MouseParameters(nn.Module):
         self.ff = nn.Sequential(
             *[HiddenLayer(embedding_dim, dropout=dropout) for _ in range(n_layers)],
             nn.Linear(embedding_dim, 4),
-            nn.Softplus()
+            nn.ELU()
         )
 
     def forward(self, latent_embedding):
-        alpha_beta_params = self.ff(latent_embedding)
+        alpha_beta_params = self.ff(latent_embedding) + 2
         mouse_parameters = torch.stack(
             [
                 torch.ones(
