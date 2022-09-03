@@ -7,7 +7,7 @@ from tqdm import trange
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.nn import interflatten
-from cnc_ai.common import dictmap, retrieve
+from cnc_ai.common import dictmap, retrieve, plot_images
 
 
 class NNAgent(AbstractAgent):
@@ -18,7 +18,7 @@ class NNAgent(AbstractAgent):
         self.nn.eval()
         self.optimizer = None
 
-    def init_optimizer(self, lr=1e-4, weight_decay=1e-10, **params):
+    def init_optimizer(self, lr=1e-3, weight_decay=1e-10, **params):
         self.nn.train()
         self.optimizer = torch.optim.SGD(
             self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
@@ -27,8 +27,20 @@ class NNAgent(AbstractAgent):
     def __call__(self, **game_state_tensor):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
+        self.plot_actions(*action_parameters)
         actions = interflatten(self.nn.actions.sample, *action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
+
+    def plot_actions(self, mouse_positional_params, action_logits):
+        n_players = action_logits.shape[1]
+        images = numpy.exp(retrieve(action_logits[0]))
+        images /= images.sum(axis=1).sum(axis=1)[:, None, None]
+        x = (torch.linspace(0.01, 1, 24)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
+        mouse_params = mouse_positional_params[0, :, 1]
+        mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
+        mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
+        mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
+        plot_images(mouse_position, images)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
