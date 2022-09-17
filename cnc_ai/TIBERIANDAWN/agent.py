@@ -35,7 +35,7 @@ class NNAgent(AbstractAgent):
         n_players = action_logits.shape[1]
         images = numpy.exp(retrieve(action_logits[0]))
         images /= images.sum(axis=1).sum(axis=1)[:, None, None]
-        x = (torch.linspace(0.01, 1, 24)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
+        x = (torch.linspace(0, 1, 51)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
         mouse_params = mouse_positional_params[0, :, 1]
         mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
         mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
@@ -55,6 +55,7 @@ class NNAgent(AbstractAgent):
                 action_parameters = self.nn(
                     **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
                 )
+                self.plot_actions(*action_parameters)
                 actions_surprise = interflatten(
                     self.nn.actions.surprise,
                     *action_parameters,
