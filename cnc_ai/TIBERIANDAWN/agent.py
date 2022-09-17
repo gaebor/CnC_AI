@@ -17,12 +17,12 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.nn.eval()
         self.optimizer = None
+        self.optimizer_params = None
 
-    def init_optimizer(self, lr=1e-3, weight_decay=1e-10, **params):
+    def init_optimizer(self, **params):
         self.nn.train()
-        self.optimizer = torch.optim.SGD(
-            self.nn.parameters(), lr=lr, weight_decay=weight_decay, **params
-        )
+        self.optimizer_params = params
+        self.optimizer = torch.optim.NAdam(self.nn.parameters(), **params)
 
     def __call__(self, **game_state_tensor):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
@@ -40,7 +40,7 @@ class NNAgent(AbstractAgent):
         mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
         mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
-        plot_images(mouse_position, images)
+        plot_images(images, mouse_position)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
@@ -76,6 +76,9 @@ class NNAgent(AbstractAgent):
             'class': type(self.nn).__name__,
             'init': self.model_params,
             'state_dict': self.nn.state_dict(),
+            'optimizer_init': self.optimizer_params,
+            'optimizer_class': type(self.optimizer).__name__,
+            'optimizer_state_dict': self.optimizer.state_dict(),
         }
         torch.save(parameters, path)
 
@@ -87,8 +90,8 @@ class NNAgent(AbstractAgent):
         self.nn.to(device)
 
     @staticmethod
-    def load(path):
-        parameters = torch.load(path)
+    def load(path, map_location='cpu'):
+        parameters = torch.load(path, map_location=map_location)
         agent = NNAgent(**parameters['init'])
         if type(agent.nn).__name__ != parameters['class']:
             raise ValueError(
@@ -96,6 +99,10 @@ class NNAgent(AbstractAgent):
                 f"saved class ('{parameters['class']}')"
             )
         agent.nn.load_state_dict(parameters['state_dict'])
+
+        agent.init_optimizer(**parameters['optimizer_init'])
+        assert type(agent.optimizer).__name__ == parameters['optimizer_class']
+        agent.optimizer.load_state_dict(parameters['optimizer_state_dict'])
         return agent
 
 

@@ -234,10 +234,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         return rewards
 
     @classmethod
-    def train(cls, n=1, time_window=200, lr=1e-3):
+    def train(cls, n=1, time_window=200):
         game_state_tensor, actions = cls.all_game_states_and_actions()
         rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
-        cls.nn_agent.init_optimizer(lr=lr)  # hyperparameters can come here
         cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n, time_window=time_window)
 
     @classmethod
@@ -260,10 +259,11 @@ def main():
     args = get_args()
 
     if args.load:
-        agent = NNAgent.load(args.load)
+        agent = NNAgent.load(args.load, args.device)
     else:
-        agent = NNAgent()  # hyperparameters can come here
-    agent.to(args.device)
+        agent = NNAgent()
+        agent.init_optimizer(lr=args.learning_rate, weight_decay=1e-10)
+        agent.to(args.device)
 
     GameHandler.configure(
         agent,
@@ -338,7 +338,7 @@ def main():
         for game in GameHandler.games:
             game.save_gameplay()
     if args.train > 0:
-        GameHandler.train(args.train, args.time_window, args.learning_rate)
+        GameHandler.train(args.train, args.time_window)
     if args.save:
         agent.save(args.save)
 
