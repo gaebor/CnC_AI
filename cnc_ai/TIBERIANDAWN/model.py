@@ -228,7 +228,7 @@ class TD_Action(nn.Module):
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
         sidebar = self.sidebar_embedding(SidebarAssetName, SidebarContinuous)
-        actions_input = self.transformer_in(sidebar[:, 0, :])
+        actions_input = self.transformer_in(sidebar[:, [0], :])
         action_logits = self.transformer_out(actions_input)
         # action_logits[sidebar_mask] = float('-inf')
         return mouse_positional_params, action_logits
