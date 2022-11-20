@@ -13,14 +13,14 @@ def get_args():
         '--end-limit',
         '--end_limit',
         dest='end_limit',
-        default=100,
+        default=30,
         type=int,
         help='stop game after this many iterations if still going',
     )
     parser.add_argument(
         '-T',
         '--time-window',
-        default=100,
+        default=200,
         type=int,
         help='limits the maximum depth in time to backpropagate to',
     )
