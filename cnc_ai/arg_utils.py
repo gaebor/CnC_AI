@@ -66,7 +66,7 @@ def get_args():
         action='store_true',
         help="Print out what was the terminal state of the game(s).",
     )
-    parser.add_argument('--train', default=0, type=int, help="Train at the end of the game.")
+    parser.add_argument('--train', default=10, type=int, help="Train at the end of the game.")
     parser.add_argument(
         '-r',
         '--record',
