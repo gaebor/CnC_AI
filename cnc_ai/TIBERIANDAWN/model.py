@@ -24,14 +24,6 @@ class TD_GamePlay(nn.Module):
         super().__init__()
         self.reset()
         self.game_state = TD_GameEmbedding(embedding_dim, dropout=dropout)
-        self.lstm = nn.LSTM(
-            embedding_dim,
-            embedding_dim,
-            n_lstm,
-            batch_first=False,
-            bidirectional=False,
-            dropout=dropout,
-        )
         self.actions = TD_Action(embedding_dim, dropout=dropout)
 
     def forward(
@@ -76,58 +68,22 @@ class TD_GamePlay(nn.Module):
             previous_mouse_x,
             previous_mouse_y,
         )
-        time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
-        self.cell_states = cell_states[0].detach(), cell_states[1].detach()
         actions = interflatten(
-            self.actions, time_progress, sidebar_mask, SidebarAssetName, SidebarContinuous
+            self.actions, latent_embedding, sidebar_mask, SidebarAssetName, SidebarContinuous
         )
         return actions
 
     def reset(self):
-        self.cell_states = None
+        pass
 
 
 class TD_GameEmbedding(nn.Module):
     def __init__(self, embedding_dim=1024, dropout=0.1):
         super().__init__()
-        self.map_embedding = MapEmbedding_62_62(embedding_dim, dropout=0.1)
-
         self.dynamic_object_embedding = DynamicObjectEmbedding()
-        self.dynamic_object_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.dynamic_object_embedding.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=128,
-                dropout=dropout,
-            ),
-            num_layers=1,
-        )
-
-        self.siderbar_embedding = SidebarEmbedding()
-        self.sidebar_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=self.siderbar_embedding.embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=16,
-                dropout=dropout,
-            ),
-            num_layers=1,
-        )
-
-        self.previous_action_embedding = nn.Embedding(len(dynamic_object_names) * 12, 16)
-
         self.dense = nn.Sequential(
             HiddenLayer(
-                self.map_embedding.embedding_dim
-                + self.dynamic_object_embedding.embedding_dim
-                + self.siderbar_embedding.embedding_dim
-                + 6  # sidebar members
-                + self.previous_action_embedding.embedding_dim
-                + 2,  # previous mouse position
+                self.dynamic_object_embedding.embedding_dim,
                 embedding_dim,
                 dropout=dropout,
             ),
@@ -155,37 +111,11 @@ class TD_GameEmbedding(nn.Module):
         previous_mouse_x,
         previous_mouse_y,
     ):
-        map_embedding = self.map_embedding(StaticAssetName, StaticShapeIndex)
+        dynamic_objects = self.dynamic_object_embedding(
+            AssetName, ShapeIndex, Owner, Pips, ControlGroup, Cloak, Continuous
+        )[:, 0, :]
 
-        dynamic_objects = self.dynamic_object_transformer(
-            self.dynamic_object_embedding(
-                AssetName, ShapeIndex, Owner, Pips, ControlGroup, Cloak, Continuous
-            ),
-            src_key_padding_mask=dynamic_mask,
-        ).sum(dim=1)
-
-        sidebar = self.sidebar_transformer(
-            self.siderbar_embedding(SidebarAssetName, SidebarContinuous),
-            src_key_padding_mask=sidebar_mask,
-        ).sum(dim=1)
-
-        previous_actions = self.previous_action_embedding(
-            previous_action_item * 12 + previous_action_type
-        )
-
-        internal_state = torch.cat(
-            [
-                map_embedding,
-                dynamic_objects,
-                SidebarInfos,
-                sidebar,
-                previous_actions,
-                previous_mouse_x[:, None],
-                previous_mouse_y[:, None],
-            ],
-            dim=1,
-        )
-        game_state_embedding = self.dense(internal_state)
+        game_state_embedding = self.dense(dynamic_objects)
         return game_state_embedding
 
 
@@ -252,7 +182,7 @@ class DynamicObjectEmbedding(nn.Module):
         )
 
     def forward(self, AssetName, ShapeIndex, Owner, Pips, ControlGroup, Cloak, Continuous):
-        dynamic_objects = torch.cat(
+        dynamic_object = torch.cat(
             [
                 self.unit_embedding(AssetName, ShapeIndex),
                 self.owner_embedding(Owner),
@@ -263,7 +193,7 @@ class DynamicObjectEmbedding(nn.Module):
             ],
             axis=-1,
         )
-        return dynamic_objects
+        return dynamic_object
 
 
 class SidebarEmbedding(nn.Module):
@@ -291,17 +221,6 @@ class TD_Action(nn.Module):
         self.transformer_in = HiddenLayer(
             self.sidebar_embedding.embedding_dim, embedding_dim, dropout=dropout
         )
-        self.action_transformer = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(
-                d_model=embedding_dim,
-                nhead=1,
-                batch_first=True,
-                layer_norm_eps=0,
-                dim_feedforward=embedding_dim,
-                dropout=dropout,
-            ),
-            num_layers=1,
-        )
         self.transformer_out = nn.Linear(embedding_dim, n_actions)
 
         self.button_sampler = MultiChoiceSamplerWithLogits()
@@ -309,13 +228,9 @@ class TD_Action(nn.Module):
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
         sidebar = self.sidebar_embedding(SidebarAssetName, SidebarContinuous)
-        actions_input = self.transformer_in(sidebar)
-        transformed = self.action_transformer(
-            actions_input, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask
-        )
-        action_logits = self.transformer_out(transformed)
-        action_logits[sidebar_mask] = float('-inf')
-
+        actions_input = self.transformer_in(sidebar[:, 0, :])
+        action_logits = self.transformer_out(actions_input)
+        # action_logits[sidebar_mask] = float('-inf')
         return mouse_positional_params, action_logits
 
     def sample(self, mouse_parameters, action_logits):
