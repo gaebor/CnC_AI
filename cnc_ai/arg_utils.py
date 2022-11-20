@@ -13,14 +13,14 @@ def get_args():
         '--end-limit',
         '--end_limit',
         dest='end_limit',
-        default=10_000,
+        default=100,
         type=int,
         help='stop game after this many iterations if still going',
     )
     parser.add_argument(
         '-T',
         '--time-window',
-        default=200,
+        default=100,
         type=int,
         help='limits the maximum depth in time to backpropagate to',
     )
@@ -79,7 +79,7 @@ def get_args():
         '-a',
         '--agents',
         dest='agents',
-        default='AIvAI',
+        default='AIvNN',
         choices=['AIvAI', 'AIvNN', 'NNvNN'],
         help=" ",
     )
