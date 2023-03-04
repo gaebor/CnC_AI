@@ -39,7 +39,7 @@ class NNAgent(AbstractAgent):
         mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
         mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
-        plot_images(images, mouse_position)
+        # plot_images(images, mouse_position)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
@@ -86,8 +86,8 @@ class NNAgent(AbstractAgent):
                 numpy.dtype('bool'): torch.bool,
                 numpy.dtype('float32'): self.dtype,
                 numpy.dtype('float64'): self.dtype,
-                numpy.dtype('int32'): torch.int,
-                numpy.dtype('int64'): torch.int,
+                numpy.dtype('int32'): torch.long,
+                numpy.dtype('int64'): torch.long,
             }[x.dtype],
         )
 
