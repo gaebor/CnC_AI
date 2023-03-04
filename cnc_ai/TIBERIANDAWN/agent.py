@@ -18,11 +18,9 @@ class NNAgent(AbstractAgent):
         self.nn = TD_GamePlay(**model_params)
         self.nn.eval()
         self.optimizer = None
-        self.optimizer_params = None
 
     def init_optimizer(self, **params):
         self.nn.train()
-        self.optimizer_params = params
         self.optimizer = torch.optim.NAdam(self.nn.parameters(), **params)
 
     def __call__(self, **game_state_tensor):
@@ -77,9 +75,6 @@ class NNAgent(AbstractAgent):
             'class': type(self.nn).__name__,
             'init': self.model_params,
             'state_dict': self.nn.state_dict(),
-            'optimizer_init': self.optimizer_params,
-            'optimizer_class': type(self.optimizer).__name__,
-            'optimizer_state_dict': self.optimizer.state_dict(),
         }
         torch.save(parameters, path)
 
@@ -111,10 +106,8 @@ class NNAgent(AbstractAgent):
                 f"saved class ('{parameters['class']}')"
             )
         agent.nn.load_state_dict(parameters['state_dict'])
-
-        agent.init_optimizer(**parameters['optimizer_init'])
-        assert type(agent.optimizer).__name__ == parameters['optimizer_class']
-        agent.optimizer.load_state_dict(parameters['optimizer_state_dict'])
+        agent.nn.eval()
+        agent.optimizer = None
         return agent
 
 
