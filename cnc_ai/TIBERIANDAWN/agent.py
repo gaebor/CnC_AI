@@ -12,7 +12,8 @@ from cnc_ai.common import dictmap, retrieve, plot_images
 
 class NNAgent(AbstractAgent):
     def __init__(self, **model_params):
-        self.device = 'cpu'
+        self.device: str = 'cpu'
+        self.dtype: torch.dtype = torch.float32
         self.model_params = model_params
         self.nn = TD_GamePlay(**model_params)
         self.nn.eval()
@@ -83,11 +84,22 @@ class NNAgent(AbstractAgent):
         torch.save(parameters, path)
 
     def _to_device(self, x):
-        return torch.tensor(x, device=self.device)
+        return torch.tensor(
+            x,
+            device=self.device,
+            dtype={
+                numpy.dtype('bool'): torch.bool,
+                numpy.dtype('float32'): self.dtype,
+                numpy.dtype('float64'): self.dtype,
+                numpy.dtype('int32'): torch.int,
+                numpy.dtype('int64'): torch.int,
+            }[x.dtype],
+        )
 
-    def to(self, device):
+    def to(self, device=None, dtype=None):
+        self.nn.to(device=device, dtype=dtype)
         self.device = device
-        self.nn.to(device)
+        self.dtype = dtype
 
     @staticmethod
     def load(path, map_location='cpu'):

@@ -13,6 +13,8 @@ import tornado.web
 import tornado.websocket
 import tornado.ioloop
 
+from torch import float16, float32
+
 from cnc_ai.common import dictmap
 
 from cnc_ai.TIBERIANDAWN import cnc_structs
@@ -259,11 +261,10 @@ def main():
     args = get_args()
 
     if args.load:
-        agent = NNAgent.load(args.load, args.device)
+        agent = NNAgent.load(args.load)
     else:
         agent = NNAgent()
         agent.init_optimizer(lr=args.learning_rate, weight_decay=1e-10)
-        agent.to(args.device)
 
     GameHandler.configure(
         agent,
@@ -317,6 +318,8 @@ def main():
         agents=args.agents,
     )
 
+    agent.to(device=args.device, dtype=float16 if 'cuda' in args.device else float32)
+
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
     if args.spawn:
@@ -337,6 +340,7 @@ def main():
     if args.record:
         for game in GameHandler.games:
             game.save_gameplay()
+    agent.to(device=args.device, dtype=float32)
     if args.train > 0:
         GameHandler.train(args.train, args.time_window)
     if args.save:
