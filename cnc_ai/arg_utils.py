@@ -91,5 +91,8 @@ def get_args():
         type=float,
         help=" ",
     )
+    parser.add_argument(
+        '-H', '--half', default=False, action='store_true', help="Use float16 during inference"
+    )
 
     return parser.parse_args()

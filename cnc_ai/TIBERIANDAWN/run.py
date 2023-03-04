@@ -317,7 +317,7 @@ def main():
         agents=args.agents,
     )
 
-    agent.to(device=args.device, dtype=float16 if 'cuda' in args.device else float32)
+    agent.to(device=args.device, dtype=float16 if args.half else float32)
 
     application = tornado.web.Application([(r"/", GameHandler)])
     application.listen(args.port)
