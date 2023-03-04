@@ -341,7 +341,7 @@ def main():
             game.save_gameplay()
     agent.to(device=args.device, dtype=float32)
     if args.train > 0:
-        agent.init_optimizer(lr=args.learning_rate, weight_decay=1e-10)
+        agent.init_optimizer(lr=args.learning_rate, weight_decay=1e-8)
         GameHandler.train(args.train, args.time_window)
     if args.save:
         agent.save(args.save)

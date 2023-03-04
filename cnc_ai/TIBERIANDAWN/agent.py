@@ -21,12 +21,12 @@ class NNAgent(AbstractAgent):
 
     def init_optimizer(self, **params):
         self.nn.train()
-        self.optimizer = torch.optim.NAdam(self.nn.parameters(), **params)
+        self.optimizer = torch.optim.RMSprop(self.nn.parameters(), **params)
 
     def __call__(self, **game_state_tensor):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
-        self.plot_actions(*action_parameters)
+        # self.plot_actions(*action_parameters)
         actions = interflatten(self.nn.actions.sample, *action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
@@ -39,7 +39,7 @@ class NNAgent(AbstractAgent):
         mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
         mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
-        # plot_images(images, mouse_position)
+        plot_images(images, mouse_position)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
