@@ -11,7 +11,7 @@ setup(
     author_email='borbely@math.bme.hu',
     url='https://github.com/gaebor/CnC_AI',
     license='MIT',
-    install_requires=['numpy', 'torch', 'tornado', 'termcolor', 'tqdm'],
+    install_requires=['numpy', 'torch', 'tornado', 'termcolor', 'tqdm', 'matplotlib'],
     packages=['cnc_ai', 'cnc_ai.TIBERIANDAWN'],
     include_package_data=True,
 )
