@@ -223,7 +223,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         result = []
         l = iter(l)
         for game in cls.games:
-            result.append([next(l) for _ in range(len(game.players))])
+            result.append([next(l) for _ in game.players])
         return result
 
     def get_rewards(self):
