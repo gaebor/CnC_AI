@@ -6,7 +6,6 @@ from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
-from cnc_ai.nn import interflatten
 from cnc_ai.common import dictmap, retrieve, plot_images
 
 
@@ -27,19 +26,20 @@ class NNAgent(AbstractAgent):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
         # self.plot_actions(*action_parameters)
-        actions = interflatten(self.nn.actions.sample, *action_parameters)
+        actions = self.nn.actions.sample(*action_parameters)
         return tuple(action.cpu().numpy() for action in actions)
 
     def plot_actions(self, mouse_positional_params, action_logits):
         n_players = action_logits.shape[1]
-        images = numpy.exp(retrieve(action_logits[0]))
-        images /= images.sum(axis=1).sum(axis=1)[:, None, None]
         x = (torch.linspace(0, 1, 51)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
-        mouse_params = mouse_positional_params[0, :, 1]
-        mouse_x = retrieve(torch.exp(-self.nn.actions.mouse_x.surprise(mouse_params[:, :2], x)))
-        mouse_y = retrieve(torch.exp(-self.nn.actions.mouse_y.surprise(mouse_params[:, 2:], x)))
+        button_probabilities, mouse_x, mouse_y = self.nn.actions.get_probabilities(
+            mouse_positional_params[-1], action_logits[-1], x
+        )
+        button_probabilities = retrieve(button_probabilities)
+        mouse_x = retrieve(mouse_x)
+        mouse_y = retrieve(mouse_y)
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
-        plot_images(images, mouse_position)
+        plot_images(button_probabilities, mouse_position)
 
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
@@ -55,8 +55,7 @@ class NNAgent(AbstractAgent):
                     **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
                 )
                 self.plot_actions(*action_parameters)
-                actions_surprise = interflatten(
-                    self.nn.actions.surprise,
+                actions_surprise = self.nn.actions.surprise(
                     *action_parameters,
                     *map(lambda t: t[i : i + time_step], actions),
                 )
@@ -143,10 +142,16 @@ class SimpleAgent(AbstractAgent):
                     self.color = inputs['Owner'][mcv_index]
                 MCV_features = inputs['Continuous'][mcv_index]
                 # move mouse to position then click with left mouse button
-                self.actions.append((0, 1, MCV_features[0], MCV_features[1]))
-                self.actions.append((0, 2, 744.0, 744.0))
+                self.actions.append(
+                    (
+                        self.render_action_matrix(0, 1, len_sidebar),
+                        MCV_features[0],
+                        MCV_features[1],
+                    )
+                )
+                self.actions.append((self.render_action_matrix(0, 2, len_sidebar), 744.0, 744.0))
                 # do nothing for now
-                return 0, 0, 744.0, 744.0
+                return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
 
             elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
@@ -154,17 +159,31 @@ class SimpleAgent(AbstractAgent):
                     progress = inputs['SidebarContinuous'][nuke][0]
                     if progress == 0:
                         # start building
-                        return nuke, 0, 744.0, 744.0
+                        return self.render_action_matrix(nuke, 0, len_sidebar), 744.0, 744.0
                     elif progress == 1:
                         new_spot = self.find_new_spot(inputs)
                         # move mouse to position
                         # then start placement
                         # then place
-                        self.actions.append((0, 1, *new_spot))
-                        self.actions.append((nuke, 3, 744.0, 744.0))
-                        self.actions.append((nuke, 4, 744.0, 744.0))
-                        return 0, 0, 744.0, 744.0
-            return 0, 0, 744.0, 744.0
+                        self.actions.append(
+                            (self.render_action_matrix(0, 1, len_sidebar), *new_spot)
+                        )
+                        self.actions.append(
+                            (self.render_action_matrix(nuke, 3, len_sidebar), 744.0, 744.0)
+                        )
+                        self.actions.append(
+                            (self.render_action_matrix(nuke, 4, len_sidebar), 744.0, 744.0)
+                        )
+                        return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
+            return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
+
+        @staticmethod
+        def render_action_matrix(i, j, len_sidebar=None):
+            if len_sidebar is None:
+                len_sidebar = i + 1
+            action_matrix = numpy.zeros((len_sidebar, 12), dtype=bool)
+            action_matrix[i, j] = True
+            return action_matrix
 
         def find_new_spot(self, inputs):
             unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]

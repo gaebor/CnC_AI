@@ -46,8 +46,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 len(game.game_states) == len(self.game_states) for game in GameHandler.games
             ):
                 GameHandler.tqdm.update()
-                game_state_tensor = GameHandler.last_game_states_to_tensor()
-
+                game_state_tensor = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
                 if 'NN' in GameHandler.agents:
                     nn_actions = GameHandler.nn_agent(**game_state_tensor)
                     nn_actions = [action[-1] for action in nn_actions]
@@ -70,8 +69,16 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 ):
                     game.game_actions.append(per_game_actions)
                     message = b''
-                    for player, action in enumerate(zip(*per_game_actions)):
-                        message += cnc_structs.ActionRequestArgs(player, *action).render_message()
+                    for player, (button_matrix, mouse_x, mouse_y) in enumerate(
+                        zip(*per_game_actions)
+                    ):
+                        message += cnc_structs.ActionRequestArgs(
+                            player,
+                            button_matrix.nonzero()[0][0],
+                            button_matrix.nonzero()[1][0],
+                            mouse_x,
+                            mouse_y,
+                        ).render_message()
                     game.write_message(message, binary=True)
 
     def open(self):
@@ -143,7 +150,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         # Actions are shifted by one
         # This is actually the previous action (None in the first turn)
         self.game_actions = [
-            ([0] * n_players, [0] * n_players, [744.0] * n_players, [744.0] * n_players)
+            (
+                [numpy.array([[True] + [False] * 11]) for _ in range(n_players)],
+                [744.0] * n_players,
+                [744.0] * n_players,
+            )
         ]
 
         # start game
@@ -167,18 +178,20 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             pickle.dump(self.game_actions, f)
 
     @classmethod
-    def all_game_states_and_actions(cls):
-        length = min(len(game.game_actions) for game in cls.games) - 1
+    def get_game_states_and_actions(cls, index: slice):
+        length = min(len(game.game_states) for game in cls.games)
         n_players = sum(len(game.players) for game in cls.games)
         tensors = [
-            game_state
-            for i in range(length)
+            player_state
+            for time in range(length)[index]
             for game in cls.games
-            for game_state in game.game_states[i]
+            for player_state in game.game_states[time]
         ]
         padded_tensors = dictmap(
             pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
+        pickle.dump([game.game_actions for game in cls.games], open('test.pkl', 'wb'))
+
         all_actions = numpy.concatenate(
             [game.game_actions[: length + 1] for game in cls.games], axis=2
         )
@@ -201,24 +214,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         return padded_tensors, actions
 
     @classmethod
-    def last_game_states_to_tensor(cls):
-        tensors = list(chain(*(game.game_states[-1] for game in cls.games)))
-        padded_tensors = pad_game_states(tensors)
-        previous_actions = numpy.concatenate([game.game_actions[-1] for game in cls.games], axis=1)
-        padded_tensors.update(
-            previous_action_item=numpy.take_along_axis(
-                padded_tensors['SidebarAssetName'],
-                previous_actions[0, :].astype('int64')[:, None],
-                axis=1,
-            )[:, 0].astype('int64'),
-            previous_action_type=previous_actions[1, :].astype('int64'),
-            previous_mouse_x=previous_actions[2, :].astype('float32'),
-            previous_mouse_y=previous_actions[3, :].astype('float32'),
-        )
-        tensors_with_one_time_dimension = dictmap(padded_tensors, lambda t: t.reshape(1, *t.shape))
-        return tensors_with_one_time_dimension
-
-    @classmethod
     def split_per_games(cls, l):
         result = []
         l = iter(l)
@@ -237,7 +232,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def train(cls, n=1, time_window=200):
-        game_state_tensor, actions = cls.all_game_states_and_actions()
+        game_state_tensor, actions = cls.get_game_states_and_actions(slice(None))
         rewards = numpy.concatenate([game.get_rewards() for game in cls.games])
         cls.nn_agent.learn(game_state_tensor, actions, rewards, n=n, time_window=time_window)
 

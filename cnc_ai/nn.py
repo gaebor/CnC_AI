@@ -235,7 +235,7 @@ class MultiChoiceSamplerWithLogits(DistributionSampler):
         super().__init__(torch.distributions.multinomial.Multinomial)
 
     def apply_params(self, params):
-        return self.distribution(1, logits=params)
+        return self.distribution(logits=params)
 
     def sample(self, params):
         return super().sample(params).to(torch.bool)
@@ -246,10 +246,10 @@ class TwoParameterContinuousSampler(DistributionSampler):
         return self.distribution(params[:, 0], params[:, 1])
 
 
-def interflatten(f, *varg, dim_range=(0, 1)):
-    flattened_dims = varg[0].shape[dim_range[0] : dim_range[1] + 1]
-    result = f(*(x.flatten(*dim_range) for x in varg))
-    if isinstance(result, tuple):
-        return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
-    else:
-        return result.unflatten(dim_range[0], flattened_dims)
+# def interflatten(f, *varg, dim_range=(0, 1)):
+#     flattened_dims = varg[0].shape[dim_range[0] : dim_range[1] + 1]
+#     result = f(*(x.flatten(*dim_range) for x in varg))
+#     if isinstance(result, tuple):
+#         return tuple(x.unflatten(dim_range[0], flattened_dims) for x in result)
+#     else:
+#         return result.unflatten(dim_range[0], flattened_dims)
