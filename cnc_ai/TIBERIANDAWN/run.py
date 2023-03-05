@@ -14,7 +14,6 @@ import tornado.ioloop
 
 from torch import float16, float32
 
-from cnc_ai.common import dictmap
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent
 from cnc_ai.TIBERIANDAWN.bridge import (
@@ -22,7 +21,6 @@ from cnc_ai.TIBERIANDAWN.bridge import (
     concatenate_game_actions,
     encode_list,
     GameAction,
-    GameState,
 )
 
 from cnc_ai.arg_utils import get_args
@@ -189,8 +187,8 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         ]
         length = len(tensors) // n_players
         game_states = concatenate_game_states(tensors)
-        time_aware_game_states = GameState(
-            **dictmap(game_states.__dict__, lambda t: t.reshape(length, n_players, *t.shape[1:]))
+        time_aware_game_states = game_states.apply(
+            lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
         actions = concatenate_game_actions(
             [
@@ -200,9 +198,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 for player_action in game.game_actions[time]
             ]
         )
-        time_aware_actions = GameAction(
-            **dictmap(actions.__dict__, lambda t: t.reshape(length, n_players, *t.shape[1:]))
-        )
+        time_aware_actions = actions.apply(lambda t: t.reshape(length, n_players, *t.shape[1:]))
         return time_aware_game_states, time_aware_actions
 
     @classmethod

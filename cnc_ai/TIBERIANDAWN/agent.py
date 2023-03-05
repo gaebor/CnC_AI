@@ -6,7 +6,7 @@ from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
-from cnc_ai.common import dictmap, retrieve, plot_images, numpy_to_torch
+from cnc_ai.common import retrieve, plot_images, numpy_to_torch
 from cnc_ai.TIBERIANDAWN.bridge import GameAction, GameState, concatenate_game_actions
 
 
@@ -23,9 +23,10 @@ class NNAgent(AbstractAgent):
         self.nn.train()
         self.optimizer = torch.optim.SGD(self.nn.parameters(), **params)
 
-    def __call__(self, game_state_tensor: GameState) -> GameAction:
-        game_state_tensor = dictmap(game_state_tensor.__dict__, self._to_device)
-        action_parameters = self.nn(**game_state_tensor)
+    def __call__(self, game_state_tensor: GameState, previous_action: GameAction) -> GameAction:
+        game_state_tensor = game_state_tensor.apply(self._to_device)
+        previous_action = previous_action.apply(self._to_device)
+        action_parameters = self.nn(**game_state_tensor, **previous_action)
         # self.plot_actions(*action_parameters)
         actions = self.nn.actions.sample(*action_parameters)
         return GameAction(*map(lambda t: t.cpu().numpy()[-1], actions))
@@ -42,22 +43,32 @@ class NNAgent(AbstractAgent):
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
         plot_images(button_probabilities, mouse_position)
 
-    def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
-        game_state_tensors = dictmap(game_state_tensors, self._to_device)
-        actions = tuple(map(self._to_device, actions))
+    def learn(
+        self,
+        game_state: GameState,
+        actions: GameAction,
+        rewards: numpy.ndarray,
+        n=1,
+        time_window=200,
+    ):
+        game_state = game_state.apply(lambda t: self._to_device(t[:-1]))
+        previous_actions = actions.apply(lambda t: self._to_device(t[:-1]))
+        actions = actions.apply(lambda t: self._to_device(t[1:]))
+
         rewards = self._to_device(rewards.astype(float))
         progress_bar = trange(time_window, time_window + n, leave=True)
         for time_step in progress_bar:
             self.nn.reset()
-            for i in trange(0, actions[0].shape[0], time_step, leave=False):
+            for i in trange(0, game_state.AssetName.shape[0], time_step, leave=False):
                 self.optimizer.zero_grad()
                 action_parameters = self.nn(
-                    **dictmap(game_state_tensors, lambda t: t[i : i + time_step])
+                    **game_state.apply(lambda t: t[i : i + time_step]),
+                    **previous_actions.apply(lambda t: t[i : i + time_step]),
                 )
                 self.plot_actions(*action_parameters)
                 actions_surprise = self.nn.actions.surprise(
                     *action_parameters,
-                    *map(lambda t: t[i : i + time_step], actions),
+                    *actions.apply(lambda t: t[i : i + time_step]).__dict__.values(),
                 )
                 games_surprise = actions_surprise.mean(axis=0)
                 objective = games_surprise.dot(rewards)

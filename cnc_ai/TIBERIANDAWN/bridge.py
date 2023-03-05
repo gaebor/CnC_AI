@@ -47,8 +47,8 @@ class GameState:
         if self.sidebar_mask is None:
             self.sidebar_mask = numpy.zeros_like(self.SidebarAssetName, dtype=bool)
 
-    def take(self, *slices: slice):
-        return GameState(**{member: value[slices] for member, value in self.__dict__.items()})
+    def apply(self, f):
+        return GameState(**{member: f(value) for member, value in self.__dict__.items()})
 
 
 @dataclass
@@ -57,8 +57,8 @@ class GameAction:
     mouse_x: NDArray[NpFloat]
     mouse_y: NDArray[NpFloat]
 
-    def take(self, *slices: slice):
-        return GameAction(**{member: value[slices] for member, value in self.__dict__.items()})
+    def apply(self, f):
+        return GameAction(**{member: f(value) for member, value in self.__dict__.items()})
 
 
 def concatenate_game_states(list_of_game_states: List[GameState]) -> GameState:

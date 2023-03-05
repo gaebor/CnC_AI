@@ -49,6 +49,9 @@ class TD_GamePlay(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
+        button,
+        mouse_x,
+        mouse_y,
     ):
         latent_embedding = self.game_state(
             dynamic_mask,
@@ -65,6 +68,9 @@ class TD_GamePlay(nn.Module):
             SidebarInfos,
             SidebarAssetName,
             SidebarContinuous,
+            button,
+            mouse_x,
+            mouse_y,
         )
         # time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
         # self.cell_states = cell_states[0].detach(), cell_states[1].detach()
@@ -138,6 +144,9 @@ class TD_GameEmbedding(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
+        button,
+        mouse_x,
+        mouse_y,
     ):
         # map_embedding = self.map_embedding(StaticAssetName, StaticShapeIndex)
 
