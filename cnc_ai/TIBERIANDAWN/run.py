@@ -52,9 +52,9 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     slice(-1, -2, -1)
                 )
                 if 'NN' in GameHandler.agents:
-                    nn_actions = GameHandler.nn_agent(game_state)
+                    nn_actions = GameHandler.nn_agent(game_state, previous_action)
                 if 'AI' in GameHandler.agents:
-                    simple_actions = GameHandler.simple_agent(game_state)
+                    simple_actions = GameHandler.simple_agent(game_state, previous_action)
 
                 i = 0
                 for game in GameHandler.games:
@@ -66,9 +66,11 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                             or (GameHandler.agents == 'AIvNN' and i % 2 == 0)
                             or (GameHandler.agents == 'NNvAI' and i % 2 == 1)
                         )
-                        action = (simple_actions if first_action else nn_actions).take(i)
+                        action = (simple_actions if first_action else nn_actions).apply(
+                            lambda t: t[i]
+                        )
                         masked_sidebar_action = GameAction(
-                            action.button[~game_state.take(-1, i).sidebar_mask],
+                            action.button[~game_state.sidebar_mask[-1, i]],
                             action.mouse_x,
                             action.mouse_y,
                         )

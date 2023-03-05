@@ -26,7 +26,7 @@ class NNAgent(AbstractAgent):
     def __call__(self, game_state_tensor: GameState, previous_action: GameAction) -> GameAction:
         game_state_tensor = game_state_tensor.apply(self._to_device)
         previous_action = previous_action.apply(self._to_device)
-        action_parameters = self.nn(**game_state_tensor, **previous_action)
+        action_parameters = self.nn(**game_state_tensor.__dict__, **previous_action.__dict__)
         # self.plot_actions(*action_parameters)
         actions = self.nn.actions.sample(*action_parameters)
         return GameAction(*map(lambda t: t.cpu().numpy()[-1], actions))
@@ -62,8 +62,8 @@ class NNAgent(AbstractAgent):
             for i in trange(0, game_state.AssetName.shape[0], time_step, leave=False):
                 self.optimizer.zero_grad()
                 action_parameters = self.nn(
-                    **game_state.apply(lambda t: t[i : i + time_step]),
-                    **previous_actions.apply(lambda t: t[i : i + time_step]),
+                    **game_state.apply(lambda t: t[i : i + time_step]).__dict__,
+                    **previous_actions.apply(lambda t: t[i : i + time_step]).__dict__,
                 )
                 self.plot_actions(*action_parameters)
                 actions_surprise = self.nn.actions.surprise(
@@ -170,11 +170,11 @@ class SimpleAgent(AbstractAgent):
     def __init__(self):
         self.players = defaultdict(SimpleAgent.Player)
 
-    def __call__(self, inputs: GameState) -> GameAction:
+    def __call__(self, inputs: GameState, previous_action: GameAction) -> GameAction:
         n_players = inputs.AssetName.shape[1]
         actions = concatenate_game_actions(
             [
-                self.players[player].get_action(inputs.take(-1, player))
+                self.players[player].get_action(inputs.apply(lambda t: t[-1, player]))
                 for player in range(n_players)
             ]
         )
