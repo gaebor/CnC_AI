@@ -153,10 +153,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         # Actions are shifted by one
         # This is actually the previous action (None in the first turn)
         self.game_actions = [
-            [
-                GameAction(numpy.array([[True] + [False] * 11]), [744.0], [744.0])
-                for _ in self.players
-            ]
+            [GameAction(numpy.array([[True] + [False] * 11]), 744.0, 744.0) for _ in self.players]
         ]
 
         # start game
