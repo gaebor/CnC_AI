@@ -56,25 +56,26 @@ class NNAgent(AbstractAgent):
         actions = actions.apply(lambda t: self._to_device(t[1:]))
 
         rewards = self._to_device(rewards.astype(float))
-        progress_bar = trange(time_window, time_window + n, leave=True)
-        for time_step in progress_bar:
+        epochs = trange(n, leave=True)
+        for epoch in epochs:
+            batch_size = time_window + epoch
             self.nn.reset()
-            for i in trange(0, game_state.AssetName.shape[0], time_step, leave=False):
+            for batch_start in trange(0, game_state.AssetName.shape[0], batch_size, leave=False):
                 self.optimizer.zero_grad()
+                slice_batch = lambda t: t[batch_start : batch_start + batch_size]
                 action_parameters = self.nn(
-                    **game_state.apply(lambda t: t[i : i + time_step]).__dict__,
-                    **previous_actions.apply(lambda t: t[i : i + time_step]).__dict__,
+                    **game_state.apply(slice_batch).__dict__,
+                    **previous_actions.apply(slice_batch).__dict__,
                 )
                 self.plot_actions(*action_parameters)
                 actions_surprise = self.nn.actions.surprise(
-                    *action_parameters,
-                    *actions.apply(lambda t: t[i : i + time_step]).__dict__.values(),
+                    *action_parameters, *actions.apply(slice_batch).__dict__.values()
                 )
                 games_surprise = actions_surprise.mean(axis=0)
                 objective = games_surprise.dot(rewards)
                 objective.backward()
                 self.optimizer.step()
-                progress_bar.set_description(f'{retrieve(objective):.4g}')
+                epochs.set_description(f'{retrieve(objective):.4g}')
 
     def save(self, path):
         self.nn.reset()
