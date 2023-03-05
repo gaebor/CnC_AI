@@ -35,7 +35,7 @@ class NNAgent(AbstractAgent):
         n_players = action_logits.shape[1]
         x = (torch.linspace(0, 1, 51)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
         button_probabilities, mouse_x, mouse_y = self.nn.actions.get_probabilities(
-            mouse_positional_params[-1], action_logits[-1], x
+            mouse_positional_params[0], action_logits[0], x
         )
         button_probabilities = retrieve(button_probabilities)
         mouse_x = retrieve(mouse_x)
