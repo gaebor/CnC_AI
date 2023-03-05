@@ -336,10 +336,10 @@ class TD_Action(nn.Module):
             -1, (-1, self.n_actions)
         )
         mouse_x_probs = torch.exp(
-            -self.mouse_x.surprise([mouse_parameters[:, :, 0], mouse_parameters[:, :, 1]], x)
+            -self.mouse_x.surprise([mouse_parameters[:, 0], mouse_parameters[:, 1]], x)
         )
         mouse_y_probs = torch.exp(
-            -self.mouse_y.surprise([mouse_parameters[:, :, 2], mouse_parameters[:, :, 3]], x)
+            -self.mouse_y.surprise([mouse_parameters[:, 2], mouse_parameters[:, 3]], x)
         )
         return button_probs, mouse_x_probs, mouse_y_probs
 
