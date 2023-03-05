@@ -162,6 +162,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def destroy_if_all_stopped(cls):
+        cls.tqdm.update()
         if set(cls.games) == set(cls.ended_games):
             tornado.ioloop.IOLoop.current().stop()
 
