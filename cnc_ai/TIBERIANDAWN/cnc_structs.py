@@ -263,17 +263,17 @@ with open(Path(__file__).parent / 'costs.json', 'rt') as f:
     costs = json.load(f)
 
 
-def score(game_state_arrays, owner):
+def score(game_state_arrays: GameState, owner):
     result = 0
     for asset_index, shape_index, object_owner in zip(
-        game_state_arrays['AssetName'], game_state_arrays['ShapeIndex'], game_state_arrays['Owner']
+        game_state_arrays.AssetName, game_state_arrays.ShapeIndex, game_state_arrays.Owner
     ):
         if owner == object_owner:
             asset_name = dynamic_object_names[asset_index]
             result += costs.get(f'{asset_name}_{shape_index}', costs.get(asset_name, 0))
 
-    progress = game_state_arrays['SidebarContinuous'][:, 0]
-    cost = game_state_arrays['SidebarContinuous'][:, 1]
+    progress = game_state_arrays.SidebarContinuous[:, 0]
+    cost = game_state_arrays.SidebarContinuous[:, 1]
     result += progress.dot(cost)
 
     return result
