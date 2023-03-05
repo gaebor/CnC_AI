@@ -117,7 +117,7 @@ class TD_GameEmbedding(nn.Module):
         self.dense = nn.Sequential(
             HiddenLayer(
                 # self.map_embedding.embedding_dim
-                +self.dynamic_object_embedding.embedding_dim,
+                self.dynamic_object_embedding.embedding_dim,
                 # + self.siderbar_embedding.embedding_dim
                 # + 6  # sidebar members
                 # + self.previous_action_embedding.embedding_dim
@@ -303,6 +303,11 @@ class TD_Action(nn.Module):
     def forward(self, game_state, sidebar_mask, SidebarAssetName, SidebarContinuous):
         mouse_positional_params = self.mouse_parameters(game_state)
         sidebar = self.dense(self.sidebar_embedding(SidebarAssetName, SidebarContinuous))
+        # actions_input = self.transformer_in(sidebar)
+        # transformed = self.action_transformer(
+        #     actions_input, game_state[:, None, :], tgt_key_padding_mask=sidebar_mask
+        # )
+        # action_logits = self.transformer_out(transformed)
         action_logits = (sidebar * game_state[:, :, None, None, :]).sum(dim=-1)
         action_logits[sidebar_mask] = float('-inf')
 
