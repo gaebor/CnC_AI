@@ -44,7 +44,6 @@ class NNAgent(AbstractAgent):
     def learn(self, game_state_tensors, actions, rewards, n=1, time_window=200):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
-        print(rewards)
         rewards = self._to_device(rewards.astype(float))
         progress_bar = trange(time_window, time_window + n, leave=True)
         for time_step in progress_bar:
@@ -60,13 +59,10 @@ class NNAgent(AbstractAgent):
                     *map(lambda t: t[i : i + time_step], actions),
                 )
                 games_surprise = actions_surprise.mean(axis=0)
-                current_performance = (
-                    '[' + ', '.join(map('{:.3f}'.format, retrieve(games_surprise))) + ']'
-                )
-                progress_bar.set_description(current_performance)
                 objective = games_surprise.dot(rewards)
                 objective.backward()
                 self.optimizer.step()
+                progress_bar.set_description(f'{retrieve(objective):.4g}')
 
     def save(self, path):
         self.nn.reset()
