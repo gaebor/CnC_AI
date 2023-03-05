@@ -50,11 +50,13 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 len(game.game_states) == len(self.game_states) for game in GameHandler.games
             ):
                 GameHandler.tqdm.update()
-                game_state_tensor, _ = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
+                game_state, previous_action = GameHandler.get_game_states_and_actions(
+                    slice(-1, -2, -1)
+                )
                 if 'NN' in GameHandler.agents:
-                    nn_actions = GameHandler.nn_agent(game_state_tensor)
+                    nn_actions = GameHandler.nn_agent(game_state)
                 if 'AI' in GameHandler.agents:
-                    simple_actions = GameHandler.simple_agent(game_state_tensor)
+                    simple_actions = GameHandler.simple_agent(game_state)
 
                 i = 0
                 for game in GameHandler.games:
@@ -67,13 +69,18 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                             or (GameHandler.agents == 'NNvAI' and i % 2 == 1)
                         )
                         action = (simple_actions if first_action else nn_actions).take(i)
-                        game.game_actions[-1].append(action)
-                        message += cnc_structs.ActionRequestArgs(
-                            player,
-                            action.button.nonzero()[0][0],
-                            action.button.nonzero()[1][0],
+                        masked_sidebar_action = GameAction(
+                            action.button[~game_state.take(-1, i).sidebar_mask],
                             action.mouse_x,
                             action.mouse_y,
+                        )
+                        game.game_actions[-1].append(masked_sidebar_action)
+                        message += cnc_structs.ActionRequestArgs(
+                            player,
+                            masked_sidebar_action.button.nonzero()[0][0],
+                            masked_sidebar_action.button.nonzero()[1][0],
+                            masked_sidebar_action.mouse_x,
+                            masked_sidebar_action.mouse_y,
                         ).render_message()
                         i += 1
                     game.write_message(message, binary=True)

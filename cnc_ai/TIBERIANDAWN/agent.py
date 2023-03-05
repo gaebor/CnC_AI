@@ -109,7 +109,8 @@ class SimpleAgent(AbstractAgent):
 
         def get_action(self, inputs: GameState) -> GameAction:
             if len(self.actions) > 0:
-                return self.actions.pop()
+                i, j, x, y = self.actions.pop()
+                return self.render_action(i, j, len(inputs.SidebarAssetName), x, y)
             unit_names = inputs.AssetName[~inputs.dynamic_mask]
             sidebar = inputs.SidebarAssetName[~inputs.sidebar_mask]
             s = len(inputs.SidebarAssetName)
@@ -119,8 +120,8 @@ class SimpleAgent(AbstractAgent):
                     self.color = inputs.Owner[mcv_index]
                 MCV_features = inputs.Continuous[mcv_index]
                 # move mouse to position then click with left mouse button
-                self.actions.append(self.render_action(0, 1, s, MCV_features[0], MCV_features[1]))
-                self.actions.append(self.render_action(0, 2, s, 744.0, 744.0))
+                self.actions.append((0, 1, MCV_features[0], MCV_features[1]))
+                self.actions.append((0, 2, 744.0, 744.0))
                 # do nothing for now
                 return self.render_action(0, 0, s, 744.0, 744.0)
 
@@ -136,9 +137,9 @@ class SimpleAgent(AbstractAgent):
                         # move mouse to position
                         # then start placement
                         # then place
-                        self.actions.append(self.render_action(0, 1, s, *new_spot))
-                        self.actions.append(self.render_action(nuke, 3, s, 744.0, 744.0))
-                        self.actions.append(self.render_action(nuke, 4, s, 744.0, 744.0))
+                        self.actions.append((0, 1, *new_spot))
+                        self.actions.append((nuke, 3, 744.0, 744.0))
+                        self.actions.append((nuke, 4, 744.0, 744.0))
                         return self.render_action(0, 0, s, 744.0, 744.0)
             return self.render_action(0, 0, s, 744.0, 744.0)
 
