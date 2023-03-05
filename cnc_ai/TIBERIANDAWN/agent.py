@@ -24,11 +24,11 @@ class NNAgent(AbstractAgent):
         self.optimizer = torch.optim.SGD(self.nn.parameters(), **params)
 
     def __call__(self, game_state_tensor: GameState) -> GameAction:
-        game_state_tensor = dictmap(game_state_tensor, self._to_device)
+        game_state_tensor = dictmap(game_state_tensor.__dict__, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
         # self.plot_actions(*action_parameters)
         actions = self.nn.actions.sample(*action_parameters)
-        return tuple(action.cpu().numpy() for action in actions)
+        return GameAction(*map(lambda t: t.cpu().numpy()[-1], actions))
 
     def plot_actions(self, mouse_positional_params, action_logits):
         n_players = action_logits.shape[1]
@@ -146,7 +146,7 @@ class SimpleAgent(AbstractAgent):
         def render_action(i, j, len_sidebar, mouse_x, mouse_y):
             action_matrix = numpy.zeros((len_sidebar, 12), dtype=bool)
             action_matrix[i, j] = True
-            return GameAction(button=action_matrix, mouse_x=mouse_x, mouse_y=mouse_y)
+            return GameAction(button=action_matrix, mouse_x=[mouse_x], mouse_y=[mouse_y])
 
         def find_new_spot(self, inputs: GameState):
             unit_positions = inputs.Continuous[~inputs.dynamic_mask][:, :2]

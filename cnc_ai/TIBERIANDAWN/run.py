@@ -53,7 +53,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 game_state_tensor, _ = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
                 if 'NN' in GameHandler.agents:
                     nn_actions = GameHandler.nn_agent(game_state_tensor)
-                    nn_actions = [action[-1] for action in nn_actions]
                 if 'AI' in GameHandler.agents:
                     simple_actions = GameHandler.simple_agent(game_state_tensor)
 
@@ -65,24 +64,23 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                     actions = mix_actions(
                         simple_actions,
                         nn_actions,
-                        (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
+                        (numpy.arange(len(simple_actions.mouse_x)) % 2).astype(bool),
                     )
-                for game, per_game_actions in zip(
-                    GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
-                ):
+                i = 0
+                for game in GameHandler.games:
                     game.game_actions.append([])
                     message = b''
-                    for player, (button_matrix, mouse_x, mouse_y) in enumerate(
-                        zip(*per_game_actions)
-                    ):
-                        game.game_actions[-1].append((button_matrix, mouse_x, mouse_y))
+                    for player in range(len(game.players)):
+                        action = (simple_actions if i % 2 == 0 else nn_actions).take(i)
+                        game.game_actions[-1].append(action)
                         message += cnc_structs.ActionRequestArgs(
                             player,
-                            button_matrix.nonzero()[0][0],
-                            button_matrix.nonzero()[1][0],
-                            mouse_x,
-                            mouse_y,
+                            action.button.nonzero()[0][0],
+                            action.button.nonzero()[1][0],
+                            action.mouse_x,
+                            action.mouse_y,
                         ).render_message()
+                        i += 1
                     game.write_message(message, binary=True)
 
     def open(self):
