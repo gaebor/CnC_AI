@@ -1,10 +1,6 @@
-import ctypes
-
 import numpy
 from torch.nn.utils.rnn import pad_sequence as pad_sequence_torch
 from torch import tensor
-
-from cnc_ai.TIBERIANDAWN import cnc_structs
 
 
 def pad_sequence(tensors):
