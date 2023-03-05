@@ -185,8 +185,6 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
 
-        pickle.dump([game.game_states for game in cls.games], open('game_states.pkl', 'wb'))
-
         button_actions = pad_sequence(
             [
                 player_action[0]

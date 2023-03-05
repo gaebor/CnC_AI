@@ -7,6 +7,7 @@ from tqdm import trange
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.common import dictmap, retrieve, plot_images
+from cnc_ai.TIBERIANDAWN.bridge import pad_sequence
 
 
 class NNAgent(AbstractAgent):
@@ -209,12 +210,19 @@ class SimpleAgent(AbstractAgent):
 
 
 def mix_actions(actions1, actions2, choices):
-    return tuple(
+    button_actions = pad_sequence(
+        [
+            action1 if choose_first else action2
+            for action1, action2, choose_first in zip(actions1[0], actions2[0], choices)
+        ]
+    )
+    mouse_actions = tuple(
         numpy.array(
             [
                 action1 if choose_first else action2
                 for action1, action2, choose_first in zip(action_type1, action_type2, choices)
             ]
         )
-        for action_type1, action_type2 in zip(actions1, actions2)
+        for action_type1, action_type2 in zip(actions1[1:], actions2[1:])
     )
+    return button_actions, *mouse_actions
