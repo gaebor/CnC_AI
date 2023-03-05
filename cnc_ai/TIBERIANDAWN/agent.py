@@ -7,6 +7,7 @@ from tqdm import trange
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
 from cnc_ai.common import dictmap, retrieve, plot_images, pad_sequence, numpy_to_torch
+from cnc_ai.TIBERIANDAWN.bridge import pad_game_actions, GameAction, GameState
 
 
 class NNAgent(AbstractAgent):
@@ -106,31 +107,17 @@ class SimpleAgent(AbstractAgent):
             self.color = None
             self.actions = deque()
 
-        def get_action(self, inputs):
+        def get_action(self, inputs: GameState):
             if len(self.actions) > 0:
                 return self.actions.pop()
-            # dynamic_mask,
-            # sidebar_mask,
-            # StaticAssetName,
-            # StaticShapeIndex,
-            # AssetName,
-            # ShapeIndex,
-            # Owner,
-            # Pips,
-            # ControlGroup,
-            # Cloak,
-            # Continuous,
-            # SidebarInfos,
-            # SidebarAssetName,
-            # SidebarContinuous,
-            unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
-            sidebar = inputs['SidebarAssetName'][~inputs['sidebar_mask']]
-            len_sidebar = inputs['SidebarAssetName'].shape[0]
+            unit_names = inputs.AssetName[~inputs.dynamic_mask]
+            sidebar = inputs.SidebarAssetName[~inputs.sidebar_mask]
+            len_sidebar = len(inputs.SidebarAssetName)
             if 63 in unit_names:
                 mcv_index = list(unit_names).index(63)
                 if self.color is None:
-                    self.color = inputs['Owner'][mcv_index]
-                MCV_features = inputs['Continuous'][mcv_index]
+                    self.color = inputs.Owner[mcv_index]
+                MCV_features = inputs.Continuous[mcv_index]
                 # move mouse to position then click with left mouse button
                 self.actions.append(
                     (
@@ -146,7 +133,7 @@ class SimpleAgent(AbstractAgent):
             elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
                     nuke = list(sidebar).index(72)
-                    progress = inputs['SidebarContinuous'][nuke][0]
+                    progress = inputs.SidebarContinuous[nuke][0]
                     if progress == 0:
                         # start building
                         return self.render_action_matrix(nuke, 0, len_sidebar), 744.0, 744.0
@@ -175,9 +162,9 @@ class SimpleAgent(AbstractAgent):
             action_matrix[i, j] = True
             return action_matrix
 
-        def find_new_spot(self, inputs):
-            unit_positions = inputs['Continuous'][~inputs['dynamic_mask']][:, :2]
-            unit_names = inputs['AssetName'][~inputs['dynamic_mask']]
+        def find_new_spot(self, inputs: GameState):
+            unit_positions = inputs.Continuous[~inputs.dynamic_mask][:, :2]
+            unit_names = inputs.AssetName[~inputs.dynamic_mask]
             CY_position = unit_positions[list(unit_names).index(39)]
             diff = numpy.random.randint(-3, 4, size=2) * 24
             return CY_position + diff
@@ -185,13 +172,12 @@ class SimpleAgent(AbstractAgent):
     def __init__(self):
         self.players = defaultdict(SimpleAgent.Player)
 
-    def __call__(self, **inputs):
+    def __call__(self, inputs: GameState):
+        n_players = inputs.AssetName.shape[1]
         actions = [
-            self.players[player].get_action(dictmap(inputs, lambda x: x[-1][player]))
-            for player in range(inputs['AssetName'].shape[1])
+            self.players[player].get_action(inputs.take(-1, player)) for player in range(n_players)
         ]
-        actions = tuple(map(numpy.array, zip(*actions)))
-        return actions
+        return pad_game_actions(actions)
 
     @staticmethod
     def load(path):
@@ -199,19 +185,14 @@ class SimpleAgent(AbstractAgent):
 
 
 def mix_actions(actions1, actions2, choices):
-    button_actions = pad_sequence(
+    button1, mouse_x1, mouse_y1 = actions1
+    button2, mouse_x2, mouse_y2 = actions2
+    actions = pad_game_actions(
         [
-            action1 if choose_first else action2
-            for action1, action2, choose_first in zip(actions1[0], actions2[0], choices)
+            (button1[i], mouse_x1[i], mouse_y1[i])
+            if choose_first
+            else (button2[i], mouse_x2[i], mouse_y2[i])
+            for i, choose_first in enumerate(choices)
         ]
     )
-    mouse_actions = tuple(
-        numpy.array(
-            [
-                action1 if choose_first else action2
-                for action1, action2, choose_first in zip(action_type1, action_type2, choices)
-            ]
-        )
-        for action_type1, action_type2 in zip(actions1[1:], actions2[1:])
-    )
-    return button_actions, *mouse_actions
+    return actions

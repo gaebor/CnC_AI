@@ -5,6 +5,8 @@ import json
 import termcolor
 import numpy
 
+from bridge import GameState
+
 
 class CncStruct(ctypes.Structure):
     _pack_ = 1
@@ -291,7 +293,7 @@ def read_array_from_buffer(buffer, offset, Type):
     return offset, indices, continuous
 
 
-def convert_to_np(game_state_buffer):
+def convert_to_np(game_state_buffer) -> GameState:
     offset = 8 * ctypes.sizeof(ctypes.c_int)
     map_cells = numpy.frombuffer(
         game_state_buffer, dtype='int32', count=62 * 62 * 2, offset=offset
@@ -314,17 +316,17 @@ def convert_to_np(game_state_buffer):
         game_state_buffer, offset, SidebarEntry
     )
 
-    return {
-        'StaticAssetName': map_cells[:, :, 0],
-        'StaticShapeIndex': map_cells[:, :, 1],
-        'AssetName': dynamic_objects_indices[:, 0],
-        'ShapeIndex': dynamic_objects_indices[:, 1],
-        'Owner': dynamic_objects_indices[:, 2],
-        'Pips': dynamic_objects_indices[:, 3 : 3 + MAX_OBJECT_PIPS],
-        'ControlGroup': dynamic_objects_indices[:, 3 + MAX_OBJECT_PIPS],
-        'Cloak': dynamic_objects_indices[:, 3 + MAX_OBJECT_PIPS + 1],
-        'Continuous': dynamic_objects_continuous[:, -5:],
-        'SidebarInfos': sidebar_members,
-        'SidebarAssetName': sidebar_entries_indices[:, 0],
-        'SidebarContinuous': sidebar_entries_continuous[:, 3:],
-    }
+    return GameState(
+        StaticAssetName=map_cells[:, :, 0],
+        StaticShapeIndex=map_cells[:, :, 1],
+        AssetName=dynamic_objects_indices[:, 0],
+        ShapeIndex=dynamic_objects_indices[:, 1],
+        Owner=dynamic_objects_indices[:, 2],
+        Pips=dynamic_objects_indices[:, 3 : 3 + MAX_OBJECT_PIPS],
+        ControlGroup=dynamic_objects_indices[:, 3 + MAX_OBJECT_PIPS],
+        Cloak=dynamic_objects_indices[:, 3 + MAX_OBJECT_PIPS + 1],
+        Continuous=dynamic_objects_continuous[:, -5:],
+        SidebarInfos=sidebar_members,
+        SidebarAssetName=sidebar_entries_indices[:, 0],
+        SidebarContinuous=sidebar_entries_continuous[:, 3:],
+    )
