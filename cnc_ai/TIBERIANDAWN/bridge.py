@@ -1,11 +1,6 @@
 import numpy
-from torch.nn.utils.rnn import pad_sequence as pad_sequence_torch
-from torch import tensor
 
-
-def pad_sequence(tensors):
-    padded_tensors = pad_sequence_torch([tensor(t) for t in tensors], batch_first=True).numpy()
-    return padded_tensors
+from cnc_ai.common import pad_sequence
 
 
 def resize_sequence_to_minimum_length(sequence):

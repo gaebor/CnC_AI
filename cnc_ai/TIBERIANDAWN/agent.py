@@ -6,8 +6,7 @@ from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
-from cnc_ai.common import dictmap, retrieve, plot_images
-from cnc_ai.TIBERIANDAWN.bridge import pad_sequence
+from cnc_ai.common import dictmap, retrieve, plot_images, pad_sequence, numpy_to_torch
 
 
 class NNAgent(AbstractAgent):
@@ -46,7 +45,7 @@ class NNAgent(AbstractAgent):
         game_state_tensors = dictmap(game_state_tensors, self._to_device)
         actions = tuple(map(self._to_device, actions))
         print(rewards)
-        rewards = self._to_device(rewards)
+        rewards = self._to_device(rewards.astype(float))
         progress_bar = trange(time_window, time_window + n, leave=True)
         for time_step in progress_bar:
             self.nn.reset()
@@ -65,7 +64,7 @@ class NNAgent(AbstractAgent):
                     '[' + ', '.join(map('{:.3f}'.format, retrieve(games_surprise))) + ']'
                 )
                 progress_bar.set_description(current_performance)
-                objective = games_surprise.dot(rewards.to(games_surprise.dtype))
+                objective = games_surprise.dot(rewards)
                 objective.backward()
                 self.optimizer.step()
 
@@ -82,13 +81,7 @@ class NNAgent(AbstractAgent):
         return torch.tensor(
             x,
             device=self.device,
-            dtype={
-                numpy.dtype('bool'): torch.bool,
-                numpy.dtype('float32'): self.dtype,
-                numpy.dtype('float64'): self.dtype,
-                numpy.dtype('int32'): torch.long,
-                numpy.dtype('int64'): torch.long,
-            }[x.dtype],
+            dtype=numpy_to_torch(x.dtype, self.dtype),
         )
 
     def to(self, device=None, dtype=None):

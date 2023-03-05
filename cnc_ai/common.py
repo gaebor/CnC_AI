@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import numpy
+from torch.nn.utils.rnn import pad_sequence as pad_sequence_torch
+import torch
 
 plt.ion()
 
@@ -35,3 +37,18 @@ def get_log_formatter(indices):
 
 def dictmap(d, f):
     return {k: f(v) for k, v in d.items()}
+
+
+def pad_sequence(tensors):
+    padded_tensors = pad_sequence_torch(
+        [torch.tensor(t) for t in tensors], batch_first=True
+    ).numpy()
+    return padded_tensors
+
+
+def numpy_to_torch(dtype: numpy.dtype, float_type: torch.dtype) -> torch.dtype:
+    if dtype == numpy.dtype('bool'):
+        return torch.bool
+    if 'float' in str(dtype):
+        return float_type
+    return torch.long
