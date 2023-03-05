@@ -2,7 +2,6 @@ from subprocess import Popen
 from os import mkdir
 import ctypes
 from random import choice
-from itertools import chain
 from datetime import datetime
 import pickle
 
@@ -16,10 +15,9 @@ import tornado.ioloop
 from torch import float16, float32
 
 from cnc_ai.common import dictmap
-
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
-from cnc_ai.TIBERIANDAWN.bridge import pad_game_states, encode_list
+from cnc_ai.TIBERIANDAWN.bridge import pad_game_states, encode_list, pad_sequence
 
 from cnc_ai.arg_utils import get_args
 
@@ -46,7 +44,7 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 len(game.game_states) == len(self.game_states) for game in GameHandler.games
             ):
                 GameHandler.tqdm.update()
-                game_state_tensor = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
+                game_state_tensor, _ = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
                 if 'NN' in GameHandler.agents:
                     nn_actions = GameHandler.nn_agent(**game_state_tensor)
                     nn_actions = [action[-1] for action in nn_actions]
@@ -63,15 +61,15 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                         nn_actions,
                         (numpy.arange(len(simple_actions[0])) % 2).astype(bool),
                     )
-                # print(decode_action(actions[0], game_state_tensor['SidebarAssetName'][0]))
                 for game, per_game_actions in zip(
                     GameHandler.games, zip(*map(GameHandler.split_per_games, actions))
                 ):
-                    game.game_actions.append(per_game_actions)
+                    game.game_actions.append([])
                     message = b''
                     for player, (button_matrix, mouse_x, mouse_y) in enumerate(
                         zip(*per_game_actions)
                     ):
+                        game.game_actions[-1].append((button_matrix, mouse_x, mouse_y))
                         message += cnc_structs.ActionRequestArgs(
                             player,
                             button_matrix.nonzero()[0][0],
@@ -146,15 +144,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
         self.loser_mask = 0
         self.game_states = []
-        n_players = len(self.players)
         # Actions are shifted by one
         # This is actually the previous action (None in the first turn)
         self.game_actions = [
-            (
-                [numpy.array([[True] + [False] * 11]) for _ in range(n_players)],
-                [744.0] * n_players,
-                [744.0] * n_players,
-            )
+            [(numpy.array([[True] + [False] * 11]), 744.0, 744.0) for _ in self.players]
         ]
 
         # start game
@@ -179,38 +172,40 @@ class GameHandler(tornado.websocket.WebSocketHandler):
 
     @classmethod
     def get_game_states_and_actions(cls, index: slice):
-        length = min(len(game.game_states) for game in cls.games)
+        max_length = min(len(game.game_states) for game in cls.games)
         n_players = sum(len(game.players) for game in cls.games)
         tensors = [
             player_state
-            for time in range(length)[index]
+            for time in range(max_length)[index]
             for game in cls.games
             for player_state in game.game_states[time]
         ]
+        length = len(tensors) // n_players
         padded_tensors = dictmap(
             pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
         )
-        pickle.dump([game.game_actions for game in cls.games], open('test.pkl', 'wb'))
 
-        all_actions = numpy.concatenate(
-            [game.game_actions[: length + 1] for game in cls.games], axis=2
+        pickle.dump([game.game_states for game in cls.games], open('game_states.pkl', 'wb'))
+
+        button_actions = pad_sequence(
+            [
+                player_action[0]
+                for time in range(max_length)[index]
+                for game in cls.games
+                for player_action in game.game_actions[time]
+            ]
+        ).reshape(length, n_players, -1, 12)
+        mouse_positions = numpy.array(
+            [
+                [
+                    player_action[1:]
+                    for game in cls.games
+                    for player_action in game.game_actions[time]
+                ]
+                for time in range(max_length)[index]
+            ]
         )
-        padded_tensors.update(
-            previous_action_item=numpy.take_along_axis(
-                padded_tensors['SidebarAssetName'],
-                all_actions[:-1, 0, :].astype('int64')[:, :, None],
-                axis=2,
-            )[:, :, 0].astype('int64'),
-            previous_action_type=all_actions[:-1, 1, :].astype('int64'),
-            previous_mouse_x=all_actions[:-1, 2, :].astype('float32'),
-            previous_mouse_y=all_actions[:-1, 3, :].astype('float32'),
-        )
-        actions = (
-            all_actions[1:, 0, :].astype('int64'),
-            all_actions[1:, 1, :].astype('int64'),
-            all_actions[1:, 2, :].astype('float32'),
-            all_actions[1:, 3, :].astype('float32'),
-        )
+        actions = button_actions, mouse_positions[:, :, 0], mouse_positions[:, :, 1]
         return padded_tensors, actions
 
     @classmethod
