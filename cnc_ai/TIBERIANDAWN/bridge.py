@@ -1,6 +1,5 @@
 from typing import List, Union
-from dataclasses import dataclass, asdict
-
+from dataclasses import dataclass
 import numpy
 from numpy.typing import NDArray
 
@@ -49,7 +48,7 @@ class GameState:
             self.sidebar_mask = numpy.zeros_like(self.SidebarAssetName, dtype=bool)
 
     def take(self, *slices: slice):
-        return GameState(**{member: value[slices] for member, value in asdict(self).items()})
+        return GameState(**{member: value[slices] for member, value in self.__dict__.items()})
 
 
 @dataclass
@@ -59,7 +58,7 @@ class GameAction:
     mouse_y: NDArray[NpFloat]
 
 
-def pad_game_states(list_of_game_states: List[GameState]) -> GameState:
+def concatenate_game_states(list_of_game_states: List[GameState]) -> GameState:
     result = {
         **{
             key: pad_sequence(
@@ -87,26 +86,14 @@ def pad_game_states(list_of_game_states: List[GameState]) -> GameState:
             ]
         },
     }
-    return result
+    return GameState(**result)
 
 
-def concat_game_actions(list_of_game_actions: List[GameAction]) -> GameAction:
+def concatenate_game_actions(list_of_game_actions: List[GameAction]) -> GameAction:
     button_actions = pad_sequence([action.button for action in list_of_game_actions])
     mouse_x = numpy.concatenate([action.mouse_x for action in list_of_game_actions], axis=0)
     mouse_y = numpy.concatenate([action.mouse_y for action in list_of_game_actions], axis=0)
-    return button_actions, mouse_x, mouse_y
-
-
-_static_masks = numpy.zeros((0, 0), dtype=bool)
-
-
-def compute_key_padding_mask(lengths):
-    global _static_masks
-    """https://discuss.pytorch.org/t/create-a-mask-tensor-using-index/97303/6"""
-    max_length = max(lengths)
-    if max_length > _static_masks.shape[1]:
-        _static_masks = numpy.triu(numpy.ones((max_length + 1, max_length), dtype=bool))
-    return _static_masks[lengths, :max_length]
+    return GameAction(button_actions, mouse_x, mouse_y)
 
 
 def encode_list(list_of_strings):

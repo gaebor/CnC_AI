@@ -17,7 +17,13 @@ from torch import float16, float32
 from cnc_ai.common import dictmap
 from cnc_ai.TIBERIANDAWN import cnc_structs
 from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
-from cnc_ai.TIBERIANDAWN.bridge import pad_game_states, encode_list, pad_sequence
+from cnc_ai.TIBERIANDAWN.bridge import (
+    concatenate_game_states,
+    concatenate_game_actions,
+    encode_list,
+    GameAction,
+    GameState,
+)
 
 from cnc_ai.arg_utils import get_args
 
@@ -46,10 +52,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 GameHandler.tqdm.update()
                 game_state_tensor, _ = GameHandler.get_game_states_and_actions(slice(-1, -2, -1))
                 if 'NN' in GameHandler.agents:
-                    nn_actions = GameHandler.nn_agent(**game_state_tensor)
+                    nn_actions = GameHandler.nn_agent(game_state_tensor)
                     nn_actions = [action[-1] for action in nn_actions]
                 if 'AI' in GameHandler.agents:
-                    simple_actions = GameHandler.simple_agent(**game_state_tensor)
+                    simple_actions = GameHandler.simple_agent(game_state_tensor)
 
                 if GameHandler.agents == 'NNvNN':
                     actions = nn_actions
@@ -147,7 +153,10 @@ class GameHandler(tornado.websocket.WebSocketHandler):
         # Actions are shifted by one
         # This is actually the previous action (None in the first turn)
         self.game_actions = [
-            [(numpy.array([[True] + [False] * 11]), 744.0, 744.0) for _ in self.players]
+            [
+                GameAction(numpy.array([[True] + [False] * 11]), [744.0], [744.0])
+                for _ in self.players
+            ]
         ]
 
         # start game
@@ -181,30 +190,22 @@ class GameHandler(tornado.websocket.WebSocketHandler):
             for player_state in game.game_states[time]
         ]
         length = len(tensors) // n_players
-        padded_tensors = dictmap(
-            pad_game_states(tensors), lambda t: t.reshape(length, n_players, *t.shape[1:])
+        game_states = concatenate_game_states(tensors)
+        time_aware_game_states = GameState(
+            **dictmap(game_states.__dict__, lambda t: t.reshape(length, n_players, *t.shape[1:]))
         )
-
-        button_actions = pad_sequence(
+        actions = concatenate_game_actions(
             [
-                player_action[0]
+                player_action
                 for time in range(max_length)[index]
                 for game in cls.games
                 for player_action in game.game_actions[time]
             ]
-        ).reshape(length, n_players, -1, 12)
-        mouse_positions = numpy.array(
-            [
-                [
-                    player_action[1:]
-                    for game in cls.games
-                    for player_action in game.game_actions[time]
-                ]
-                for time in range(max_length)[index]
-            ]
         )
-        actions = button_actions, mouse_positions[:, :, 0], mouse_positions[:, :, 1]
-        return padded_tensors, actions
+        time_aware_actions = GameAction(
+            **dictmap(actions.__dict__, lambda t: t.reshape(length, n_players, *t.shape[1:]))
+        )
+        return time_aware_game_states, time_aware_actions
 
     @classmethod
     def split_per_games(cls, l):

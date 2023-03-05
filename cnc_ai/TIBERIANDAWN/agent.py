@@ -6,8 +6,8 @@ from tqdm import trange
 
 from cnc_ai.agent import AbstractAgent
 from cnc_ai.TIBERIANDAWN.model import TD_GamePlay
-from cnc_ai.common import dictmap, retrieve, plot_images, pad_sequence, numpy_to_torch
-from cnc_ai.TIBERIANDAWN.bridge import pad_game_actions, GameAction, GameState
+from cnc_ai.common import dictmap, retrieve, plot_images, numpy_to_torch
+from cnc_ai.TIBERIANDAWN.bridge import GameAction, GameState, concatenate_game_actions
 
 
 class NNAgent(AbstractAgent):
@@ -23,7 +23,7 @@ class NNAgent(AbstractAgent):
         self.nn.train()
         self.optimizer = torch.optim.SGD(self.nn.parameters(), **params)
 
-    def __call__(self, **game_state_tensor):
+    def __call__(self, game_state_tensor: GameState) -> GameAction:
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
         action_parameters = self.nn(**game_state_tensor)
         # self.plot_actions(*action_parameters)
@@ -107,28 +107,22 @@ class SimpleAgent(AbstractAgent):
             self.color = None
             self.actions = deque()
 
-        def get_action(self, inputs: GameState):
+        def get_action(self, inputs: GameState) -> GameAction:
             if len(self.actions) > 0:
                 return self.actions.pop()
             unit_names = inputs.AssetName[~inputs.dynamic_mask]
             sidebar = inputs.SidebarAssetName[~inputs.sidebar_mask]
-            len_sidebar = len(inputs.SidebarAssetName)
+            s = len(inputs.SidebarAssetName)
             if 63 in unit_names:
                 mcv_index = list(unit_names).index(63)
                 if self.color is None:
                     self.color = inputs.Owner[mcv_index]
                 MCV_features = inputs.Continuous[mcv_index]
                 # move mouse to position then click with left mouse button
-                self.actions.append(
-                    (
-                        self.render_action_matrix(0, 1, len_sidebar),
-                        MCV_features[0],
-                        MCV_features[1],
-                    )
-                )
-                self.actions.append((self.render_action_matrix(0, 2, len_sidebar), 744.0, 744.0))
+                self.actions.append(self.render_action(0, 1, s, MCV_features[0], MCV_features[1]))
+                self.actions.append(self.render_action(0, 2, s, 744.0, 744.0))
                 # do nothing for now
-                return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
+                return self.render_action(0, 0, s, 744.0, 744.0)
 
             elif 72 not in unit_names and 73 not in unit_names:
                 if 72 in sidebar:
@@ -136,31 +130,23 @@ class SimpleAgent(AbstractAgent):
                     progress = inputs.SidebarContinuous[nuke][0]
                     if progress == 0:
                         # start building
-                        return self.render_action_matrix(nuke, 0, len_sidebar), 744.0, 744.0
+                        return self.render_action(nuke, 0, s, 744.0, 744.0)
                     elif progress == 1:
                         new_spot = self.find_new_spot(inputs)
                         # move mouse to position
                         # then start placement
                         # then place
-                        self.actions.append(
-                            (self.render_action_matrix(0, 1, len_sidebar), *new_spot)
-                        )
-                        self.actions.append(
-                            (self.render_action_matrix(nuke, 3, len_sidebar), 744.0, 744.0)
-                        )
-                        self.actions.append(
-                            (self.render_action_matrix(nuke, 4, len_sidebar), 744.0, 744.0)
-                        )
-                        return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
-            return self.render_action_matrix(0, 0, len_sidebar), 744.0, 744.0
+                        self.actions.append(self.render_action(0, 1, s, *new_spot))
+                        self.actions.append(self.render_action(nuke, 3, s, 744.0, 744.0))
+                        self.actions.append(self.render_action(nuke, 4, s, 744.0, 744.0))
+                        return self.render_action(0, 0, s, 744.0, 744.0)
+            return self.render_action(0, 0, s, 744.0, 744.0)
 
         @staticmethod
-        def render_action_matrix(i, j, len_sidebar=None):
-            if len_sidebar is None:
-                len_sidebar = i + 1
+        def render_action(i, j, len_sidebar, mouse_x, mouse_y):
             action_matrix = numpy.zeros((len_sidebar, 12), dtype=bool)
             action_matrix[i, j] = True
-            return action_matrix
+            return GameAction(button=action_matrix, mouse_x=mouse_x, mouse_y=mouse_y)
 
         def find_new_spot(self, inputs: GameState):
             unit_positions = inputs.Continuous[~inputs.dynamic_mask][:, :2]
@@ -172,14 +158,16 @@ class SimpleAgent(AbstractAgent):
     def __init__(self):
         self.players = defaultdict(SimpleAgent.Player)
 
-    def __call__(self, inputs: GameState):
+    def __call__(self, inputs: GameState) -> GameAction:
         n_players = inputs.AssetName.shape[1]
-        actions = [
-            self.players[player].get_action(inputs.take(-1, player)) for player in range(n_players)
-        ]
-        return pad_game_actions(actions)
+        actions = concatenate_game_actions(
+            [
+                self.players[player].get_action(inputs.take(-1, player))
+                for player in range(n_players)
+            ]
+        )
+        return actions
 
-    @staticmethod
     def load(path):
         return SimpleAgent()
 
