@@ -16,7 +16,7 @@ from torch import float16, float32
 
 from cnc_ai.common import dictmap
 from cnc_ai.TIBERIANDAWN import cnc_structs
-from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent, mix_actions
+from cnc_ai.TIBERIANDAWN.agent import NNAgent, SimpleAgent
 from cnc_ai.TIBERIANDAWN.bridge import (
     concatenate_game_states,
     concatenate_game_actions,
@@ -56,22 +56,17 @@ class GameHandler(tornado.websocket.WebSocketHandler):
                 if 'AI' in GameHandler.agents:
                     simple_actions = GameHandler.simple_agent(game_state_tensor)
 
-                if GameHandler.agents == 'NNvNN':
-                    actions = nn_actions
-                elif GameHandler.agents == 'AIvAI':
-                    actions = simple_actions
-                else:
-                    actions = mix_actions(
-                        simple_actions,
-                        nn_actions,
-                        (numpy.arange(len(simple_actions.mouse_x)) % 2).astype(bool),
-                    )
                 i = 0
                 for game in GameHandler.games:
                     game.game_actions.append([])
                     message = b''
                     for player in range(len(game.players)):
-                        action = (simple_actions if i % 2 == 0 else nn_actions).take(i)
+                        first_action = (
+                            GameHandler.agents == 'AIvAI'
+                            or (GameHandler.agents == 'AIvNN' and i % 2 == 0)
+                            or (GameHandler.agents == 'NNvAI' and i % 2 == 1)
+                        )
+                        action = (simple_actions if first_action else nn_actions).take(i)
                         game.game_actions[-1].append(action)
                         message += cnc_structs.ActionRequestArgs(
                             player,

@@ -146,7 +146,7 @@ class SimpleAgent(AbstractAgent):
         def render_action(i, j, len_sidebar, mouse_x, mouse_y):
             action_matrix = numpy.zeros((len_sidebar, 12), dtype=bool)
             action_matrix[i, j] = True
-            return GameAction(button=action_matrix, mouse_x=[mouse_x], mouse_y=[mouse_y])
+            return GameAction(button=action_matrix, mouse_x=mouse_x, mouse_y=mouse_y)
 
         def find_new_spot(self, inputs: GameState):
             unit_positions = inputs.Continuous[~inputs.dynamic_mask][:, :2]
@@ -170,17 +170,3 @@ class SimpleAgent(AbstractAgent):
 
     def load(path):
         return SimpleAgent()
-
-
-def mix_actions(actions1, actions2, choices):
-    button1, mouse_x1, mouse_y1 = actions1
-    button2, mouse_x2, mouse_y2 = actions2
-    actions = pad_game_actions(
-        [
-            (button1[i], mouse_x1[i], mouse_y1[i])
-            if choose_first
-            else (button2[i], mouse_x2[i], mouse_y2[i])
-            for i, choose_first in enumerate(choices)
-        ]
-    )
-    return actions

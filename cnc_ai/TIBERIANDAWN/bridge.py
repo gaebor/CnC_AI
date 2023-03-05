@@ -57,6 +57,9 @@ class GameAction:
     mouse_x: NDArray[NpFloat]
     mouse_y: NDArray[NpFloat]
 
+    def take(self, *slices: slice):
+        return GameAction(**{member: value[slices] for member, value in self.__dict__.items()})
+
 
 def concatenate_game_states(list_of_game_states: List[GameState]) -> GameState:
     result = {
@@ -91,8 +94,10 @@ def concatenate_game_states(list_of_game_states: List[GameState]) -> GameState:
 
 def concatenate_game_actions(list_of_game_actions: List[GameAction]) -> GameAction:
     button_actions = pad_sequence([action.button for action in list_of_game_actions])
-    mouse_x = numpy.concatenate([action.mouse_x for action in list_of_game_actions], axis=0)
-    mouse_y = numpy.concatenate([action.mouse_y for action in list_of_game_actions], axis=0)
+    scalar_action = len(list_of_game_actions[0].button.shape) == 2
+    merge_function = numpy.array if scalar_action else numpy.concatenate
+    mouse_x = merge_function([action.mouse_x for action in list_of_game_actions])
+    mouse_y = merge_function([action.mouse_y for action in list_of_game_actions])
     return GameAction(button_actions, mouse_x, mouse_y)
 
 
