@@ -33,11 +33,11 @@ class NNAgent(AbstractAgent):
         n_players = action_logits.shape[1]
         x = (torch.linspace(0, 1, 51)[:, None] * torch.ones(n_players)[None, :]).to(self.device)
         button_probabilities, mouse_x, mouse_y = self.nn.actions.get_probabilities(
-            mouse_positional_params[-1], action_logits[-1], x
+            mouse_positional_params, action_logits, x[None, :, :]
         )
-        button_probabilities = retrieve(button_probabilities)
-        mouse_x = retrieve(mouse_x)
-        mouse_y = retrieve(mouse_y)
+        button_probabilities = retrieve(button_probabilities[-1])
+        mouse_x = retrieve(mouse_x[-1])
+        mouse_y = retrieve(mouse_y[-1])
         mouse_position = mouse_x.T[:, :, None] * mouse_y.T[:, None, :]
         plot_images(button_probabilities, mouse_position)
 
@@ -209,6 +209,12 @@ class SimpleAgent(AbstractAgent):
 
 
 def mix_actions(actions1, actions2, choices):
-    for action1, action2 in zip(actions1, actions2):
-        action1[choices] = action2[choices]
-    return tuple(actions1)
+    return tuple(
+        numpy.array(
+            [
+                action1 if choose_first else action2
+                for action1, action2, choose_first in zip(action_type1, action_type2, choices)
+            ]
+        )
+        for action_type1, action_type2 in zip(actions1, actions2)
+    )
