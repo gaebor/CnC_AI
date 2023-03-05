@@ -243,7 +243,7 @@ class MultiChoiceSamplerWithLogits(DistributionSampler):
 
 class TwoParameterContinuousSampler(DistributionSampler):
     def apply_params(self, params):
-        return self.distribution(params[:, 0], params[:, 1])
+        return self.distribution(params[0], params[1])
 
 
 # def interflatten(f, *varg, dim_range=(0, 1)):
