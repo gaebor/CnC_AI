@@ -80,7 +80,7 @@ def get_args():
         '--agents',
         dest='agents',
         default='AIvAI',
-        choices=['AIvAI', 'AIvNN', 'NNvNN'],
+        choices=['AIvAI', 'AIvNN', 'NNvAI', 'NNvNN'],
         help=" ",
     )
     parser.add_argument(
