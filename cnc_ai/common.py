@@ -1,3 +1,5 @@
+from typing import List
+
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import numpy
@@ -39,9 +41,9 @@ def dictmap(d, f):
     return {k: f(v) for k, v in d.items()}
 
 
-def pad_sequence(tensors):
+def pad_sequence(tensors: List[numpy.ndarray], padding_value: float = 0.0) -> numpy.ndarray:
     padded_tensors = pad_sequence_torch(
-        [torch.tensor(t) for t in tensors], batch_first=True
+        [torch.tensor(t) for t in tensors], batch_first=True, padding_value=padding_value
     ).numpy()
     return padded_tensors
 
