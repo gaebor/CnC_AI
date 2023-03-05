@@ -27,8 +27,6 @@ NpInt = Union[numpy.int32, numpy.int64, numpy.uint32, numpy.uint64]
 
 @dataclass
 class GameState:
-    dynamic_mask: NDArray[bool] = None
-    sidebar_mask: NDArray[bool] = None
     StaticAssetName: NDArray[NpInt]
     StaticShapeIndex: NDArray[NpInt]
     AssetName: NDArray[NpInt]
@@ -41,12 +39,14 @@ class GameState:
     SidebarInfos: NDArray[NpFloat]
     SidebarAssetName: NDArray[NpInt]
     SidebarContinuous: NDArray[NpFloat]
+    dynamic_mask: NDArray[bool] = None
+    sidebar_mask: NDArray[bool] = None
 
     def __post_init__(self):
         if self.dynamic_mask is None:
-            self.dynamic_mask = numpy.ones_like(self.AssetName, dtype=bool)
+            self.dynamic_mask = numpy.zeros_like(self.AssetName, dtype=bool)
         if self.sidebar_mask is None:
-            self.sidebar_mask = numpy.ones_like(self.SidebarAssetName, dtype=bool)
+            self.sidebar_mask = numpy.zeros_like(self.SidebarAssetName, dtype=bool)
 
     def take(self, *slices: slice):
         return GameState(**{member: value[slices] for member, value in asdict(self).items()})
@@ -61,15 +61,19 @@ class GameAction:
 
 def pad_game_states(list_of_game_states: List[GameState]) -> GameState:
     result = {
-        'dynamic_mask': compute_key_padding_mask(
-            [len(game_state['AssetName']) for game_state in list_of_game_states]
-        ),
         **{
-            key: numpy.stack([game_state[key] for game_state in list_of_game_states], 0)
+            key: pad_sequence(
+                [getattr(game_state, key) for game_state in list_of_game_states],
+                padding_value=True,
+            )
+            for key in ['dynamic_mask', 'sidebar_mask']
+        },
+        **{
+            key: numpy.stack([getattr(game_state, key) for game_state in list_of_game_states], 0)
             for key in ['StaticAssetName', 'StaticShapeIndex', 'SidebarInfos']
         },
         **{
-            key: pad_sequence([game_state[key] for game_state in list_of_game_states])
+            key: pad_sequence([getattr(game_state, key) for game_state in list_of_game_states])
             for key in [
                 'AssetName',
                 'ShapeIndex',
@@ -83,18 +87,13 @@ def pad_game_states(list_of_game_states: List[GameState]) -> GameState:
             ]
         },
     }
-    result['sidebar_mask'] = compute_key_padding_mask(
-        [len(game_state['SidebarAssetName']) + 1 for game_state in list_of_game_states]
-    )
-    result['SidebarAssetName'] = prepend_zero(result['SidebarAssetName'])
-    result['SidebarContinuous'] = prepend_zero(result['SidebarContinuous'])
     return result
 
 
-def pad_game_actions(list_of_game_actions: List[GameAction]) -> GameAction:
-    button_actions = pad_sequence([button for (button, _, _) in list_of_game_actions])
-    mouse_x = numpy.array([mouse_x for (_, mouse_x, _) in list_of_game_actions])
-    mouse_y = numpy.array([mouse_y for (_, _, mouse_y) in list_of_game_actions])
+def concat_game_actions(list_of_game_actions: List[GameAction]) -> GameAction:
+    button_actions = pad_sequence([action.button for action in list_of_game_actions])
+    mouse_x = numpy.concatenate([action.mouse_x for action in list_of_game_actions], axis=0)
+    mouse_y = numpy.concatenate([action.mouse_y for action in list_of_game_actions], axis=0)
     return button_actions, mouse_x, mouse_y
 
 

@@ -5,7 +5,7 @@ import json
 import termcolor
 import numpy
 
-from bridge import GameState
+from cnc_ai.TIBERIANDAWN.bridge import GameState
 
 
 class CncStruct(ctypes.Structure):
@@ -327,6 +327,14 @@ def convert_to_np(game_state_buffer) -> GameState:
         Cloak=dynamic_objects_indices[:, 3 + MAX_OBJECT_PIPS + 1],
         Continuous=dynamic_objects_continuous[:, -5:],
         SidebarInfos=sidebar_members,
-        SidebarAssetName=sidebar_entries_indices[:, 0],
-        SidebarContinuous=sidebar_entries_continuous[:, 3:],
+        SidebarAssetName=numpy.concatenate(
+            [numpy.zeros(1, dtype=sidebar_entries_indices.dtype), sidebar_entries_indices[:, 0]]
+        ),
+        SidebarContinuous=numpy.concatenate(
+            [
+                numpy.zeros((1, 6), dtype=sidebar_entries_continuous.dtype),
+                sidebar_entries_continuous[:, 3:],
+            ],
+            axis=0,
+        ),
     )
