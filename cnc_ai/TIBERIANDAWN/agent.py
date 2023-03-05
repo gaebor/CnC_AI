@@ -20,7 +20,7 @@ class NNAgent(AbstractAgent):
 
     def init_optimizer(self, **params):
         self.nn.train()
-        self.optimizer = torch.optim.RMSprop(self.nn.parameters(), **params)
+        self.optimizer = torch.optim.SGD(self.nn.parameters(), **params)
 
     def __call__(self, **game_state_tensor):
         game_state_tensor = dictmap(game_state_tensor, self._to_device)
