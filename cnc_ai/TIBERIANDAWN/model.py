@@ -49,9 +49,6 @@ class TD_GamePlay(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
-        previous_button_matrix,
-        previous_mouse_x,
-        previous_mouse_y,
     ):
         latent_embedding = self.game_state(
             dynamic_mask,
@@ -68,9 +65,6 @@ class TD_GamePlay(nn.Module):
             SidebarInfos,
             SidebarAssetName,
             SidebarContinuous,
-            previous_button_matrix,
-            previous_mouse_x,
-            previous_mouse_y,
         )
         # time_progress, cell_states = self.lstm(latent_embedding, self.cell_states)
         # self.cell_states = cell_states[0].detach(), cell_states[1].detach()
@@ -144,9 +138,6 @@ class TD_GameEmbedding(nn.Module):
         SidebarInfos,
         SidebarAssetName,
         SidebarContinuous,
-        previous_button_matrix,
-        previous_mouse_x,
-        previous_mouse_y,
     ):
         # map_embedding = self.map_embedding(StaticAssetName, StaticShapeIndex)
 
@@ -316,8 +307,12 @@ class TD_Action(nn.Module):
             mouse_parameters, chosen_actions_mask
         )
         mouse_x, mouse_y = (
-            self.mouse_x.sample(chosen_mouse_parameters[:, :2]),
-            self.mouse_y.sample(chosen_mouse_parameters[:, 2:]),
+            self.mouse_x.sample(
+                [chosen_mouse_parameters[:, :, 0], chosen_mouse_parameters[:, :, 1]]
+            ),
+            self.mouse_y.sample(
+                [chosen_mouse_parameters[:, :, 2], chosen_mouse_parameters[:, :, 3]]
+            ),
         )
         return chosen_actions_mask, mouse_x * 1488, mouse_y * 1488
 
@@ -328,16 +323,24 @@ class TD_Action(nn.Module):
         button_surprise = self.button_sampler.surprise(
             action_logits.flatten(-2), chosen_actions_mask.flatten(-2)
         )
-        mouse_x_surprise = self.mouse_x.surprise(chosen_mouse_parameters[:, :2], mouse_x / 1488)
-        mouse_y_surprise = self.mouse_y.surprise(chosen_mouse_parameters[:, 2:], mouse_y / 1488)
+        mouse_x_surprise = self.mouse_x.surprise(
+            [chosen_mouse_parameters[:, :, 0], chosen_mouse_parameters[:, :, 1]], mouse_x / 1488
+        )
+        mouse_y_surprise = self.mouse_y.surprise(
+            [chosen_mouse_parameters[:, :, 2], chosen_mouse_parameters[:, :, 3]], mouse_y / 1488
+        )
         return button_surprise + mouse_x_surprise + mouse_y_surprise
 
     def get_probabilities(self, mouse_parameters, action_logits, x):
         button_probs = torch.softmax(action_logits.flatten(-2), -1).unflatten(
             -1, (-1, self.n_actions)
         )
-        mouse_x_probs = torch.exp(-self.mouse_x.surprise(mouse_parameters[:, :2], x))
-        mouse_y_probs = torch.exp(-self.mouse_y.surprise(mouse_parameters[:, 2:], x))
+        mouse_x_probs = torch.exp(
+            -self.mouse_x.surprise([mouse_parameters[:, :, 0], mouse_parameters[:, :, 1]], x)
+        )
+        mouse_y_probs = torch.exp(
+            -self.mouse_y.surprise([mouse_parameters[:, :, 2], mouse_parameters[:, :, 3]], x)
+        )
         return button_probs, mouse_x_probs, mouse_y_probs
 
 
