@@ -1,5 +1,3 @@
-from typing import List
-
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import numpy
@@ -22,12 +20,12 @@ def plot_images(*sets_of_images):
     plt.pause(1e-6)
 
 
-def number_of_digits(n):
-    return len(str(n))
+def number_of_digits(number: int) -> int:
+    return len(str(number))
 
 
-def retrieve(t):
-    return t.detach().to('cpu').numpy()
+def retrieve(tensor):
+    return tensor.detach().to('cpu').numpy()
 
 
 def get_log_formatter(indices):
@@ -37,7 +35,7 @@ def get_log_formatter(indices):
     )
 
 
-def pad_sequence(tensors: List[numpy.ndarray], padding_value: float = 0.0) -> numpy.ndarray:
+def pad_sequence(tensors: list[numpy.ndarray], padding_value: float = 0.0) -> numpy.ndarray:
     padded_tensors = pad_sequence_torch(
         [torch.tensor(t) for t in tensors], batch_first=True, padding_value=padding_value
     ).numpy()
@@ -47,6 +45,6 @@ def pad_sequence(tensors: List[numpy.ndarray], padding_value: float = 0.0) -> nu
 def numpy_to_torch(dtype: numpy.dtype, float_type: torch.dtype) -> torch.dtype:
     if dtype == numpy.dtype('bool'):
         return torch.bool
-    if 'float' in str(dtype):
+    if str(dtype).startswith('float'):
         return float_type
     return torch.long
