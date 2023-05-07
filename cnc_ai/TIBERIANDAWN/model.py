@@ -363,7 +363,7 @@ class MouseParameters(nn.Module):
         super().__init__()
         self.ff = nn.Sequential(
             *[HiddenLayer(embedding_dim, dropout=dropout) for _ in range(n_layers)],
-            nn.Linear(embedding_dim, 4)
+            nn.Linear(embedding_dim, 4),
         )
 
     def forward(self, latent_embedding):
