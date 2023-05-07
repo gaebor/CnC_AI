@@ -169,8 +169,8 @@ def button_loss(target_button, predicted_button_probabilities):
 
 
 class Optimizer(torch.optim.RMSprop):
-    def __init__(self, params, lr, weight_decay):
-        super().__init__(params, lr=lr, alpha=0.5, weight_decay=weight_decay)
+    def __init__(self, params, learning_rate, weight_decay):
+        super().__init__(params, lr=learning_rate, alpha=0.5, weight_decay=weight_decay)
 
 
 class SoftmaxReadout(nn.Module):
