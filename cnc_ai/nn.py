@@ -11,16 +11,8 @@ class ReshapeLayer(nn.Module):
         super().__init__()
         self.shape = shape
 
-    def forward(self, x):
-        return torch.reshape(x, self.shape)
-
-
-class DownScaleLayer(nn.Sequential):
-    def __init__(self, in_channels, out_channels, downscale):
-        super().__init__(
-            nn.MaxPool2d(downscale, downscale),
-            nn.Conv2d(in_channels, out_channels, kernel_size=1),
-        )
+    def forward(self, layer):
+        return torch.reshape(layer, self.shape)
 
 
 class DownScaleLayer(nn.Conv2d):
@@ -141,41 +133,23 @@ class DoubleEmbedding(nn.Module):
         return embedding
 
 
-class Predictor(nn.Module):
-    def __init__(self, activation=nn.Sigmoid(), n_embedding=1024):
-        super().__init__()
-        self.embedding = ImageEmbedding(n_embedding=n_embedding)
-        self.generator = Generator(activation, n_embedding=n_embedding)
-
-    def forward(self, x):
-        return self.generator(self.embedding(x))
-
-
 class GamePlay(nn.Module):
-    def __init__(self, latent_size=1024, n_button=3, num_layers=2, num_ff=1, dropout=0.1):
+    def __init__(self, latent_size=1024, n_button=3, dropout=0.1):
         super().__init__()
         self.button_embedding = nn.Embedding(n_button, n_button)
         hidden_size = latent_size + 2 + n_button
-        self.encoder_layer = nn.LSTM(
-            hidden_size, hidden_size, dropout=dropout, num_layers=num_layers
-        )
+        self.encoder_layer = nn.LSTM(hidden_size, hidden_size, dropout=dropout, num_layers=1)
 
-        readout_layers = []
-        for _ in range(num_ff):
-            readout_layers += [
-                nn.Linear(hidden_size, hidden_size),
-                nn.LeakyReLU(),
-                nn.Dropout(p=dropout),
-            ]
+        readout_layers = [HiddenLayer(hidden_size, dropout=dropout) for _ in range(1)]
         readout_layers.append(nn.Linear(hidden_size, 2 + n_button))
         self.readout_layer = nn.Sequential(*readout_layers)
 
-    def forward(self, latent_embedding, cursor, button, hidden_state=None, limit=360.0):
+    def forward(self, latent_embedding, cursor, button, hidden_state=None):
         input_tensor = torch.cat([latent_embedding, cursor, self.button_embedding(button)], dim=1)
         hidden_tensor, hidden_state = self.encoder_layer(input_tensor[:, None, :], hidden_state)
         output_tensor = self.readout_layer(hidden_tensor[:, 0, :])
         return (
-            cursor_speed_limit(output_tensor[:, :2], limit=limit),
+            cursor_speed_limit(output_tensor[:, :2], limit=360.0),
             output_tensor[:, 2:] @ self.button_embedding.weight.t(),
             (hidden_state[0].detach(), hidden_state[1].detach()),
         )
@@ -216,7 +190,8 @@ class DistributionSampler:
     def __init__(self, distribution: type):
         if not issubclass(distribution, torch.distributions.distribution.Distribution):
             raise ValueError(
-                f'{distribution} should be a subclass of {torch.distributions.distribution.Distribution}!'
+                f'{distribution} should be a subclass of'
+                + f' {torch.distributions.distribution.Distribution}!'
             )
         self.distribution = distribution
 
@@ -226,8 +201,8 @@ class DistributionSampler:
     def sample(self, params):
         return self.apply_params(params).sample()
 
-    def surprise(self, params, x):
-        return -self.apply_params(params).log_prob(x)
+    def surprise(self, params, action):
+        return -self.apply_params(params).log_prob(action)
 
 
 class MultiChoiceSamplerWithLogits(DistributionSampler):
