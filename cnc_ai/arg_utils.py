@@ -85,7 +85,8 @@ def get_args():
     )
     parser.add_argument(
         '-lr',
-        '--learning-rate' '--learning_rate',
+        '--learning-rate',
+        '--learning_rate',
         dest='learning_rate',
         default=1e-6,
         type=float,
