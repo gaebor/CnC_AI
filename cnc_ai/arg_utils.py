@@ -3,7 +3,13 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-p', '--port', default=8888, type=int, help=' ')
+    parser.add_argument(
+        '-p',
+        '--port',
+        default=8888,
+        type=int,
+        help='websocket port to communicate with the dll wrappers',
+    )
     parser.add_argument(
         '-n', '--n', default=2, type=int, help='number of games to play simultaneously'
     )
@@ -25,7 +31,10 @@ def get_args():
         help='limits the maximum depth in time to backpropagate to',
     )
     parser.add_argument(
-        '--exe', default='TIBERIANDAWN_wrapper.exe', metavar='absolute path', help=' '
+        '--exe',
+        default='TIBERIANDAWN_wrapper.exe',
+        metavar='absolute path',
+        help='path to the compiled dll wrapper',
     )
     parser.add_argument(
         '--dir',
@@ -81,7 +90,7 @@ def get_args():
         dest='agents',
         default='AIvAI',
         choices=['AIvAI', 'AIvNN', 'NNvAI', 'NNvNN'],
-        help=" ",
+        help="selects who plays against who",
     )
     parser.add_argument(
         '-lr',
@@ -90,7 +99,7 @@ def get_args():
         dest='learning_rate',
         default=1e-6,
         type=float,
-        help=" ",
+        help="learning rate",
     )
     parser.add_argument(
         '-H', '--half', default=False, action='store_true', help="Use float16 during inference"
