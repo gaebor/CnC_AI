@@ -14,6 +14,15 @@ jobs:
       run: |
         cd \
         python -m cnc_ai.TIBERIANDAWN.run -h
+  formatting:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install
+      run: python -m pip install black
+    - name: Test format
+      run: |
+        black --check --line-length=99 --skip-string-normalization --target-version=py310 cnc_ai
   build_wrapper:
     runs-on: windows-2019
     steps:
