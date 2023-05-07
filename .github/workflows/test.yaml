@@ -19,10 +19,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install
-      run: python -m pip install black
+      run: python -m pip install black pylint
     - name: Test format
       run: |
         black --check --line-length=99 --skip-string-normalization --target-version=py310 cnc_ai
+        pylint --recursive y --enable-all-extensions --fail-under 10 -d C0114,C0115,C0116 "--generated-members=numpy.* ,torch.*" cnc_ai
   build_wrapper:
     runs-on: windows-2019
     steps:
